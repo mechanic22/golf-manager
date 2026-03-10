@@ -1,5 +1,6 @@
 using GolfManager.Core.Common;
 using GolfManager.Core.Entities;
+using GolfManager.Data.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace GolfManager.Data;
@@ -9,9 +10,14 @@ namespace GolfManager.Data;
 /// </summary>
 public class GolfManagerDbContext : DbContext
 {
-    public GolfManagerDbContext(DbContextOptions<GolfManagerDbContext> options)
+    private readonly ITenantService? _tenantService;
+
+    public GolfManagerDbContext(
+        DbContextOptions<GolfManagerDbContext> options,
+        ITenantService? tenantService = null)
         : base(options)
     {
+        _tenantService = tenantService;
     }
 
     // User & Authentication
@@ -57,16 +63,30 @@ public class GolfManagerDbContext : DbContext
 
     /// <summary>
     /// Configure global query filters for tenant isolation
+    /// Automatically filters all ITenantEntity queries by the current LeagueId
     /// </summary>
     private void ConfigureGlobalFilters(ModelBuilder modelBuilder)
     {
-        // Note: In a real implementation, you would inject the current tenant ID
-        // and apply filters dynamically. For now, we're just setting up the structure.
-        
-        // Example of how tenant filtering would work:
-        // modelBuilder.Entity<Season>().HasQueryFilter(e => e.LeagueId == _currentTenantId);
-        
-        // For now, we'll configure this in the entity configurations
+        // Get the current league ID from the tenant service
+        var currentLeagueId = _tenantService?.GetCurrentLeagueId();
+
+        // Apply query filter to all entities that implement ITenantEntity
+        // This ensures that queries automatically filter by the current league
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            if (typeof(ITenantEntity).IsAssignableFrom(entityType.ClrType))
+            {
+                // Create a filter expression: entity => entity.LeagueId == currentLeagueId
+                var parameter = System.Linq.Expressions.Expression.Parameter(entityType.ClrType, "e");
+                var property = System.Linq.Expressions.Expression.Property(parameter, nameof(ITenantEntity.LeagueId));
+                var leagueIdValue = System.Linq.Expressions.Expression.Constant(currentLeagueId);
+                var comparison = System.Linq.Expressions.Expression.Equal(property, leagueIdValue);
+                var lambda = System.Linq.Expressions.Expression.Lambda(comparison, parameter);
+
+                // Apply the filter
+                modelBuilder.Entity(entityType.ClrType).HasQueryFilter(lambda);
+            }
+        }
     }
 
     /// <summary>
