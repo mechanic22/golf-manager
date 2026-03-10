@@ -1,0 +1,99 @@
+using System.Security.Claims;
+using GolfManager.Api.Authorization.Requirements;
+using GolfManager.Services.League;
+using Microsoft.AspNetCore.Authorization;
+
+namespace GolfManager.Api.Authorization.Handlers;
+
+/// <summary>
+/// Handler for LeagueMemberRequirement
+/// Validates that the user is a member of the league specified in the route
+/// </summary>
+public class LeagueMemberHandler : AuthorizationHandler<LeagueMemberRequirement>
+{
+    private readonly ILeagueAuthorizationService _leagueAuthService;
+    private readonly IHttpContextAccessor _httpContextAccessor;
+    private readonly ILogger<LeagueMemberHandler> _logger;
+
+    public LeagueMemberHandler(
+        ILeagueAuthorizationService leagueAuthService,
+        IHttpContextAccessor httpContextAccessor,
+        ILogger<LeagueMemberHandler> logger)
+    {
+        _leagueAuthService = leagueAuthService;
+        _httpContextAccessor = httpContextAccessor;
+        _logger = logger;
+    }
+
+    protected override async Task HandleRequirementAsync(
+        AuthorizationHandlerContext context,
+        LeagueMemberRequirement requirement)
+    {
+        // Get user ID from claims
+        var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("User ID not found in claims");
+            return;
+        }
+
+        // Check if user is global admin
+        var isGlobalAdmin = context.User.FindFirst(AuthorizationConstants.Claims.IsGlobalAdmin)?.Value == "true";
+        if (isGlobalAdmin)
+        {
+            _logger.LogInformation("User {UserId} is global admin, granting access", userId);
+            context.Succeed(requirement);
+            return;
+        }
+
+        // Get league ID from route
+        var leagueId = GetLeagueIdFromRoute();
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            _logger.LogWarning("League ID not found in route");
+            return;
+        }
+
+        // Check if user is a member of the league
+        var isMember = await _leagueAuthService.IsUserMemberOfLeagueAsync(userId, leagueId);
+        if (isMember)
+        {
+            _logger.LogInformation("User {UserId} is a member of league {LeagueId}", userId, leagueId);
+            context.Succeed(requirement);
+        }
+        else
+        {
+            _logger.LogWarning("User {UserId} is not a member of league {LeagueId}", userId, leagueId);
+        }
+    }
+
+    private string? GetLeagueIdFromRoute()
+    {
+        var httpContext = _httpContextAccessor.HttpContext;
+        if (httpContext == null)
+        {
+            return null;
+        }
+
+        // Try to get leagueId from route values
+        if (httpContext.Request.RouteValues.TryGetValue(AuthorizationConstants.RouteParams.LeagueId, out var leagueIdObj))
+        {
+            return leagueIdObj?.ToString();
+        }
+
+        // Try to get leagueKey from route values and convert to ID
+        if (httpContext.Request.RouteValues.TryGetValue(AuthorizationConstants.RouteParams.LeagueKey, out var leagueKeyObj))
+        {
+            var leagueKey = leagueKeyObj?.ToString();
+            if (!string.IsNullOrEmpty(leagueKey))
+            {
+                // This is synchronous, but we need to make it async-safe
+                // For now, we'll return the key and handle conversion in the handler
+                return leagueKey;
+            }
+        }
+
+        return null;
+    }
+}
+

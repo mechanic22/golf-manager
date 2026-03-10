@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\GolfManager.Core\GolfManager.Core.csproj" />
+  </ItemGroup>
+
 </Project>

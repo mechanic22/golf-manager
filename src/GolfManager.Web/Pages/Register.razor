@@ -1,0 +1,101 @@
+@page "/register"
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+
+<PageTitle>Register - GolfManager</PageTitle>
+
+<div class="auth-page">
+    <div class="auth-container">
+        <div class="auth-header">
+            <h1>⛳ Create Your Account</h1>
+            <p>Join GolfManager and start managing your golf league today</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">
+                @errorMessage
+            </div>
+        }
+
+        <EditForm Model="@registerRequest" OnValidSubmit="HandleRegister" class="auth-form">
+            <DataAnnotationsValidator />
+            
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <InputText id="email" @bind-Value="registerRequest.Email" class="form-control" placeholder="you@example.com" />
+                <ValidationMessage For="@(() => registerRequest.Email)" />
+            </div>
+
+            <div class="form-group">
+                <label for="firstName">First Name</label>
+                <InputText id="firstName" @bind-Value="registerRequest.FirstName" class="form-control" placeholder="John" />
+                <ValidationMessage For="@(() => registerRequest.FirstName)" />
+            </div>
+
+            <div class="form-group">
+                <label for="lastName">Last Name</label>
+                <InputText id="lastName" @bind-Value="registerRequest.LastName" class="form-control" placeholder="Doe" />
+                <ValidationMessage For="@(() => registerRequest.LastName)" />
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <InputText id="password" type="password" @bind-Value="registerRequest.Password" class="form-control" placeholder="••••••••" />
+                <ValidationMessage For="@(() => registerRequest.Password)" />
+                <small class="form-text">Minimum 8 characters</small>
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-block" disabled="@isLoading">
+                @if (isLoading)
+                {
+                    <span>Creating Account...</span>
+                }
+                else
+                {
+                    <span>Create Account</span>
+                }
+            </button>
+        </EditForm>
+
+        <div class="auth-footer">
+            <p>Already have an account? <a href="/login">Sign in</a></p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private RegisterRequest registerRequest = new();
+    private string? errorMessage;
+    private bool isLoading = false;
+
+    private async Task HandleRegister()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            var result = await AuthService.RegisterAsync(registerRequest);
+            
+            if (result != null)
+            {
+                // Registration successful, navigate to dashboard
+                Navigation.NavigateTo("/dashboard");
+            }
+            else
+            {
+                errorMessage = "Registration failed. Please check your information and try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}
+

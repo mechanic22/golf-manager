@@ -25,23 +25,15 @@ public class AuthController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<AuthResponse>> Register([FromBody] RegisterRequest request)
     {
-        try
-        {
-            var result = await _authService.RegisterAsync(request);
+        var result = await _authService.RegisterAsync(request);
 
-            if (result == null)
-            {
-                return BadRequest(new { message = "User with this email already exists" });
-            }
-
-            _logger.LogInformation("User registered successfully: {Email}", request.Email);
-            return Ok(result);
-        }
-        catch (Exception ex)
+        if (result == null)
         {
-            _logger.LogError(ex, "Error during user registration");
-            return StatusCode(500, new { message = "An error occurred during registration" });
+            return BadRequest(new { message = "User with this email already exists" });
         }
+
+        _logger.LogInformation("User registered successfully: {Email}", request.Email);
+        return Ok(result);
     }
 
     /// <summary>
@@ -51,23 +43,15 @@ public class AuthController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request)
     {
-        try
-        {
-            var result = await _authService.LoginAsync(request);
+        var result = await _authService.LoginAsync(request);
 
-            if (result == null)
-            {
-                return Unauthorized(new { message = "Invalid email or password" });
-            }
-
-            _logger.LogInformation("User logged in successfully: {Email}", request.Email);
-            return Ok(result);
-        }
-        catch (Exception ex)
+        if (result == null)
         {
-            _logger.LogError(ex, "Error during user login");
-            return StatusCode(500, new { message = "An error occurred during login" });
+            return Unauthorized(new { message = "Invalid email or password" });
         }
+
+        _logger.LogInformation("User logged in successfully: {Email}", request.Email);
+        return Ok(result);
     }
 
     /// <summary>
@@ -77,23 +61,15 @@ public class AuthController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<AuthResponse>> RefreshToken([FromBody] RefreshTokenRequest request)
     {
-        try
-        {
-            var result = await _authService.RefreshTokenAsync(request.RefreshToken);
+        var result = await _authService.RefreshTokenAsync(request.RefreshToken);
 
-            if (result == null)
-            {
-                return Unauthorized(new { message = "Invalid or expired refresh token" });
-            }
-
-            _logger.LogInformation("Token refreshed successfully for user: {UserId}", result.UserId);
-            return Ok(result);
-        }
-        catch (Exception ex)
+        if (result == null)
         {
-            _logger.LogError(ex, "Error during token refresh");
-            return StatusCode(500, new { message = "An error occurred during token refresh" });
+            return Unauthorized(new { message = "Invalid or expired refresh token" });
         }
+
+        _logger.LogInformation("Token refreshed successfully for user: {UserId}", result.UserId);
+        return Ok(result);
     }
 
     /// <summary>
@@ -103,23 +79,15 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<ActionResult> Logout([FromBody] RefreshTokenRequest request)
     {
-        try
-        {
-            var result = await _authService.RevokeRefreshTokenAsync(request.RefreshToken);
+        var result = await _authService.RevokeRefreshTokenAsync(request.RefreshToken);
 
-            if (!result)
-            {
-                return BadRequest(new { message = "Invalid refresh token" });
-            }
-
-            _logger.LogInformation("User logged out successfully");
-            return Ok(new { message = "Logged out successfully" });
-        }
-        catch (Exception ex)
+        if (!result)
         {
-            _logger.LogError(ex, "Error during logout");
-            return StatusCode(500, new { message = "An error occurred during logout" });
+            return BadRequest(new { message = "Invalid refresh token" });
         }
+
+        _logger.LogInformation("User logged out successfully");
+        return Ok(new { message = "Logged out successfully" });
     }
 
     /// <summary>
@@ -129,30 +97,22 @@ public class AuthController : ControllerBase
     [Authorize]
     public async Task<ActionResult> RevokeAllTokens()
     {
-        try
+        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        if (string.IsNullOrEmpty(userId))
         {
-            var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
-
-            if (string.IsNullOrEmpty(userId))
-            {
-                return Unauthorized();
-            }
-
-            var result = await _authService.RevokeAllUserTokensAsync(userId);
-
-            if (!result)
-            {
-                return BadRequest(new { message = "No active tokens found" });
-            }
-
-            _logger.LogInformation("All tokens revoked for user: {UserId}", userId);
-            return Ok(new { message = "All tokens revoked successfully" });
+            return Unauthorized();
         }
-        catch (Exception ex)
+
+        var result = await _authService.RevokeAllUserTokensAsync(userId);
+
+        if (!result)
         {
-            _logger.LogError(ex, "Error during token revocation");
-            return StatusCode(500, new { message = "An error occurred during token revocation" });
+            return BadRequest(new { message = "No active tokens found" });
         }
+
+        _logger.LogInformation("All tokens revoked for user: {UserId}", userId);
+        return Ok(new { message = "All tokens revoked successfully" });
     }
 }
 

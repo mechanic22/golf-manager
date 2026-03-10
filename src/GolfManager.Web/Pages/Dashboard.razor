@@ -1,0 +1,247 @@
+@page "/dashboard"
+@inject IAuthService AuthService
+@inject ILeagueService LeagueService
+@inject NavigationManager Navigation
+
+<PageTitle>Dashboard - GolfManager</PageTitle>
+
+<div class="dashboard-page">
+    <div class="dashboard-header">
+        <div>
+            <h1>Welcome, @AuthService.UserEmail</h1>
+            <p>Manage your golf leagues and track your progress</p>
+        </div>
+        <div class="dashboard-actions">
+            <button class="btn btn-primary" @onclick="ShowCreateLeagueModal">
+                + Create League
+            </button>
+            <button class="btn btn-secondary" @onclick="HandleLogout">
+                Logout
+            </button>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="loading">
+            <p>Loading your leagues...</p>
+        </div>
+    }
+    else if (leagues == null || !leagues.Any())
+    {
+        <div class="empty-state">
+            <div class="empty-icon">🏌️</div>
+            <h2>No Leagues Yet</h2>
+            <p>Create your first league to get started!</p>
+            <button class="btn btn-primary btn-lg" @onclick="ShowCreateLeagueModal">
+                Create Your First League
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="leagues-grid">
+            @foreach (var league in leagues)
+            {
+                <div class="league-card">
+                    <div class="league-header">
+                        @if (!string.IsNullOrEmpty(league.LogoUrl))
+                        {
+                            <img src="@league.LogoUrl" alt="@league.Name" class="league-logo" />
+                        }
+                        else
+                        {
+                            <div class="league-logo-placeholder">⛳</div>
+                        }
+                        <div class="league-info">
+                            <h3>@league.Name</h3>
+                            <p class="league-key">@league.Key</p>
+                        </div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(league.Description))
+                    {
+                        <p class="league-description">@league.Description</p>
+                    }
+                    <div class="league-stats">
+                        <div class="stat">
+                            <span class="stat-value">@league.MemberCount</span>
+                            <span class="stat-label">Members</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-value">@league.PlayerCount</span>
+                            <span class="stat-label">Players</span>
+                        </div>
+                        <div class="stat">
+                            <span class="stat-value">@league.SeasonCount</span>
+                            <span class="stat-label">Seasons</span>
+                        </div>
+                    </div>
+                    <div class="league-actions">
+                        <button class="btn btn-primary btn-sm" @onclick="() => NavigateToLeague(league.Key)">
+                            View League
+                        </button>
+                        @if (league.IsCurrentUserAdmin)
+                        {
+                            <span class="badge badge-admin">Admin</span>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @if (showCreateModal)
+    {
+        <div class="modal-overlay" @onclick="HideCreateLeagueModal">
+            <div class="modal-content" @onclick:stopPropagation="true">
+                <div class="modal-header">
+                    <h2>Create New League</h2>
+                    <button class="modal-close" @onclick="HideCreateLeagueModal">&times;</button>
+                </div>
+                
+                @if (!string.IsNullOrEmpty(createErrorMessage))
+                {
+                    <div class="alert alert-danger">
+                        @createErrorMessage
+                    </div>
+                }
+
+                <EditForm Model="@createLeagueRequest" OnValidSubmit="HandleCreateLeague" class="modal-form">
+                    <DataAnnotationsValidator />
+                    
+                    <div class="form-group">
+                        <label for="leagueName">League Name</label>
+                        <InputText id="leagueName" @bind-Value="createLeagueRequest.Name" class="form-control" placeholder="My Golf League" />
+                        <ValidationMessage For="@(() => createLeagueRequest.Name)" />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="leagueKey">League Key (URL)</label>
+                        <InputText id="leagueKey" @bind-Value="createLeagueRequest.Key" class="form-control" placeholder="my-golf-league" />
+                        <ValidationMessage For="@(() => createLeagueRequest.Key)" />
+                        <small class="form-text">Lowercase letters, numbers, and hyphens only</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="leagueDescription">Description (Optional)</label>
+                        <InputTextArea id="leagueDescription" @bind-Value="createLeagueRequest.Description" class="form-control" rows="3" placeholder="Tell us about your league..." />
+                    </div>
+
+                    <div class="form-group">
+                        <label for="leagueLogoUrl">Logo URL (Optional)</label>
+                        <InputText id="leagueLogoUrl" @bind-Value="createLeagueRequest.LogoUrl" class="form-control" placeholder="https://example.com/logo.png" />
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" @onclick="HideCreateLeagueModal">Cancel</button>
+                        <button type="submit" class="btn btn-primary" disabled="@isCreating">
+                            @if (isCreating)
+                            {
+                                <span>Creating...</span>
+                            }
+                            else
+                            {
+                                <span>Create League</span>
+                            }
+                        </button>
+                    </div>
+                </EditForm>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private List<LeagueResponse>? leagues;
+    private bool isLoading = true;
+    private bool showCreateModal = false;
+    private bool isCreating = false;
+    private CreateLeagueRequest createLeagueRequest = new();
+    private string? createErrorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Check if user is authenticated
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadLeagues();
+    }
+
+    private async Task LoadLeagues()
+    {
+        isLoading = true;
+        try
+        {
+            var response = await LeagueService.GetUserLeaguesAsync();
+            if (response?.Success == true && response.Data != null)
+            {
+                leagues = response.Data;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading leagues: {ex.Message}");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ShowCreateLeagueModal()
+    {
+        createLeagueRequest = new CreateLeagueRequest();
+        createErrorMessage = null;
+        showCreateModal = true;
+    }
+
+    private void HideCreateLeagueModal()
+    {
+        showCreateModal = false;
+    }
+
+    private async Task HandleCreateLeague()
+    {
+        isCreating = true;
+        createErrorMessage = null;
+
+        try
+        {
+            var response = await LeagueService.CreateLeagueAsync(createLeagueRequest);
+
+            if (response?.Success == true && response.Data != null)
+            {
+                // League created successfully
+                showCreateModal = false;
+                await LoadLeagues(); // Reload the leagues list
+            }
+            else
+            {
+                createErrorMessage = response?.Message ?? "Failed to create league. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            createErrorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isCreating = false;
+        }
+    }
+
+    private void NavigateToLeague(string key)
+    {
+        Navigation.NavigateTo($"/league/{key}");
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/");
+    }
+}
