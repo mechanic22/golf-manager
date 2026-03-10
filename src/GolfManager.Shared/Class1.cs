@@ -1,0 +1,6 @@
+﻿namespace GolfManager.Shared;
+
+public class Class1
+{
+
+}
