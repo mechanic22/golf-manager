@@ -1,8 +1,20 @@
+using GolfManager.Data;
+using GolfManager.Data.Services;
+using Microsoft.EntityFrameworkCore;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+// Add DbContext
+builder.Services.AddDbContext<GolfManagerDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+
+// Add tenant service
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ITenantService, TenantService>();
 
 var app = builder.Build();
 
