@@ -4,13 +4,16 @@ using GolfManager.Api.Authorization.Handlers;
 using GolfManager.Api.Authorization.Requirements;
 using GolfManager.Api.Middleware;
 using GolfManager.Data;
+using GolfManager.Data.Seed;
 using GolfManager.Data.Services;
 using GolfManager.Services.Auth;
 using GolfManager.Services.Event;
 using GolfManager.Services.League;
+using GolfManager.Services.OneTimeEvent;
 using GolfManager.Services.Player;
 using GolfManager.Services.Round;
 using GolfManager.Services.Season;
+using GolfManager.Services.Simulation;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -40,7 +43,7 @@ builder.Services.AddCors(options =>
 if (!builder.Environment.IsEnvironment("Testing"))
 {
     builder.Services.AddDbContext<GolfManagerDbContext>(options =>
-        options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+        options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
 }
 
 // Add tenant service
@@ -67,12 +70,18 @@ builder.Services.AddScoped<IPlayerService, PlayerService>();
 
 // Add season service
 builder.Services.AddScoped<ISeasonService, SeasonService>();
+builder.Services.AddScoped<ISeasonSettingsService, SeasonSettingsService>();
+builder.Services.AddScoped<ISeasonSimulationService, SeasonSimulationService>();
 
 // Add event service
 builder.Services.AddScoped<IEventService, EventService>();
 
 // Add round service
 builder.Services.AddScoped<IRoundService, RoundService>();
+
+// Add one-time event services
+builder.Services.AddScoped<IOneTimeEventService, OneTimeEventService>();
+builder.Services.AddScoped<ITeamRegistrationService, TeamRegistrationService>();
 
 // Add authorization handlers
 builder.Services.AddScoped<IAuthorizationHandler, LeagueMemberHandler>();
@@ -100,6 +109,36 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = jwtAudience,
         ValidateLifetime = true,
         ClockSkew = TimeSpan.Zero
+    };
+
+    options.Events = new JwtBearerEvents
+    {
+        OnAuthenticationFailed = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            logger.LogError(context.Exception, "JWT Authentication failed: {Message}", context.Exception.Message);
+            return Task.CompletedTask;
+        },
+        OnTokenValidated = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            logger.LogInformation("JWT Token validated successfully for user: {UserId}",
+                context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value);
+            return Task.CompletedTask;
+        },
+        OnMessageReceived = context =>
+        {
+            var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+            var hasAuth = context.Request.Headers.ContainsKey("Authorization");
+            logger.LogInformation("JWT OnMessageReceived - Has Authorization header: {HasAuth}", hasAuth);
+            if (hasAuth)
+            {
+                var authHeader = context.Request.Headers["Authorization"].ToString();
+                logger.LogInformation("Authorization header: {AuthHeader}",
+                    authHeader.Length > 30 ? authHeader.Substring(0, 30) + "..." : authHeader);
+            }
+            return Task.CompletedTask;
+        }
     };
 });
 
@@ -149,6 +188,21 @@ builder.Services.AddAuthorization(options =>
 });
 
 var app = builder.Build();
+
+// Seed the database in development
+if (app.Environment.IsDevelopment())
+{
+    using var scope = app.Services.CreateScope();
+    var context = scope.ServiceProvider.GetRequiredService<GolfManagerDbContext>();
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<DbSeeder>>();
+
+    // Ensure database is created
+    await context.Database.EnsureCreatedAsync();
+
+    // Seed demo data
+    var seeder = new DbSeeder(context, logger);
+    await seeder.SeedAsync();
+}
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())

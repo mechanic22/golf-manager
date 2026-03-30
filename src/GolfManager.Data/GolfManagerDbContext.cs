@@ -35,9 +35,15 @@ public class GolfManagerDbContext : DbContext
 
     // Season Management
     public DbSet<Season> Seasons { get; set; } = null!;
+    public DbSet<SeasonSettings> SeasonSettings { get; set; } = null!;
     public DbSet<SeasonGolfer> SeasonGolfers { get; set; } = null!;
     public DbSet<SeasonTeam> SeasonTeams { get; set; } = null!;
     public DbSet<SeasonEvent> SeasonEvents { get; set; } = null!;
+
+    // One-Time Events
+    public DbSet<OneTimeEvent> OneTimeEvents { get; set; } = null!;
+    public DbSet<OneTimeEventTeam> OneTimeEventTeams { get; set; } = null!;
+    public DbSet<OneTimeEventPlayer> OneTimeEventPlayers { get; set; } = null!;
 
     // Course Data (Global)
     public DbSet<Course> Courses { get; set; } = null!;

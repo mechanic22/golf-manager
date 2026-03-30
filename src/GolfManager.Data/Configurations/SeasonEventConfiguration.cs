@@ -1,4 +1,5 @@
 using GolfManager.Core.Entities;
+using GolfManager.Core.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -54,6 +55,18 @@ public class SeasonEventConfiguration : IEntityTypeConfiguration<SeasonEvent>
         builder.Property(x => x.IsLocked)
             .IsRequired()
             .HasDefaultValue(false);
+
+        builder.Property(x => x.TeamSize)
+            .IsRequired()
+            .HasDefaultValue(1);
+
+        builder.Property(x => x.UseHandicaps)
+            .IsRequired()
+            .HasDefaultValue(true);
+
+        builder.Property(x => x.Status)
+            .IsRequired()
+            .HasDefaultValue(EventStatus.Draft);
 
         builder.Property(x => x.IsActive)
             .IsRequired()

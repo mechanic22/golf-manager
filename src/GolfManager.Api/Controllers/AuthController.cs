@@ -61,14 +61,26 @@ public class AuthController : ControllerBase
     [AllowAnonymous]
     public async Task<ActionResult<AuthResponse>> RefreshToken([FromBody] RefreshTokenRequest request)
     {
+        _logger.LogInformation("🔄 Refresh token request received");
+
+        if (string.IsNullOrEmpty(request.RefreshToken))
+        {
+            _logger.LogWarning("❌ Refresh token is null or empty");
+            return BadRequest(new { message = "Refresh token is required" });
+        }
+
+        _logger.LogInformation("Refresh token (first 10 chars): {TokenPrefix}...",
+            request.RefreshToken.Substring(0, Math.Min(10, request.RefreshToken.Length)));
+
         var result = await _authService.RefreshTokenAsync(request.RefreshToken);
 
         if (result == null)
         {
+            _logger.LogWarning("❌ Token refresh failed - Invalid or expired refresh token");
             return Unauthorized(new { message = "Invalid or expired refresh token" });
         }
 
-        _logger.LogInformation("Token refreshed successfully for user: {UserId}", result.UserId);
+        _logger.LogInformation("✅ Token refreshed successfully for user: {UserId}", result.UserId);
         return Ok(result);
     }
 

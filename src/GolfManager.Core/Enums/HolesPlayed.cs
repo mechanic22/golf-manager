@@ -18,6 +18,16 @@ public enum HolesPlayed
     /// <summary>
     /// 18 holes
     /// </summary>
-    Eighteen = 18
+    Eighteen = 18,
+
+    /// <summary>
+    /// Front 9 holes only
+    /// </summary>
+    Front = 91,
+
+    /// <summary>
+    /// Back 9 holes only
+    /// </summary>
+    Back = 92
 }
 

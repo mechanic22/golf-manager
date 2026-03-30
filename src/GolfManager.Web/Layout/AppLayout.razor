@@ -1,0 +1,339 @@
+@using GolfManager.Web.Components.Icons
+@inherits LayoutComponentBase
+@inject IAuthService AuthService
+@inject IAuthorizationService AuthorizationService
+@inject NavigationManager Navigation
+@implements IDisposable
+
+<div class="min-h-screen bg-gray-50">
+    <!-- App Navigation Bar (Always Solid) -->
+    <nav class="w-full fixed top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+        <div class="container max-w-7xl mx-auto px-4 md:px-8 flex items-center justify-between h-16">
+            <!-- Logo -->
+            <a href="/dashboard" class="flex items-center no-underline h-full py-2">
+                <img src="/img/pinzo-green.png" alt="Pinzo Golf" class="max-h-full w-auto" />
+            </a>
+
+            <!-- Desktop Navigation - Context Aware -->
+            <div class="hidden md:flex gap-2 items-center">
+                @if (IsInSeasonContext)
+                {
+                    <!-- Season Context Navigation -->
+                    <NavLink href="@GetLeagueUrl()" class="app-nav-link" ActiveClass="app-nav-link-active">
+                        Back to League
+                    </NavLink>
+                    <NavLink href="@GetSeasonEventsUrl()" class="app-nav-link" ActiveClass="app-nav-link-active">
+                        Events
+                    </NavLink>
+                    <NavLink href="@GetSeasonStandingsUrl()" class="app-nav-link" ActiveClass="app-nav-link-active">
+                        Standings
+                    </NavLink>
+                    <NavLink href="@GetSeasonPlayersUrl()" class="app-nav-link" ActiveClass="app-nav-link-active">
+                        Players
+                    </NavLink>
+                }
+                else if (IsInLeagueContext)
+                {
+                    <!-- League Context Navigation -->
+                    <NavLink href="dashboard" class="app-nav-link" ActiveClass="app-nav-link-active">
+                        Dashboard
+                    </NavLink>
+                    <NavLink href="@GetLeagueSeasonsUrl()" class="app-nav-link" ActiveClass="app-nav-link-active">
+                        Seasons
+                    </NavLink>
+                    <NavLink href="@GetLeagueMembersUrl()" class="app-nav-link" ActiveClass="app-nav-link-active">
+                        Members
+                    </NavLink>
+                }
+                else if (IsInAdminContext)
+                {
+                    <!-- Admin Context Navigation -->
+                    <NavLink href="admin" class="app-nav-link" Match="NavLinkMatch.All" ActiveClass="app-nav-link-active">
+                        Dashboard
+                    </NavLink>
+                    <NavLink href="admin/users" class="app-nav-link" ActiveClass="app-nav-link-active">
+                        Users
+                    </NavLink>
+                    <NavLink href="admin/leagues" class="app-nav-link" ActiveClass="app-nav-link-active">
+                        Leagues
+                    </NavLink>
+                }
+                else
+                {
+                    <!-- Default Navigation -->
+                    <NavLink href="dashboard" class="app-nav-link" Match="NavLinkMatch.All" ActiveClass="app-nav-link-active">
+                        Dashboard
+                    </NavLink>
+                    <NavLink href="events" class="app-nav-link" ActiveClass="app-nav-link-active">
+                        Events
+                    </NavLink>
+                    <NavLink href="players" class="app-nav-link" ActiveClass="app-nav-link-active">
+                        Players
+                    </NavLink>
+                }
+
+                <!-- User Menu Dropdown -->
+                <div class="relative ml-4 pl-4 border-l border-gray-200">
+                    <button @onclick="ToggleUserMenu" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors">
+                        <div class="w-8 h-8 bg-primary-600 rounded-full flex items-center justify-center text-white text-sm font-semibold">
+                            @GetUserInitials()
+                        </div>
+                        <span class="text-xs text-gray-600">▼</span>
+                    </button>
+
+                    @if (showUserMenu)
+                    {
+                        <div class="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
+                            <div class="px-4 py-2 border-b border-gray-200">
+                                <p class="text-sm font-semibold text-gray-900">@AuthService.UserEmail</p>
+                                <p class="text-xs text-gray-600">@GetUserRole()</p>
+                            </div>
+
+                            <a href="/profile" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
+                                <Icon Path="@GolfIcons.Person" Size="GolfManager.Web.Components.Icons.IconSize.SM" />
+                                My Profile
+                            </a>
+
+                            @if (AuthorizationService.IsGlobalAdmin())
+                            {
+                                <a href="/admin" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
+                                    <Icon Path="@GolfIcons.Settings" Size="GolfManager.Web.Components.Icons.IconSize.SM" />
+                                    Admin Dashboard
+                                </a>
+                            }
+
+                            <div class="border-t border-gray-200 mt-2 pt-2">
+                                <button @onclick="HandleLogout" class="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                                    <Icon Path="@GolfIcons.Logout" Size="GolfManager.Web.Components.Icons.IconSize.SM" />
+                                    Logout
+                                </button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+            <!-- Mobile Menu Button -->
+            <button @onclick="ToggleNavMenu" class="block md:hidden p-2 text-gray-600 hover:text-gray-900">
+                <Icon Path="@GolfIcons.Menu" Size="GolfManager.Web.Components.Icons.IconSize.SM" />
+            </button>
+        </div>
+
+        <!-- Mobile Menu -->
+        @if (!collapseNavMenu)
+        {
+            <div class="border-t border-gray-200 bg-white md:hidden">
+                <div class="container max-w-7xl mx-auto px-4 py-4">
+                    <!-- User Info -->
+                    <div class="flex items-center gap-3 pb-4 mb-4 border-b border-gray-200">
+                        <div class="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center text-white font-semibold">
+                            @GetUserInitials()
+                        </div>
+                        <div>
+                            <p class="text-sm font-semibold text-gray-900">@AuthService.UserEmail</p>
+                            <p class="text-xs text-gray-600">@GetUserRole()</p>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col gap-2">
+                        @if (IsInSeasonContext)
+                        {
+                            <NavLink href="@GetLeagueUrl()" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
+                                Back to League
+                            </NavLink>
+                            <NavLink href="@GetSeasonEventsUrl()" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
+                                Events
+                            </NavLink>
+                            <NavLink href="@GetSeasonStandingsUrl()" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
+                                Standings
+                            </NavLink>
+                            <NavLink href="@GetSeasonPlayersUrl()" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
+                                Players
+                            </NavLink>
+                        }
+                        else if (IsInLeagueContext)
+                        {
+                            <NavLink href="dashboard" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
+                                Dashboard
+                            </NavLink>
+                            <NavLink href="@GetLeagueSeasonsUrl()" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
+                                Seasons
+                            </NavLink>
+                            <NavLink href="@GetLeagueMembersUrl()" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
+                                Members
+                            </NavLink>
+                        }
+                        else if (IsInAdminContext)
+                        {
+                            <NavLink href="admin" @onclick="ToggleNavMenu" class="app-nav-link" Match="NavLinkMatch.All" ActiveClass="app-nav-link-active">
+                                Dashboard
+                            </NavLink>
+                            <NavLink href="admin/users" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
+                                Users
+                            </NavLink>
+                            <NavLink href="admin/leagues" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
+                                Leagues
+                            </NavLink>
+                        }
+                        else
+                        {
+                            <NavLink href="dashboard" @onclick="ToggleNavMenu" class="app-nav-link" Match="NavLinkMatch.All" ActiveClass="app-nav-link-active">
+                                Dashboard
+                            </NavLink>
+                            <NavLink href="events" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
+                                Events
+                            </NavLink>
+                            <NavLink href="players" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
+                                Players
+                            </NavLink>
+                        }
+
+                        <div class="pt-2 mt-2 border-t border-gray-200 space-y-2">
+                            <NavLink href="profile" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
+                                <Icon Path="@GolfIcons.Person" Size="GolfManager.Web.Components.Icons.IconSize.SM" Class="inline-block mr-2" />
+                                My Profile
+                            </NavLink>
+
+                            @if (AuthorizationService.IsGlobalAdmin())
+                            {
+                                <NavLink href="admin" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
+                                    <Icon Path="@GolfIcons.Settings" Size="GolfManager.Web.Components.Icons.IconSize.SM" Class="inline-block mr-2" />
+                                    Admin Dashboard
+                                </NavLink>
+                            }
+
+                            <button @onclick="HandleLogout" class="btn btn-secondary w-full justify-center">
+                                <Icon Path="@GolfIcons.Logout" Size="GolfManager.Web.Components.Icons.IconSize.SM" Class="inline-block mr-2" />
+                                Logout
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </nav>
+
+    <!-- Spacer to prevent content from going under fixed navbar -->
+    <div class="h-16"></div>
+
+    <!-- Main Content -->
+    <main class="container max-w-7xl mx-auto px-4 md:px-8 py-8">
+        @Body
+    </main>
+
+    <!-- Dev User Switcher (only visible in development) -->
+    <DevUserSwitcher />
+</div>
+
+@code {
+    private bool collapseNavMenu = true;
+    private bool showUserMenu = false;
+    private string currentUrl = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        currentUrl = Navigation.ToBaseRelativePath(Navigation.Uri);
+        Navigation.LocationChanged += OnLocationChanged;
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        currentUrl = Navigation.ToBaseRelativePath(e.Location);
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Navigation.LocationChanged -= OnLocationChanged;
+    }
+
+    // Context detection
+    private bool IsInLeagueContext => currentUrl.StartsWith("league/") && !currentUrl.Contains("/season/");
+    private bool IsInSeasonContext => currentUrl.Contains("/league/") && currentUrl.Contains("/season/");
+    private bool IsInAdminContext => currentUrl.StartsWith("admin");
+
+    // URL builders
+    private string GetLeagueUrl()
+    {
+        var parts = currentUrl.Split('/');
+        if (parts.Length >= 2) return $"/league/{parts[1]}";
+        return "/dashboard";
+    }
+
+    private string GetLeagueSeasonsUrl()
+    {
+        var parts = currentUrl.Split('/');
+        if (parts.Length >= 2) return $"/league/{parts[1]}/seasons";
+        return "/dashboard";
+    }
+
+    private string GetLeagueMembersUrl()
+    {
+        var parts = currentUrl.Split('/');
+        if (parts.Length >= 2) return $"/league/{parts[1]}/members";
+        return "/dashboard";
+    }
+
+    private string GetSeasonEventsUrl()
+    {
+        var parts = currentUrl.Split('/');
+        if (parts.Length >= 4) return $"/league/{parts[1]}/season/{parts[3]}/events";
+        return "/dashboard";
+    }
+
+    private string GetSeasonStandingsUrl()
+    {
+        var parts = currentUrl.Split('/');
+        if (parts.Length >= 4) return $"/league/{parts[1]}/season/{parts[3]}/standings";
+        return "/dashboard";
+    }
+
+    private string GetSeasonPlayersUrl()
+    {
+        var parts = currentUrl.Split('/');
+        if (parts.Length >= 4) return $"/league/{parts[1]}/season/{parts[3]}/players";
+        return "/dashboard";
+    }
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+        showUserMenu = false;
+    }
+
+    private void ToggleUserMenu()
+    {
+        showUserMenu = !showUserMenu;
+    }
+
+    private async Task HandleLogout()
+    {
+        await AuthService.LogoutAsync();
+        Navigation.NavigateTo("/");
+    }
+
+    private string GetUserInitials()
+    {
+        if (string.IsNullOrEmpty(AuthService.UserEmail))
+            return "?";
+
+        var parts = AuthService.UserEmail.Split('@');
+        if (parts.Length == 0)
+            return "?";
+
+        var name = parts[0];
+        if (name.Length >= 2)
+            return name.Substring(0, 2).ToUpper();
+
+        return name.ToUpper();
+    }
+
+    private string GetUserRole()
+    {
+        if (AuthorizationService.IsGlobalAdmin())
+            return "Global Admin";
+
+        return "Player";
+    }
+}
+

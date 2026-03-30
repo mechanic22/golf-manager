@@ -1,0 +1,394 @@
+@page "/league/{LeagueKey}/seasons"
+@layout AppLayout
+@using GolfManager.Shared.DTOs.Season
+@using GolfManager.Shared.DTOs.League
+@using GolfManager.Web.Services
+@using MaterialComponents.Models
+@inject IAuthService AuthService
+@inject IAuthorizationService AuthorizationService
+@inject ILeagueService LeagueService
+@inject ISeasonService SeasonService
+@inject SeedDataService SeedData
+@inject NavigationManager Navigation
+@inject ILogger<LeagueSeasons> Logger
+
+<PageTitle>Seasons - @(league?.Name ?? "League") - Pinzo</PageTitle>
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-16">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-600">Loading seasons...</p>
+        </div>
+    </div>
+}
+else if (league == null)
+{
+    <div class="max-w-2xl mx-auto my-8">
+        <MaterialCard Variant="MaterialCardVariant.Elevated">
+            <div class="md-card__content text-center py-16">
+                <MaterialIcon Icon="MaterialIcons.Error" Class="text-red-600 text-5xl mb-4" />
+                <h2 class="text-2xl font-semibold text-gray-900 mb-3">League Not Found</h2>
+                <p class="text-gray-600 mb-8">The league you're looking for doesn't exist or you don't have access to it.</p>
+                <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="@(() => Navigation.NavigateTo("/dashboard"))">
+                    Back to Dashboard
+                </MaterialButton>
+            </div>
+        </MaterialCard>
+    </div>
+}
+else
+{
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8 py-6">
+        <div class="flex items-center justify-between flex-wrap gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">@league.Name</h1>
+                <p class="text-gray-600 text-sm font-mono">@league.Key</p>
+            </div>
+            @if (AuthorizationService.CanManageLeague(league.Id))
+            {
+                <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="ShowAddSeasonModal">
+                    <MaterialIcon Icon="MaterialIcons.Add" Class="mr-1" />
+                    Create Season
+                </MaterialButton>
+            }
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8">
+        <MaterialTabs @bind-ActiveTab="activeTab"
+                      Tabs="@GetNavigationTabs()"
+                      ShowContent="false"
+                      OnTabChange="HandleTabChange" />
+    </div>
+
+    <div class="mt-8"></div>
+
+    <!-- Seasons List -->
+    @if (isLoadingSeasons)
+    {
+        <div class="flex items-center justify-center py-8">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        </div>
+    }
+    else if (seasons == null || !seasons.Any())
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content text-center py-12">
+                <MaterialIcon Icon="MaterialIcons.CalendarToday" Class="text-gray-400 text-5xl mb-4" />
+                <p class="text-gray-600 mb-4">No seasons yet</p>
+                @if (AuthorizationService.CanManageLeague(league.Id))
+                {
+                    <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="ShowAddSeasonModal">
+                        Create First Season
+                    </MaterialButton>
+                }
+            </div>
+        </MaterialCard>
+    }
+    else
+    {
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            @foreach (var season in seasons.OrderByDescending(s => s.StartDate))
+            {
+                <MaterialCard Variant="MaterialCardVariant.Outlined" Class="hover:shadow-md transition-shadow">
+                    <div class="md-card__content">
+                        <div class="flex items-start justify-between mb-3">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900">@season.Name</h3>
+                                <p class="text-sm text-gray-600 font-mono">@season.Key</p>
+                            </div>
+                            @if (season.IsLocked)
+                            {
+                                <MaterialChip Text="Locked" Color="MaterialChipColor.Secondary" Size="MaterialChipSize.Small" />
+                            }
+                        </div>
+                        <div class="space-y-2 text-sm text-gray-600 mb-4">
+                            <div class="flex items-center gap-2">
+                                <MaterialIcon Icon="MaterialIcons.CalendarToday" Size="IconSize.SM" />
+                                <span>@season.StartDate.ToString("MMM d, yyyy")</span>
+                                @if (season.EndDate.HasValue)
+                                {
+                                    <span>- @season.EndDate.Value.ToString("MMM d, yyyy")</span>
+                                }
+                            </div>
+                            <div class="flex items-center gap-4">
+                                <div class="flex items-center gap-1">
+                                    <MaterialIcon Icon="MaterialIcons.Event" Size="IconSize.SM" />
+                                    <span>@season.EventCount events</span>
+                                </div>
+                                <div class="flex items-center gap-1">
+                                    <MaterialIcon Icon="MaterialIcons.People" Size="IconSize.SM" />
+                                    <span>@season.GolferCount golfers</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="pt-3 border-t border-gray-200">
+                            <MaterialButton Style="MaterialButtonStyle.Text" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{season.Key}"))">
+                                View Season Details
+                                <MaterialIcon Icon="MaterialIcons.ArrowForward" Class="ml-1" />
+                            </MaterialButton>
+                        </div>
+                    </div>
+                </MaterialCard>
+            }
+        </div>
+    }
+}
+
+<!-- Add Season Modal -->
+<MaterialDialog @bind-IsOpen="showAddSeasonModal" Title="Create New Season" MaxWidth="MaterialDialogMaxWidth.Small">
+    <ChildContent>
+        @if (!string.IsNullOrEmpty(addSeasonError))
+        {
+            <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-4">
+                @addSeasonError
+            </div>
+        }
+
+        <div class="space-y-6">
+            <MaterialInput @bind-Value="addSeasonRequest.Name"
+                          Label="Season Name"
+                          Variant="MaterialInputVariant.Outlined"
+                          SupportingText="Display name for the season (e.g., '2024 Season', 'Spring 2024'). A URL-friendly key will be auto-generated."
+                          Required="true" />
+
+            <MaterialInput @bind-Value="addSeasonRequest.StartDate"
+                          Label="Start Date"
+                          Type="date"
+                          Variant="MaterialInputVariant.Outlined"
+                          SupportingText="When does this season begin?"
+                          Required="true" />
+
+            <MaterialInput @bind-Value="addSeasonRequest.EndDate"
+                          Label="End Date (Optional)"
+                          Type="date"
+                          Variant="MaterialInputVariant.Outlined"
+                          SupportingText="When does this season end? Leave blank if ongoing." />
+        </div>
+    </ChildContent>
+    <Actions>
+        <MaterialButton Style="MaterialButtonStyle.Text" OnClick="() => showAddSeasonModal = false" Disabled="isAddingSeason">
+            Cancel
+        </MaterialButton>
+        <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="HandleAddSeason" Disabled="isAddingSeason">
+            @if (isAddingSeason)
+            {
+                <span>Creating...</span>
+            }
+            else
+            {
+                <span>Create Season</span>
+            }
+        </MaterialButton>
+    </Actions>
+</MaterialDialog>
+
+@code {
+    [Parameter]
+    public string LeagueKey { get; set; } = string.Empty;
+
+    private LeagueResponse? league;
+    private List<SeasonResponse>? seasons;
+    private bool isLoading = true;
+    private bool isLoadingSeasons = true;
+
+    // Add season modal
+    private bool showAddSeasonModal = false;
+    private bool isAddingSeason = false;
+    private CreateSeasonRequest addSeasonRequest = new();
+    private string? addSeasonError;
+
+    // Tab navigation
+    private string activeTab = "seasons";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        // Initialize authorization service
+        await AuthorizationService.InitializeAsync();
+
+        await LoadLeague();
+        await LoadSeasons();
+    }
+
+    private async Task LoadLeague()
+    {
+        try
+        {
+            isLoading = true;
+
+            // Use seed data - find league by key
+            var seedLeague = SeedData.Leagues.FirstOrDefault(l => l.Key == LeagueKey);
+            if (seedLeague != null)
+            {
+                league = new LeagueResponse
+                {
+                    Id = seedLeague.Id,
+                    Key = seedLeague.Key,
+                    Name = seedLeague.Name,
+                    Description = seedLeague.Description,
+                    MemberCount = seedLeague.MemberCount,
+                    PlayerCount = seedLeague.MemberCount,
+                    SeasonCount = SeedData.Seasons.Count(s => s.LeagueId == seedLeague.Id),
+                    IsCurrentUserAdmin = seedLeague.AdminUserId == AuthService.UserId || AuthService.IsGlobalAdmin,
+                    CreatedAt = seedLeague.CreatedDate
+                };
+            }
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading league");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadSeasons()
+    {
+        if (league == null) return;
+
+        try
+        {
+            isLoadingSeasons = true;
+
+            // Use seed data - get all seasons for this league
+            seasons = SeedData.Seasons
+                .Where(s => s.LeagueId == league.Id)
+                .Select(s => new SeasonResponse
+                {
+                    Id = s.Id,
+                    LeagueId = s.LeagueId,
+                    Key = s.Key,
+                    Name = s.Name,
+                    StartDate = DateOnly.FromDateTime(s.StartDate),
+                    EndDate = DateOnly.FromDateTime(s.EndDate),
+                    IsLocked = !s.IsActive,
+                    EventCount = SeedData.Events.Count(e => e.SeasonId == s.Id),
+                    GolferCount = SeedData.Rounds
+                        .Where(r => SeedData.Events.Any(e => e.Id == r.EventId && e.SeasonId == s.Id))
+                        .Select(r => r.PlayerId)
+                        .Distinct()
+                        .Count(),
+                    CreatedAt = s.StartDate
+                })
+                .ToList();
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading seasons");
+        }
+        finally
+        {
+            isLoadingSeasons = false;
+        }
+    }
+
+    private void ShowAddSeasonModal()
+    {
+        addSeasonRequest = new CreateSeasonRequest
+        {
+            StartDate = DateOnly.FromDateTime(DateTime.Today)
+        };
+        addSeasonError = null;
+        showAddSeasonModal = true;
+    }
+
+    private async Task HandleAddSeason()
+    {
+        if (league == null) return;
+
+        addSeasonError = null;
+        isAddingSeason = true;
+
+        try
+        {
+            var response = await SeasonService.CreateSeasonAsync(league.Id, addSeasonRequest);
+            if (response?.Success == true && response.Data != null)
+            {
+                showAddSeasonModal = false;
+                await LoadSeasons(); // Reload the seasons list
+            }
+            else
+            {
+                addSeasonError = response?.Message ?? "Failed to create season. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating season");
+            addSeasonError = "An error occurred while creating the season. Please try again.";
+        }
+        finally
+        {
+            isAddingSeason = false;
+        }
+    }
+
+    private List<MaterialTab> GetNavigationTabs()
+    {
+        var tabs = new List<MaterialTab>
+        {
+            new MaterialTab
+            {
+                Value = "dashboard",
+                Label = "Dashboard",
+                Icon = @<MaterialIcon Icon="MaterialIcons.Dashboard" Size="IconSize.SM" />
+            },
+            new MaterialTab
+            {
+                Value = "seasons",
+                Label = "Seasons",
+                Icon = @<MaterialIcon Icon="MaterialIcons.CalendarToday" Size="IconSize.SM" />
+            },
+            new MaterialTab
+            {
+                Value = "members",
+                Label = "Members",
+                Icon = @<MaterialIcon Icon="MaterialIcons.People" Size="IconSize.SM" />
+            }
+        };
+
+        // Only show Settings tab to admins (Global Admin OR League Admin)
+        if (league != null && AuthorizationService.CanManageLeague(league.Id))
+        {
+            tabs.Add(new MaterialTab
+            {
+                Value = "settings",
+                Label = "Settings",
+                Icon = @<MaterialIcon Icon="MaterialIcons.Settings" Size="IconSize.SM" />
+            });
+        }
+
+        return tabs;
+    }
+
+    private void HandleTabChange(string tabValue)
+    {
+        var route = tabValue switch
+        {
+            "dashboard" => $"/league/{LeagueKey}",
+            "seasons" => $"/league/{LeagueKey}/seasons",
+            "members" => $"/league/{LeagueKey}/members",
+            "settings" => $"/league/{LeagueKey}/settings",
+            _ => $"/league/{LeagueKey}"
+        };
+
+        Navigation.NavigateTo(route);
+    }
+}
+

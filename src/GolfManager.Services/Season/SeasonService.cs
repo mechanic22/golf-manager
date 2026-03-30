@@ -1,5 +1,6 @@
 using GolfManager.Data;
 using GolfManager.Shared.DTOs.Season;
+using GolfManager.Shared.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -58,14 +59,25 @@ public class SeasonService : ISeasonService
 
     public async Task<SeasonResponse> CreateSeasonAsync(CreateSeasonRequest request, string leagueId, string userId)
     {
+        // Auto-generate key from name if not provided
+        var seasonKey = string.IsNullOrWhiteSpace(request.Key)
+            ? request.Name.ToSlug()
+            : request.Key;
+
+        // Ensure key is not empty
+        if (string.IsNullOrWhiteSpace(seasonKey))
+        {
+            throw new InvalidOperationException("Season key cannot be empty");
+        }
+
         // Check for duplicate key
         var existingSeason = await _context.Seasons
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(s => s.Key == request.Key && s.LeagueId == leagueId);
+            .FirstOrDefaultAsync(s => s.Key == seasonKey && s.LeagueId == leagueId);
 
         if (existingSeason != null)
         {
-            throw new InvalidOperationException($"Season with key '{request.Key}' already exists in this league");
+            throw new InvalidOperationException($"Season with key '{seasonKey}' already exists in this league");
         }
 
         // Validate dates
@@ -78,7 +90,7 @@ public class SeasonService : ISeasonService
         {
             Id = Guid.NewGuid().ToString(),
             LeagueId = leagueId,
-            Key = request.Key,
+            Key = seasonKey,
             Name = request.Name,
             StartDate = request.StartDate,
             EndDate = request.EndDate,

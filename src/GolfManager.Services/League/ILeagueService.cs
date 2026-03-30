@@ -36,5 +36,25 @@ public interface ILeagueService
     /// Delete a league (soft delete)
     /// </summary>
     Task<bool> DeleteLeagueAsync(string leagueId, string userId);
+
+    /// <summary>
+    /// Get all members of a league
+    /// </summary>
+    Task<List<LeagueMemberResponse>> GetLeagueMembersAsync(string leagueId);
+
+    /// <summary>
+    /// Add a member to a league
+    /// </summary>
+    Task<LeagueMemberResponse> AddLeagueMemberAsync(string leagueId, AddLeagueMemberRequest request, string currentUserId);
+
+    /// <summary>
+    /// Remove a member from a league
+    /// </summary>
+    Task<bool> RemoveLeagueMemberAsync(string leagueId, string userId, string currentUserId);
+
+    /// <summary>
+    /// Update a league member's role
+    /// </summary>
+    Task<LeagueMemberResponse> UpdateLeagueMemberAsync(string leagueId, string userId, UpdateLeagueMemberRequest request, string currentUserId);
 }
 

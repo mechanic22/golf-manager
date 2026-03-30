@@ -1,21 +1,15 @@
 ﻿@inherits LayoutComponentBase
 @inject IAuthService AuthService
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<div class="min-h-screen">
+    <!-- Top Navigation -->
+    <NavMenu />
 
+    <!-- Main Content -->
     <main>
-        @if (AuthService.IsAuthenticated)
-        {
-            <div class="top-row px-4">
-                <span class="user-info">👤 @AuthService.UserEmail</span>
-            </div>
-        }
-
-        <article class="content px-4">
-            @Body
-        </article>
+        @Body
     </main>
+
+    <!-- Dev User Switcher (only visible in development) -->
+    <DevUserSwitcher />
 </div>

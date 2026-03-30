@@ -1,56 +1,117 @@
-﻿@inject IAuthService AuthService
+﻿@using GolfManager.Web.Components.Icons
+@inject IAuthService AuthService
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
-<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">⛳ GolfManager</a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-    </div>
-</div>
+<!-- Professional Top Navigation Bar with Scroll Effect -->
+<nav id="navbar" class="w-full fixed top-0 z-50 transition-all duration-300 bg-primary-600/80 backdrop-blur-lg shadow-md">
+    <div class="container max-w-7xl mx-auto px-8 flex items-center justify-between h-16">
+        <!-- Logo -->
+        <a href="/" id="logo" class="flex items-center no-underline transition-opacity duration-300 h-full py-2">
+            <img src="/img/pinzo-white.png" alt="Pinzo Golf" id="logo-white" class="max-h-full w-auto transition-opacity duration-300" />
+        </a>
 
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+        <!-- Desktop Navigation -->
+        <div class="hidden md:flex gap-2 items-center desktop-nav">
+            <NavLink href="" Match="NavLinkMatch.All" class="nav-link-item"
+                     ActiveClass="active-nav-link">
+                Home
             </NavLink>
+
+            <NavLink href="icons" class="nav-link-item"
+                     ActiveClass="active-nav-link">
+                Icons
+            </NavLink>
+
+            @if (AuthService.IsAuthenticated)
+            {
+                <NavLink href="dashboard" class="nav-link-item"
+                         ActiveClass="active-nav-link">
+                    Dashboard
+                </NavLink>
+                <button @onclick="HandleLogout" class="btn btn-secondary btn-sm ml-2">
+                    Logout
+                </button>
+            }
+            else
+            {
+                <NavLink href="login" class="nav-link-item"
+                         ActiveClass="active-nav-link">
+                    Sign In
+                </NavLink>
+                <NavLink href="register" class="btn btn-primary btn-sm ml-2">
+                    Get Started
+                </NavLink>
+            }
         </div>
 
-        @if (AuthService.IsAuthenticated)
-        {
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="dashboard">
-                    <span class="bi bi-speedometer2" aria-hidden="true"></span> Dashboard
-                </NavLink>
+        <!-- Mobile Menu Button -->
+        <button @onclick="ToggleNavMenu" id="mobile-menu-btn"
+                class="block md:hidden p-2 border-0 bg-transparent cursor-pointer transition-colors duration-300 mobile-menu-btn">
+            <Icon Path="@GolfIcons.Menu" Size="GolfManager.Web.Components.Icons.IconSize.SM" />
+        </button>
+    </div>
+
+    <!-- Mobile Menu -->
+    @if (!collapseNavMenu)
+    {
+        <div id="mobile-menu" class="border-t border-gray-200/50 backdrop-blur-lg mobile-nav">
+            <div class="container max-w-7xl mx-auto px-8 py-4">
+                <div class="flex flex-col gap-2">
+                    <NavLink href="" Match="NavLinkMatch.All" @onclick="ToggleNavMenu" class="nav-link-item"
+                             ActiveClass="active-nav-link">
+                        Home
+                    </NavLink>
+
+                    <NavLink href="icons" @onclick="ToggleNavMenu" class="nav-link-item"
+                             ActiveClass="active-nav-link">
+                        Icons
+                    </NavLink>
+
+                    @if (AuthService.IsAuthenticated)
+                    {
+                        <NavLink href="dashboard" @onclick="ToggleNavMenu" class="nav-link-item"
+                                 ActiveClass="active-nav-link">
+                            Dashboard
+                        </NavLink>
+                        <button @onclick="HandleLogout" class="btn btn-secondary w-full justify-center">
+                            Logout
+                        </button>
+                    }
+                    else
+                    {
+                        <NavLink href="login" @onclick="ToggleNavMenu" class="nav-link-item"
+                                 ActiveClass="active-nav-link">
+                            Sign In
+                        </NavLink>
+                        <NavLink href="register" @onclick="ToggleNavMenu" class="btn btn-primary w-full justify-center">
+                            Get Started
+                        </NavLink>
+                    }
+                </div>
             </div>
-            <div class="nav-item px-3">
-                <a class="nav-link" @onclick="HandleLogout" style="cursor: pointer;">
-                    <span class="bi bi-box-arrow-right" aria-hidden="true"></span> Logout
-                </a>
-            </div>
-        }
-        else
-        {
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="login">
-                    <span class="bi bi-box-arrow-in-right" aria-hidden="true"></span> Login
-                </NavLink>
-            </div>
-            <div class="nav-item px-3">
-                <NavLink class="nav-link" href="register">
-                    <span class="bi bi-person-plus-fill" aria-hidden="true"></span> Register
-                </NavLink>
-            </div>
-        }
-    </nav>
-</div>
+        </div>
+    }
+</nav>
+
+<!-- Spacer to prevent content from going under fixed navbar -->
+<div class="h-16"></div>
+
+
 
 @code {
     private bool collapseNavMenu = true;
 
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // Initialize auth service after first render when JSInterop is ready
+            await AuthService.InitializeAsync();
+            StateHasChanged(); // Trigger re-render to show correct auth state
+        }
+    }
 
     private void ToggleNavMenu()
     {
@@ -61,5 +122,11 @@
     {
         await AuthService.LogoutAsync();
         Navigation.NavigateTo("/");
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        // Cleanup if needed
+        await Task.CompletedTask;
     }
 }

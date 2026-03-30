@@ -1,0 +1,333 @@
+@page "/league/{LeagueKey}/settings"
+@layout AppLayout
+@using GolfManager.Shared.DTOs.League
+@using GolfManager.Web.Services
+@using MaterialComponents.Models
+@inject IAuthService AuthService
+@inject IAuthorizationService AuthorizationService
+@inject ILeagueService LeagueService
+@inject SeedDataService SeedData
+@inject NavigationManager Navigation
+@inject ILogger<LeagueSettings> Logger
+
+<PageTitle>Settings - @(league?.Name ?? "League") - Pinzo</PageTitle>
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-16">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-600">Loading settings...</p>
+        </div>
+    </div>
+}
+else if (league == null)
+{
+    <div class="max-w-2xl mx-auto my-8">
+        <MaterialCard Variant="MaterialCardVariant.Elevated">
+            <div class="md-card__content text-center py-16">
+                <MaterialIcon Icon="MaterialIcons.Error" Class="text-red-600 text-5xl mb-4" />
+                <h2 class="text-2xl font-semibold text-gray-900 mb-3">League Not Found</h2>
+                <p class="text-gray-600 mb-8">The league you're looking for doesn't exist or you don't have access to it.</p>
+                <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="@(() => Navigation.NavigateTo("/dashboard"))">
+                    Back to Dashboard
+                </MaterialButton>
+            </div>
+        </MaterialCard>
+    </div>
+}
+else if (!league.IsCurrentUserAdmin)
+{
+    <div class="max-w-2xl mx-auto my-8">
+        <MaterialCard Variant="MaterialCardVariant.Elevated">
+            <div class="md-card__content text-center py-16">
+                <MaterialIcon Icon="MaterialIcons.Lock" Class="text-yellow-600 text-5xl mb-4" />
+                <h2 class="text-2xl font-semibold text-gray-900 mb-3">Admin Access Required</h2>
+                <p class="text-gray-600 mb-8">Only league administrators can access settings.</p>
+                <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}"))">
+                    Back to League
+                </MaterialButton>
+            </div>
+        </MaterialCard>
+    </div>
+}
+else
+{
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8 py-6">
+        <div class="flex items-center justify-between flex-wrap gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">@league.Name</h1>
+                <p class="text-gray-600 text-sm font-mono">@league.Key</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8">
+        <MaterialTabs @bind-ActiveTab="activeTab"
+                      Tabs="@GetNavigationTabs()"
+                      ShowContent="false"
+                      OnTabChange="HandleTabChange" />
+    </div>
+
+    <div class="mt-8"></div>
+
+    <!-- Settings Form -->
+    <div class="max-w-3xl">
+        @if (!string.IsNullOrEmpty(saveError))
+        {
+            <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-6">
+                @saveError
+            </div>
+        }
+
+        @if (!string.IsNullOrEmpty(saveSuccess))
+        {
+            <div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded mb-6">
+                @saveSuccess
+            </div>
+        }
+
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content">
+                <h2 class="text-xl font-semibold text-gray-900 mb-6">Basic Information</h2>
+
+                <div class="space-y-6">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">League Key</label>
+                        <div class="bg-gray-50 border border-gray-200 rounded px-4 py-3 font-mono text-sm text-gray-600">
+                            @league.Key
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">The league key cannot be changed</p>
+                    </div>
+
+                    <MaterialInput @bind-Value="updateRequest.Name"
+                                  Label="League Name"
+                                  Variant="MaterialInputVariant.Outlined"
+                                  SupportingText="Display name for your league"
+                                  Required="true" />
+
+                    <MaterialInput @bind-Value="updateRequest.Description"
+                                  Label="Description"
+                                  Variant="MaterialInputVariant.Outlined"
+                                  Multiline="true"
+                                  Rows="3"
+                                  SupportingText="Brief description of your league" />
+
+                    <MaterialInput @bind-Value="updateRequest.LogoUrl"
+                                  Label="Logo URL"
+                                  Type="url"
+                                  Variant="MaterialInputVariant.Outlined"
+                                  SupportingText="URL to your league logo image" />
+
+                    @if (!string.IsNullOrEmpty(updateRequest.LogoUrl))
+                    {
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Logo Preview</label>
+                            <img src="@updateRequest.LogoUrl" alt="League Logo" class="w-32 h-32 object-cover rounded-lg border border-gray-200" />
+                        </div>
+                    }
+                </div>
+
+                <div class="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
+                    <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="ResetForm" Disabled="isSaving">
+                        Reset
+                    </MaterialButton>
+                    <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="HandleSave" Disabled="isSaving">
+                        @if (isSaving)
+                        {
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <span>Save Changes</span>
+                        }
+                    </MaterialButton>
+                </div>
+            </div>
+        </MaterialCard>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string LeagueKey { get; set; } = string.Empty;
+
+    private LeagueResponse? league;
+    private UpdateLeagueRequest updateRequest = new();
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private string? saveError;
+    private string? saveSuccess;
+
+    // Tab navigation
+    private string activeTab = "settings";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        // Initialize authorization service
+        await AuthorizationService.InitializeAsync();
+
+        await LoadLeague();
+    }
+
+    private async Task LoadLeague()
+    {
+        try
+        {
+            isLoading = true;
+
+            // Use seed data - find league by key
+            var seedLeague = SeedData.Leagues.FirstOrDefault(l => l.Key == LeagueKey);
+            if (seedLeague != null)
+            {
+                league = new LeagueResponse
+                {
+                    Id = seedLeague.Id,
+                    Key = seedLeague.Key,
+                    Name = seedLeague.Name,
+                    Description = seedLeague.Description,
+                    MemberCount = seedLeague.MemberCount,
+                    PlayerCount = seedLeague.MemberCount,
+                    SeasonCount = SeedData.Seasons.Count(s => s.LeagueId == seedLeague.Id),
+                    IsCurrentUserAdmin = seedLeague.AdminUserId == AuthService.UserId || AuthService.IsGlobalAdmin,
+                    CreatedAt = seedLeague.CreatedDate,
+                    LogoUrl = null
+                };
+
+                // Populate the form with current values
+                updateRequest = new UpdateLeagueRequest
+                {
+                    Name = league.Name,
+                    Description = league.Description,
+                    LogoUrl = league.LogoUrl
+                };
+            }
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading league");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ResetForm()
+    {
+        if (league != null)
+        {
+            updateRequest = new UpdateLeagueRequest
+            {
+                Name = league.Name,
+                Description = league.Description,
+                LogoUrl = league.LogoUrl
+            };
+            saveError = null;
+            saveSuccess = null;
+        }
+    }
+
+    private async Task HandleSave()
+    {
+        if (league == null) return;
+
+        saveError = null;
+        saveSuccess = null;
+        isSaving = true;
+
+        try
+        {
+            var response = await LeagueService.UpdateLeagueAsync(league.Id, updateRequest);
+
+            if (response?.Success == true && response.Data != null)
+            {
+                league = response.Data;
+                saveSuccess = "League settings saved successfully!";
+
+                // Auto-hide success message after 3 seconds
+                _ = Task.Delay(3000).ContinueWith(_ =>
+                {
+                    saveSuccess = null;
+                    InvokeAsync(StateHasChanged);
+                });
+            }
+            else
+            {
+                saveError = response?.Message ?? "Failed to save settings. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving league settings");
+            saveError = "An error occurred while saving settings. Please try again.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private List<MaterialTab> GetNavigationTabs()
+    {
+        var tabs = new List<MaterialTab>
+        {
+            new MaterialTab
+            {
+                Value = "dashboard",
+                Label = "Dashboard",
+                Icon = @<MaterialIcon Icon="MaterialIcons.Dashboard" Size="IconSize.SM" />
+            },
+            new MaterialTab
+            {
+                Value = "seasons",
+                Label = "Seasons",
+                Icon = @<MaterialIcon Icon="MaterialIcons.CalendarToday" Size="IconSize.SM" />
+            },
+            new MaterialTab
+            {
+                Value = "members",
+                Label = "Members",
+                Icon = @<MaterialIcon Icon="MaterialIcons.People" Size="IconSize.SM" />
+            }
+        };
+
+        // Only show Settings tab to admins
+        if (league?.IsCurrentUserAdmin == true)
+        {
+            tabs.Add(new MaterialTab
+            {
+                Value = "settings",
+                Label = "Settings",
+                Icon = @<MaterialIcon Icon="MaterialIcons.Settings" Size="IconSize.SM" />
+            });
+        }
+
+        return tabs;
+    }
+
+    private void HandleTabChange(string tabValue)
+    {
+        var route = tabValue switch
+        {
+            "dashboard" => $"/league/{LeagueKey}",
+            "seasons" => $"/league/{LeagueKey}/seasons",
+            "members" => $"/league/{LeagueKey}/members",
+            "settings" => $"/league/{LeagueKey}/settings",
+            _ => $"/league/{LeagueKey}"
+        };
+
+        Navigation.NavigateTo(route);
+    }
+}
+

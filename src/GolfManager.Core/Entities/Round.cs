@@ -69,6 +69,41 @@ public class Round : BaseEntity
     /// </summary>
     public string? Notes { get; set; }
 
+    // One-Time Event Support
+
+    /// <summary>
+    /// One-time event ID (optional - null for league/casual rounds)
+    /// </summary>
+    public string? OneTimeEventId { get; set; }
+
+    /// <summary>
+    /// One-time event team ID (optional - for team events)
+    /// </summary>
+    public string? OneTimeEventTeamId { get; set; }
+
+    /// <summary>
+    /// Is this a team round? (true for scrambles, best ball, etc.)
+    /// </summary>
+    public bool IsTeamRound { get; set; }
+
+    /// <summary>
+    /// Scoring format override (if different from event default)
+    /// </summary>
+    public ScoringFormat? Format { get; set; }
+
+    /// <summary>
+    /// Round number within the event (1, 2, 3, etc.)
+    /// For single-round events, this is always 1
+    /// For multi-round events, indicates which round this is
+    /// </summary>
+    public int RoundNumber { get; set; } = 1;
+
+    /// <summary>
+    /// Optional round name/label (e.g., "Qualifier", "Finals", "Day 1", "Morning Round")
+    /// Null for simple single-round events
+    /// </summary>
+    public string? RoundLabel { get; set; }
+
     // Navigation Properties
 
     /// <summary>
@@ -100,5 +135,15 @@ public class Round : BaseEntity
     /// Hole-by-hole scores
     /// </summary>
     public ICollection<RoundHole> Holes { get; set; } = new List<RoundHole>();
+
+    /// <summary>
+    /// Associated one-time event (if applicable)
+    /// </summary>
+    public OneTimeEvent? OneTimeEvent { get; set; }
+
+    /// <summary>
+    /// Associated one-time event team (if applicable)
+    /// </summary>
+    public OneTimeEventTeam? OneTimeEventTeam { get; set; }
 }
 

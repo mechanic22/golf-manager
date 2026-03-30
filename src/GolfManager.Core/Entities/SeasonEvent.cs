@@ -63,6 +63,21 @@ public class SeasonEvent : BaseEntity, ITenantEntity
     /// </summary>
     public bool IsLocked { get; set; }
 
+    /// <summary>
+    /// Team size for team events (1 = individual, 2+ = team)
+    /// </summary>
+    public int TeamSize { get; set; } = 1;
+
+    /// <summary>
+    /// Whether to use handicaps for scoring
+    /// </summary>
+    public bool UseHandicaps { get; set; } = true;
+
+    /// <summary>
+    /// Event status (Draft, Published, InProgress, Completed, Cancelled)
+    /// </summary>
+    public EventStatus Status { get; set; } = EventStatus.Draft;
+
     // Navigation Properties
 
     /// <summary>

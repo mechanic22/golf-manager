@@ -23,6 +23,11 @@ public interface IAuthService
     Task LogoutAsync();
 
     /// <summary>
+    /// Initialize the auth service (restore session from storage)
+    /// </summary>
+    Task InitializeAsync();
+
+    /// <summary>
     /// Check if user is authenticated
     /// </summary>
     bool IsAuthenticated { get; }
@@ -41,5 +46,10 @@ public interface IAuthService
     /// Get current access token
     /// </summary>
     string? AccessToken { get; }
+
+    /// <summary>
+    /// Check if current user is a global admin
+    /// </summary>
+    bool IsGlobalAdmin { get; }
 }
 

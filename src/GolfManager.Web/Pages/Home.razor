@@ -1,85 +1,116 @@
 ﻿@page "/"
+@using GolfManager.Web.Components.Icons
 @inject NavigationManager Navigation
 @inject IAuthService AuthService
 
-<PageTitle>GolfManager - Manage Your Golf League</PageTitle>
+<PageTitle>Pinzo - Professional Golf League Management</PageTitle>
 
-<div class="landing-page">
-    <!-- Hero Section -->
-    <section class="hero">
-        <div class="hero-content">
-            <h1 class="hero-title">⛳ GolfManager</h1>
-            <p class="hero-subtitle">The modern way to manage your golf league</p>
-            <p class="hero-description">
-                Track scores, manage seasons, calculate handicaps, and build your golf community.
-            </p>
-            <div class="hero-actions">
-                @if (!AuthService.IsAuthenticated)
-                {
-                    <button class="btn btn-primary btn-lg" @onclick="NavigateToRegister">
-                        Get Started Free
-                    </button>
-                    <button class="btn btn-secondary btn-lg" @onclick="NavigateToLogin">
-                        Sign In
-                    </button>
-                }
-                else
-                {
-                    <button class="btn btn-primary btn-lg" @onclick="NavigateToDashboard">
-                        Go to Dashboard
-                    </button>
-                }
+<div class="bg-gray-50">
+    <!-- Hero Section - Pinewood Lake Style -->
+    <section class="relative bg-cover bg-center text-white py-16 md:py-24 lg:py-32 min-h-[60vh] md:min-h-[70vh] flex items-center"
+             style="background: linear-gradient(to bottom, rgba(26, 71, 49, 0.85), rgba(0, 20, 0, 0.85)), url('https://images.unsplash.com/photo-1535131749006-b7f58c99034b?w=1920&q=80') center/cover;">
+        <div class="container max-w-7xl mx-auto px-4 md:px-8">
+            <div class="w-full md:max-w-2xl lg:max-w-3xl">
+                <h1 class="text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-light mb-4 md:mb-6 leading-tight tracking-tight">
+                    Manage Your Golf League<br/>
+                    <span class="font-semibold">With Confidence</span>
+                </h1>
+                <p class="text-base md:text-lg lg:text-xl mb-8 md:mb-10 opacity-95 leading-relaxed font-light">
+                    A modern platform designed for golf league organizers. Track scores, manage seasons, calculate handicaps, and build your community—all in one place.
+                </p>
+                <div class="flex flex-col sm:flex-row gap-3 md:gap-4">
+                    @if (!AuthService.IsAuthenticated)
+                    {
+                        <button class="btn btn-lg bg-primary-700 hover:bg-primary-800 text-white border-0 px-6 md:px-10 py-3 md:py-4 font-medium text-base shadow-lg w-full sm:w-auto"
+                                @onclick="NavigateToRegister">
+                            Get Started
+                        </button>
+                        <button class="btn btn-lg bg-transparent text-white border-2 border-white hover:bg-white/10 px-6 md:px-10 py-3 md:py-4 font-medium text-base w-full sm:w-auto"
+                                @onclick="NavigateToLogin">
+                            Sign In
+                        </button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-lg bg-primary-700 hover:bg-primary-800 text-white border-0 px-6 md:px-10 py-3 md:py-4 font-medium text-base shadow-lg w-full sm:w-auto"
+                                @onclick="NavigateToDashboard">
+                            Go to Dashboard
+                        </button>
+                    }
+                </div>
             </div>
         </div>
     </section>
 
-    <!-- Features Section -->
-    <section class="features">
-        <h2 class="section-title">Everything You Need</h2>
-        <div class="features-grid">
-            <div class="feature-card">
-                <div class="feature-icon">🏆</div>
-                <h3>League Management</h3>
-                <p>Create and manage multiple leagues with ease. Invite players and track membership.</p>
+    <!-- Features Section - Clean Pinewood Style -->
+    <section class="py-12 md:py-16 lg:py-24 bg-white">
+        <div class="container max-w-7xl mx-auto px-4 md:px-8">
+            <div class="text-center mb-12 md:mb-16">
+                <h2 class="text-3xl md:text-4xl lg:text-5xl font-light text-primary-700 mb-4 tracking-tight">
+                    Everything You Need
+                </h2>
+                <div class="w-16 h-0.5 bg-primary-600 mx-auto"></div>
             </div>
-            <div class="feature-card">
-                <div class="feature-icon">📊</div>
-                <h3>Score Tracking</h3>
-                <p>Record hole-by-hole scores, track statistics, and view detailed round history.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">📅</div>
-                <h3>Season & Events</h3>
-                <p>Organize seasons and schedule events. Keep your league organized year-round.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">🎯</div>
-                <h3>Handicap System</h3>
-                <p>Automatic handicap calculations to keep competition fair and fun.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">📱</div>
-                <h3>Mobile Friendly</h3>
-                <p>Access your league from any device. Perfect for on-course scoring.</p>
-            </div>
-            <div class="feature-card">
-                <div class="feature-icon">🔒</div>
-                <h3>Secure & Private</h3>
-                <p>Your data is secure with multi-tenant isolation and JWT authentication.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 md:gap-10 lg:gap-12">
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6 text-primary-600">
+                        <Icon Path="@GolfIcons.Trophy" Size="GolfManager.Web.Components.Icons.IconSize.MD" />
+                    </div>
+                    <h3 class="text-lg md:text-xl font-semibold text-primary-700 mb-3 tracking-wide">League Management</h3>
+                    <p class="text-gray-600 leading-relaxed text-sm md:text-base">Create and manage multiple leagues with ease. Invite players and track membership seamlessly.</p>
+                </div>
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6 text-primary-600">
+                        <Icon Path="@GolfIcons.Leaderboard" Size="GolfManager.Web.Components.Icons.IconSize.MD" />
+                    </div>
+                    <h3 class="text-lg md:text-xl font-semibold text-primary-700 mb-3 tracking-wide">Score Tracking</h3>
+                    <p class="text-gray-600 leading-relaxed text-sm md:text-base">Record hole-by-hole scores, track statistics, and view detailed round history with precision.</p>
+                </div>
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6 text-primary-600">
+                        <Icon Path="@GolfIcons.Calendar" Size="GolfManager.Web.Components.Icons.IconSize.MD" />
+                    </div>
+                    <h3 class="text-lg md:text-xl font-semibold text-primary-700 mb-3 tracking-wide">Season & Events</h3>
+                    <p class="text-gray-600 leading-relaxed text-sm md:text-base">Organize seasons and schedule events. Keep your league organized throughout the year.</p>
+                </div>
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6 text-primary-600">
+                        <Icon Path="@GolfIcons.Target" Size="GolfManager.Web.Components.Icons.IconSize.MD" />
+                    </div>
+                    <h3 class="text-lg md:text-xl font-semibold text-primary-700 mb-3 tracking-wide">Handicap System</h3>
+                    <p class="text-gray-600 leading-relaxed text-sm md:text-base">Automatic handicap calculations to keep competition fair and enjoyable for everyone.</p>
+                </div>
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6 text-primary-600">
+                        <Icon Path="@GolfIcons.GolfCourse" Size="GolfManager.Web.Components.Icons.IconSize.MD" />
+                    </div>
+                    <h3 class="text-lg md:text-xl font-semibold text-primary-700 mb-3 tracking-wide">Mobile Friendly</h3>
+                    <p class="text-gray-600 leading-relaxed text-sm md:text-base">Access your league from any device. Perfect for on-course scoring and updates.</p>
+                </div>
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6 text-primary-600">
+                        <Icon Path="@GolfIcons.GolfFlag" Size="GolfManager.Web.Components.Icons.IconSize.MD" />
+                    </div>
+                    <h3 class="text-lg md:text-xl font-semibold text-primary-700 mb-3 tracking-wide">Secure & Private</h3>
+                    <p class="text-gray-600 leading-relaxed text-sm md:text-base">Your data is secure with multi-tenant isolation and enterprise-grade authentication.</p>
+                </div>
             </div>
         </div>
     </section>
 
-    <!-- CTA Section -->
-    <section class="cta">
-        <h2>Ready to Get Started?</h2>
-        <p>Join thousands of golfers managing their leagues with GolfManager</p>
-        @if (!AuthService.IsAuthenticated)
-        {
-            <button class="btn btn-primary btn-lg" @onclick="NavigateToRegister">
-                Create Your Free Account
-            </button>
-        }
+    <!-- CTA Section - Pinewood Lake Style -->
+    <section class="py-12 md:py-16 lg:py-24 bg-primary-600 text-white">
+        <div class="container max-w-4xl mx-auto px-4 md:px-8 text-center">
+            <h2 class="text-2xl md:text-3xl lg:text-4xl font-light mb-4 md:mb-5 tracking-tight">Ready to Get Started?</h2>
+            <p class="text-base md:text-lg mb-8 md:mb-10 opacity-90 leading-relaxed font-light max-w-2xl mx-auto">Join golf leagues using Pinzo today and experience professional league management.</p>
+            @if (!AuthService.IsAuthenticated)
+            {
+                <button class="btn btn-lg bg-white hover:bg-gray-50 text-primary-700 border-0 px-6 md:px-10 py-3 md:py-4 font-medium text-base shadow-lg w-full sm:w-auto"
+                        @onclick="NavigateToRegister">
+                    Create Your Free Account
+                </button>
+            }
+        </div>
     </section>
 </div>
 

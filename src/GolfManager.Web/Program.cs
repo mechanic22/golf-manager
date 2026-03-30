@@ -7,21 +7,37 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
-// Configure HttpClient to point to the API
-var apiBaseAddress = builder.Configuration["ApiBaseAddress"] ?? "https://localhost:7001";
-builder.Services.AddScoped(sp => new HttpClient { BaseAddress = new Uri(apiBaseAddress) });
-
 // Register services
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IAuthorizationService, AuthorizationService>();
 builder.Services.AddScoped<ILeagueService, LeagueService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddScoped<ISeasonService, SeasonService>();
+builder.Services.AddScoped<ISeasonSettingsService, SeasonSettingsService>();
+builder.Services.AddScoped<IPlayerService, PlayerService>();
+builder.Services.AddScoped<IEventService, EventService>();
+builder.Services.AddScoped<IRoundService, RoundService>();
+builder.Services.AddScoped<IOneTimeEventService, OneTimeEventService>();
 
-var host = builder.Build();
+// Register seed data service as singleton (same data for all users)
+builder.Services.AddSingleton<SeedDataService>();
 
-// Initialize auth service
-var authService = host.Services.GetRequiredService<IAuthService>();
-if (authService is AuthService authServiceImpl)
+// Configure HttpClient with lazy authentication handler
+var apiBaseAddress = builder.Configuration["ApiBaseAddress"] ?? "https://localhost:7012";
+builder.Services.AddScoped(sp =>
 {
-    await authServiceImpl.InitializeAsync();
-}
+    // Create handler with lazy factory to avoid early service resolution
+    var handler = new AuthenticatedHttpClientHandler(() => sp.GetRequiredService<IAuthService>())
+    {
+        InnerHandler = new HttpClientHandler()
+    };
 
-await host.RunAsync();
+    var httpClient = new HttpClient(handler)
+    {
+        BaseAddress = new Uri(apiBaseAddress)
+    };
+
+    return httpClient;
+});
+
+await builder.Build().RunAsync();

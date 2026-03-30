@@ -1,0 +1,164 @@
+@page "/icons"
+@using GolfManager.Web.Components.Icons
+
+<PageTitle>Icon Library - GolfManager</PageTitle>
+
+<div style="background: #fafafa; min-height: 100vh; padding: 3rem 0;">
+    <div class="container" style="max-width: 1200px; margin: 0 auto; padding: 0 2rem;">
+        
+        <!-- Header -->
+        <div style="margin-bottom: 3rem;">
+            <h1 style="font-size: 2.5rem; font-weight: 300; color: #1a4731; margin-bottom: 0.5rem;">
+                Icon Library
+            </h1>
+            <p style="color: #6b7280; font-size: 1rem;">
+                Professional SVG icons for GolfManager
+            </p>
+        </div>
+
+        <!-- Icon Sizes Demo -->
+        <section style="background: white; border-radius: 0.5rem; padding: 2rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <h2 style="font-size: 1.5rem; font-weight: 600; color: #1a4731; margin-bottom: 1.5rem;">
+                Icon Sizes
+            </h2>
+            <div style="display: flex; gap: 3rem; align-items: flex-end; flex-wrap: wrap;">
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                    <Icon Path="@GolfIcons.Trophy" Size="GolfManager.Web.Components.Icons.IconSize.XS" CssClass="text-primary" />
+                    <span style="font-size: 0.75rem; color: #6b7280;">XS (16px)</span>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                    <Icon Path="@GolfIcons.Trophy" Size="GolfManager.Web.Components.Icons.IconSize.SM" CssClass="text-primary" />
+                    <span style="font-size: 0.75rem; color: #6b7280;">SM (24px)</span>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                    <Icon Path="@GolfIcons.Trophy" Size="GolfManager.Web.Components.Icons.IconSize.MD" CssClass="text-primary" />
+                    <span style="font-size: 0.75rem; color: #6b7280;">MD (32px)</span>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                    <Icon Path="@GolfIcons.Trophy" Size="GolfManager.Web.Components.Icons.IconSize.LG" CssClass="text-primary" />
+                    <span style="font-size: 0.75rem; color: #6b7280;">LG (64px)</span>
+                </div>
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                    <Icon Path="@GolfIcons.Trophy" Size="GolfManager.Web.Components.Icons.IconSize.XL" CssClass="text-primary" />
+                    <span style="font-size: 0.75rem; color: #6b7280;">XL (128px)</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Golf-Specific Icons -->
+        <section style="background: white; border-radius: 0.5rem; padding: 2rem; margin-bottom: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <h2 style="font-size: 1.5rem; font-weight: 600; color: #1a4731; margin-bottom: 1.5rem;">
+                Golf-Specific Icons
+            </h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 2rem;">
+                @foreach (var icon in GetGolfIcons())
+                {
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 0.75rem; padding: 1rem; border-radius: 0.375rem; transition: background-color 0.2s;"
+                         @onmouseenter="@(() => {})"
+                         @onmouseleave="@(() => {})"
+                         class="icon-card">
+                        <div style="color: #2d5a27;">
+                            <Icon Path="@icon.Path" Size="GolfManager.Web.Components.Icons.IconSize.LG" />
+                        </div>
+                        <span style="font-size: 0.875rem; color: #374151; text-align: center; font-weight: 500;">@icon.Name</span>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <!-- Common UI Icons -->
+        <section style="background: white; border-radius: 0.5rem; padding: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <h2 style="font-size: 1.5rem; font-weight: 600; color: #1a4731; margin-bottom: 1.5rem;">
+                Common UI Icons
+            </h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 2rem;">
+                @foreach (var icon in GetCommonIcons())
+                {
+                    <div style="display: flex; flex-direction: column; align-items: center; gap: 0.75rem; padding: 1rem; border-radius: 0.375rem; transition: background-color 0.2s;"
+                         class="icon-card">
+                        <div style="color: #2d5a27;">
+                            <Icon Path="@icon.Path" Size="GolfManager.Web.Components.Icons.IconSize.LG" />
+                        </div>
+                        <span style="font-size: 0.875rem; color: #374151; text-align: center; font-weight: 500;">@icon.Name</span>
+                    </div>
+                }
+            </div>
+        </section>
+
+        <!-- Usage Example -->
+        <section style="background: white; border-radius: 0.5rem; padding: 2rem; margin-top: 2rem; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <h2 style="font-size: 1.5rem; font-weight: 600; color: #1a4731; margin-bottom: 1.5rem;">
+                Usage Example
+            </h2>
+            <pre style="background: #f9fafb; padding: 1.5rem; border-radius: 0.375rem; overflow-x: auto; font-size: 0.875rem; color: #374151; border: 1px solid #e5e7eb;"><code>@@using GolfManager.Web.Components.Icons
+
+&lt;!-- Basic usage --&gt;
+&lt;Icon Path="@@GolfIcons.Trophy" /&gt;
+
+&lt;!-- With size --&gt;
+&lt;Icon Path="@@GolfIcons.GolfFlag" Size="IconSize.LG" /&gt;
+
+&lt;!-- With custom color --&gt;
+&lt;div style="color: #2d5a27;"&gt;
+    &lt;Icon Path="@@GolfIcons.Target" Size="IconSize.MD" /&gt;
+&lt;/div&gt;
+
+&lt;!-- With CSS class --&gt;
+&lt;Icon Path="@@GolfIcons.Leaderboard" CssClass="my-custom-class" /&gt;</code></pre>
+        </section>
+
+    </div>
+</div>
+
+<style>
+    .icon-card:hover {
+        background-color: #f9fafb;
+    }
+
+    .text-primary {
+        color: #2d5a27;
+    }
+</style>
+
+@code {
+    private record IconInfo(string Name, string Path);
+
+    private List<IconInfo> GetGolfIcons() => new()
+    {
+        new("GolfFlag", GolfIcons.GolfFlag),
+        new("Trophy", GolfIcons.Trophy),
+        new("Scorecard", GolfIcons.Scorecard),
+        new("Leaderboard", GolfIcons.Leaderboard),
+        new("GolfCourse", GolfIcons.GolfCourse),
+        new("Target", GolfIcons.Target)
+    };
+
+    private List<IconInfo> GetCommonIcons() => new()
+    {
+        new("Home", GolfIcons.Home),
+        new("Dashboard", GolfIcons.Dashboard),
+        new("People", GolfIcons.People),
+        new("Person", GolfIcons.Person),
+        new("Calendar", GolfIcons.Calendar),
+        new("Event", GolfIcons.Event),
+        new("Settings", GolfIcons.Settings),
+        new("Add", GolfIcons.Add),
+        new("Edit", GolfIcons.Edit),
+        new("Delete", GolfIcons.Delete),
+        new("Close", GolfIcons.Close),
+        new("Check", GolfIcons.Check),
+        new("Search", GolfIcons.Search),
+        new("Menu", GolfIcons.Menu),
+        new("MoreVert", GolfIcons.MoreVert),
+        new("ArrowBack", GolfIcons.ArrowBack),
+        new("ArrowForward", GolfIcons.ArrowForward),
+        new("Logout", GolfIcons.Logout),
+        new("Login", GolfIcons.Login),
+        new("Star", GolfIcons.Star),
+        new("Info", GolfIcons.Info),
+        new("Warning", GolfIcons.Warning),
+        new("TrendingUp", GolfIcons.TrendingUp),
+        new("TrendingDown", GolfIcons.TrendingDown)
+    };
+}
+

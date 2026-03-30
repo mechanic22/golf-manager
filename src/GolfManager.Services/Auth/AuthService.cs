@@ -125,15 +125,33 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponse?> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
+        Console.WriteLine($"[AuthService.RefreshTokenAsync] Looking up refresh token in database...");
+        Console.WriteLine($"[AuthService.RefreshTokenAsync] Token (first 10 chars): {refreshToken?.Substring(0, Math.Min(10, refreshToken?.Length ?? 0))}...");
+
         var token = await _context.RefreshTokens
             .Include(rt => rt.User)
                 .ThenInclude(u => u.UserLeagues)
             .FirstOrDefaultAsync(rt => rt.Token == refreshToken, cancellationToken);
 
-        if (token == null || !token.IsActive)
+        if (token == null)
         {
-            return null; // Invalid or expired token
+            Console.WriteLine($"[AuthService.RefreshTokenAsync] ❌ Token not found in database");
+            return null;
         }
+
+        Console.WriteLine($"[AuthService.RefreshTokenAsync] Token found for user: {token.UserId}");
+        Console.WriteLine($"[AuthService.RefreshTokenAsync] Token IsActive: {token.IsActive}");
+        Console.WriteLine($"[AuthService.RefreshTokenAsync] Token IsRevoked: {token.IsRevoked}");
+        Console.WriteLine($"[AuthService.RefreshTokenAsync] Token ExpiresAt: {token.ExpiresAt:O}");
+        Console.WriteLine($"[AuthService.RefreshTokenAsync] Current UTC time: {DateTime.UtcNow:O}");
+
+        if (!token.IsActive)
+        {
+            Console.WriteLine($"[AuthService.RefreshTokenAsync] ❌ Token is not active (expired or revoked)");
+            return null;
+        }
+
+        Console.WriteLine($"[AuthService.RefreshTokenAsync] ✅ Token is valid, rotating to new token...");
 
         // Revoke old token and create new one (token rotation)
         token.IsRevoked = true;
@@ -145,10 +163,14 @@ public class AuthService : IAuthService
         _context.RefreshTokens.Add(newRefreshToken);
         await _context.SaveChangesAsync(cancellationToken);
 
+        Console.WriteLine($"[AuthService.RefreshTokenAsync] ✅ New refresh token created, expires at: {newRefreshToken.ExpiresAt:O}");
+
         // Get user's league IDs
         var leagueIds = token.User.UserLeagues.Select(ul => ul.LeagueId).ToList();
 
         var accessToken = _jwtTokenService.GenerateAccessToken(token.User, leagueIds);
+
+        Console.WriteLine($"[AuthService.RefreshTokenAsync] ✅ Refresh complete for user: {token.User.Email}");
 
         return new AuthResponse
         {

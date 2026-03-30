@@ -1,163 +1,282 @@
 @page "/dashboard"
+@layout AppLayout
+@using GolfManager.Web.Services
 @inject IAuthService AuthService
 @inject ILeagueService LeagueService
+@inject IOneTimeEventService EventService
+@inject SeedDataService SeedData
 @inject NavigationManager Navigation
+@inject ILogger<Dashboard> Logger
 
-<PageTitle>Dashboard - GolfManager</PageTitle>
+<PageTitle>Dashboard - Pinzo</PageTitle>
 
-<div class="dashboard-page">
-    <div class="dashboard-header">
-        <div>
-            <h1>Welcome, @AuthService.UserEmail</h1>
-            <p>Manage your golf leagues and track your progress</p>
-        </div>
-        <div class="dashboard-actions">
-            <button class="btn btn-primary" @onclick="ShowCreateLeagueModal">
-                + Create League
-            </button>
-            <button class="btn btn-secondary" @onclick="HandleLogout">
-                Logout
-            </button>
-        </div>
+<!-- Header -->
+<div class="mb-8">
+    <h1 class="text-3xl font-bold text-gray-900 mb-2">
+        Welcome back, @GetFirstName()
+    </h1>
+    <p class="text-gray-600">Here's what's happening in your golf leagues</p>
+</div>
+
+<!-- Content -->
+@if (isLoading)
+{
+    <div class="flex flex-col items-center justify-center py-16">
+        <MaterialProgressIndicator Variant="MaterialProgressVariant.Circular" />
+        <p class="text-gray-600 mt-4">Loading...</p>
     </div>
+}
+else
+{
+    <!-- Upcoming Events -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between mb-4">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-900">Upcoming Events</h2>
+                <p class="text-gray-600 text-sm">Your next golf outings</p>
+            </div>
+            <a href="/events" class="text-primary-600 hover:text-primary-700 text-sm font-medium">View All →</a>
+        </div>
 
-    @if (isLoading)
-    {
-        <div class="loading">
-            <p>Loading your leagues...</p>
-        </div>
-    }
-    else if (leagues == null || !leagues.Any())
-    {
-        <div class="empty-state">
-            <div class="empty-icon">🏌️</div>
-            <h2>No Leagues Yet</h2>
-            <p>Create your first league to get started!</p>
-            <button class="btn btn-primary btn-lg" @onclick="ShowCreateLeagueModal">
-                Create Your First League
-            </button>
-        </div>
-    }
-    else
-    {
-        <div class="leagues-grid">
-            @foreach (var league in leagues)
-            {
-                <div class="league-card">
-                    <div class="league-header">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        @foreach (var league in leagues)
+        {
+            <MaterialCard Variant="MaterialCardVariant.Outlined" Class="hover:shadow-md transition-shadow">
+                <div class="md-card__content">
+                    <div class="flex items-start gap-4 mb-4">
                         @if (!string.IsNullOrEmpty(league.LogoUrl))
                         {
-                            <img src="@league.LogoUrl" alt="@league.Name" class="league-logo" />
+                            <img src="@league.LogoUrl" alt="@league.Name" class="w-12 h-12 rounded-lg object-cover" />
                         }
                         else
                         {
-                            <div class="league-logo-placeholder">⛳</div>
+                            <div class="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
+                                <MaterialIcon Icon="MaterialIcons.GolfCourse" Class="text-primary-700" />
+                            </div>
                         }
-                        <div class="league-info">
-                            <h3>@league.Name</h3>
-                            <p class="league-key">@league.Key</p>
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-1 truncate">@league.Name</h3>
+                            <p class="text-xs text-gray-500 font-mono">@league.Key</p>
                         </div>
                     </div>
+
                     @if (!string.IsNullOrEmpty(league.Description))
                     {
-                        <p class="league-description">@league.Description</p>
+                        <p class="text-gray-600 text-sm mb-4 line-clamp-2">@league.Description</p>
                     }
-                    <div class="league-stats">
-                        <div class="stat">
-                            <span class="stat-value">@league.MemberCount</span>
-                            <span class="stat-label">Members</span>
+
+                    <div class="grid grid-cols-3 gap-4 py-4 border-t border-b border-gray-200 mb-4">
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-gray-900">@league.MemberCount</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Members</div>
                         </div>
-                        <div class="stat">
-                            <span class="stat-value">@league.PlayerCount</span>
-                            <span class="stat-label">Players</span>
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-gray-900">@league.PlayerCount</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Players</div>
                         </div>
-                        <div class="stat">
-                            <span class="stat-value">@league.SeasonCount</span>
-                            <span class="stat-label">Seasons</span>
+                        <div class="text-center">
+                            <div class="text-2xl font-bold text-gray-900">@league.SeasonCount</div>
+                            <div class="text-xs text-gray-500 uppercase tracking-wide">Seasons</div>
                         </div>
                     </div>
-                    <div class="league-actions">
-                        <button class="btn btn-primary btn-sm" @onclick="() => NavigateToLeague(league.Key)">
+
+                    <div class="flex items-center justify-between gap-3">
+                        <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="() => NavigateToLeague(league.Key)">
                             View League
-                        </button>
+                        </MaterialButton>
                         @if (league.IsCurrentUserAdmin)
                         {
-                            <span class="badge badge-admin">Admin</span>
+                            <MaterialChip Text="Admin" Color="MaterialChipColor.Primary" Size="MaterialChipSize.Small" />
                         }
                     </div>
                 </div>
+            </MaterialCard>
+        }
+    </div>
+
+    <!-- My Events Section -->
+    <div class="mt-12 mb-6">
+        <h2 class="text-xl font-semibold text-gray-900">My Events</h2>
+        <p class="text-gray-600 text-sm">Upcoming tournaments and events</p>
+    </div>
+
+    @if (isLoadingEvents)
+    {
+        <div class="flex justify-center py-8">
+            <MaterialProgressIndicator Variant="MaterialProgressVariant.Circular" />
+        </div>
+    }
+    else if (myEvents == null || !myEvents.Any())
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content text-center py-12">
+                <MaterialIcon Icon="MaterialIcons.EventBusy" Class="text-gray-400 text-4xl mb-3" />
+                <p class="text-gray-600">No upcoming events. Create one to get started!</p>
+            </div>
+        </MaterialCard>
+    }
+    else
+    {
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            @foreach (var evt in myEvents)
+            {
+                <MaterialCard Variant="MaterialCardVariant.Outlined" Class="hover:shadow-md transition-shadow">
+                    <div class="md-card__content">
+                        <div class="flex items-start justify-between mb-3">
+                            <h3 class="text-lg font-semibold text-gray-900">@evt.Name</h3>
+                            <MaterialChip Label="@evt.Status.ToString()"
+                                         Color="@GetStatusColor(evt.Status)"
+                                         Size="MaterialChipSize.Small" />
+                        </div>
+
+                        <div class="space-y-2 text-sm text-gray-600 mb-4">
+                            <div class="flex items-center gap-2">
+                                <MaterialIcon Icon="MaterialIcons.CalendarToday" Class="text-base" />
+                                <span>@evt.EventDate.ToString("MMM d, yyyy")</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <MaterialIcon Icon="MaterialIcons.GolfCourse" Class="text-base" />
+                                <span>@evt.Format</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <MaterialIcon Icon="MaterialIcons.Groups" Class="text-base" />
+                                <span>@evt.RegisteredTeamsCount / @(evt.MaxTeams?.ToString() ?? "∞") teams</span>
+                            </div>
+                        </div>
+
+                        <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="@(() => Navigation.NavigateTo($"/event/{evt.Key}"))">
+                            View Event
+                        </MaterialButton>
+                    </div>
+                </MaterialCard>
             }
         </div>
     }
+}
 
-    @if (showCreateModal)
-    {
-        <div class="modal-overlay" @onclick="HideCreateLeagueModal">
-            <div class="modal-content" @onclick:stopPropagation="true">
-                <div class="modal-header">
-                    <h2>Create New League</h2>
-                    <button class="modal-close" @onclick="HideCreateLeagueModal">&times;</button>
-                </div>
-                
-                @if (!string.IsNullOrEmpty(createErrorMessage))
-                {
-                    <div class="alert alert-danger">
-                        @createErrorMessage
-                    </div>
-                }
-
-                <EditForm Model="@createLeagueRequest" OnValidSubmit="HandleCreateLeague" class="modal-form">
-                    <DataAnnotationsValidator />
-                    
-                    <div class="form-group">
-                        <label for="leagueName">League Name</label>
-                        <InputText id="leagueName" @bind-Value="createLeagueRequest.Name" class="form-control" placeholder="My Golf League" />
-                        <ValidationMessage For="@(() => createLeagueRequest.Name)" />
-                    </div>
-
-                    <div class="form-group">
-                        <label for="leagueKey">League Key (URL)</label>
-                        <InputText id="leagueKey" @bind-Value="createLeagueRequest.Key" class="form-control" placeholder="my-golf-league" />
-                        <ValidationMessage For="@(() => createLeagueRequest.Key)" />
-                        <small class="form-text">Lowercase letters, numbers, and hyphens only</small>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="leagueDescription">Description (Optional)</label>
-                        <InputTextArea id="leagueDescription" @bind-Value="createLeagueRequest.Description" class="form-control" rows="3" placeholder="Tell us about your league..." />
-                    </div>
-
-                    <div class="form-group">
-                        <label for="leagueLogoUrl">Logo URL (Optional)</label>
-                        <InputText id="leagueLogoUrl" @bind-Value="createLeagueRequest.LogoUrl" class="form-control" placeholder="https://example.com/logo.png" />
-                    </div>
-
-                    <div class="modal-actions">
-                        <button type="button" class="btn btn-secondary" @onclick="HideCreateLeagueModal">Cancel</button>
-                        <button type="submit" class="btn btn-primary" disabled="@isCreating">
-                            @if (isCreating)
-                            {
-                                <span>Creating...</span>
-                            }
-                            else
-                            {
-                                <span>Create League</span>
-                            }
-                        </button>
-                    </div>
-                </EditForm>
+<MaterialDialog @bind-IsOpen="showCreateModal" Title="Create New League" MaxWidth="MaterialDialogMaxWidth.Small">
+    <ChildContent>
+        @if (!string.IsNullOrEmpty(createErrorMessage))
+        {
+            <div class="alert alert-danger mb-4">
+                @createErrorMessage
             </div>
-        </div>
-    }
-</div>
+        }
+
+        <EditForm Model="@createLeagueRequest" OnValidSubmit="HandleCreateLeague">
+            <DataAnnotationsValidator />
+
+            <div>
+                <MaterialInput Value="@createLeagueRequest.Name"
+                              ValueChanged="@((string value) => OnLeagueNameChanged(value))"
+                              Label="League Name"
+                              Placeholder="My Golf League"
+                              Variant="MaterialInputVariant.Outlined"
+                              Required="true" />
+                <ValidationMessage For="@(() => createLeagueRequest.Name)" />
+            </div>
+
+            <div class="mt-4 flex justify-end gap-3">
+                <MaterialButton Type="button" Style="MaterialButtonStyle.Text" OnClick="HideCreateLeagueModal" Disabled="isCreating">
+                    Cancel
+                </MaterialButton>
+                <MaterialButton Type="submit" Style="MaterialButtonStyle.Filled" Disabled="isCreating">
+                    @if (isCreating)
+                    {
+                        <span>Creating...</span>
+                    }
+                    else
+                    {
+                        <span>Create League</span>
+                    }
+                </MaterialButton>
+            </div>
+        </EditForm>
+    </ChildContent>
+</MaterialDialog>
+
+<MaterialDialog @bind-IsOpen="showCreateEventModal" Title="Create New Event" MaxWidth="MaterialDialogMaxWidth.Medium">
+    <ChildContent>
+        @if (!string.IsNullOrEmpty(createEventErrorMessage))
+        {
+            <div class="alert alert-danger mb-4">
+                @createEventErrorMessage
+            </div>
+        }
+
+        <EditForm Model="@createEventRequest" OnValidSubmit="HandleCreateEvent">
+            <DataAnnotationsValidator />
+
+            <div class="space-y-4">
+                <div>
+                    <MaterialInput @bind-Value="createEventRequest.Name"
+                                  Label="Event Name"
+                                  Placeholder="Summer Golf Tournament"
+                                  Variant="MaterialInputVariant.Outlined"
+                                  Required="true" />
+                    <ValidationMessage For="@(() => createEventRequest.Name)" />
+                </div>
+
+                <div>
+                    <MaterialInput @bind-Value="createEventRequest.EventDate"
+                                  Label="Event Date"
+                                  Type="date"
+                                  Variant="MaterialInputVariant.Outlined"
+                                  Required="true" />
+                    <ValidationMessage For="@(() => createEventRequest.EventDate)" />
+                </div>
+
+                <div>
+                    <MaterialInput @bind-Value="createEventRequest.Format"
+                                  Label="Format"
+                                  Placeholder="Scramble, Best Ball, etc."
+                                  Variant="MaterialInputVariant.Outlined"
+                                  Required="true" />
+                    <ValidationMessage For="@(() => createEventRequest.Format)" />
+                </div>
+
+                <div>
+                    <MaterialInput @bind-Value="createEventRequest.TeamSize"
+                                  Label="Team Size"
+                                  Type="number"
+                                  Variant="MaterialInputVariant.Outlined"
+                                  Required="true" />
+                    <ValidationMessage For="@(() => createEventRequest.TeamSize)" />
+                </div>
+
+                <div class="mt-4 flex justify-end gap-3">
+                    <MaterialButton Type="button" Style="MaterialButtonStyle.Text" OnClick="HideCreateEventModal" Disabled="isCreatingEvent">
+                        Cancel
+                    </MaterialButton>
+                    <MaterialButton Type="submit" Style="MaterialButtonStyle.Filled" Disabled="isCreatingEvent">
+                        @if (isCreatingEvent)
+                        {
+                            <span>Creating...</span>
+                        }
+                        else
+                        {
+                            <span>Create Event</span>
+                        }
+                    </MaterialButton>
+                </div>
+            </div>
+        </EditForm>
+    </ChildContent>
+</MaterialDialog>
 
 @code {
     private List<LeagueResponse>? leagues;
+    private List<OneTimeEventListResponse>? myEvents;
     private bool isLoading = true;
+    private bool isLoadingEvents = true;
     private bool showCreateModal = false;
+    private bool showCreateEventModal = false;
     private bool isCreating = false;
+    private bool isCreatingEvent = false;
     private CreateLeagueRequest createLeagueRequest = new();
+    private CreateOneTimeEventRequest createEventRequest = new();
     private string? createErrorMessage;
+    private string? createEventErrorMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -169,6 +288,7 @@
         }
 
         await LoadLeagues();
+        await LoadEvents();
     }
 
     private async Task LoadLeagues()
@@ -176,11 +296,21 @@
         isLoading = true;
         try
         {
-            var response = await LeagueService.GetUserLeaguesAsync();
-            if (response?.Success == true && response.Data != null)
+            // Use seed data for development
+            leagues = SeedData.Leagues.Take(5).Select(l => new LeagueResponse
             {
-                leagues = response.Data;
-            }
+                Id = l.Id,
+                Key = l.Key,
+                Name = l.Name,
+                Description = l.Description,
+                MemberCount = l.MemberCount,
+                PlayerCount = l.MemberCount,
+                SeasonCount = SeedData.Seasons.Count(s => s.LeagueId == l.Id),
+                IsCurrentUserAdmin = l.AdminUserId == AuthService.UserId || AuthService.IsGlobalAdmin,
+                CreatedAt = l.CreatedDate
+            }).ToList();
+
+            await Task.CompletedTask;
         }
         catch (Exception ex)
         {
@@ -194,9 +324,45 @@
 
     private void ShowCreateLeagueModal()
     {
-        createLeagueRequest = new CreateLeagueRequest();
+        createLeagueRequest = new CreateLeagueRequest
+        {
+            LogoUrl = "https://placehold.co/200x200/1a4731/ffffff?text=Golf"
+        };
         createErrorMessage = null;
         showCreateModal = true;
+    }
+
+    private void OnLeagueNameChanged(string name)
+    {
+        createLeagueRequest.Name = name;
+        createLeagueRequest.Key = SlugifyLeagueName(name);
+    }
+
+    private string SlugifyLeagueName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return string.Empty;
+
+        // Convert to lowercase
+        var slug = name.ToLowerInvariant();
+
+        // Replace spaces with hyphens
+        slug = slug.Replace(" ", "-");
+
+        // Remove any characters that aren't lowercase letters, numbers, or hyphens
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[^a-z0-9-]", "");
+
+        // Remove consecutive hyphens
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"-+", "-");
+
+        // Trim hyphens from start and end
+        slug = slug.Trim('-');
+
+        // Limit to 50 characters (max length for Key)
+        if (slug.Length > 50)
+            slug = slug.Substring(0, 50).TrimEnd('-');
+
+        return slug;
     }
 
     private void HideCreateLeagueModal()
@@ -206,26 +372,37 @@
 
     private async Task HandleCreateLeague()
     {
+        Logger.LogInformation("HandleCreateLeague called - Name: {Name}, Key: {Key}",
+            createLeagueRequest.Name, createLeagueRequest.Key);
+
         isCreating = true;
         createErrorMessage = null;
 
         try
         {
+            Logger.LogInformation("Calling LeagueService.CreateLeagueAsync");
             var response = await LeagueService.CreateLeagueAsync(createLeagueRequest);
+
+            Logger.LogInformation("Response received - Success: {Success}, Message: {Message}",
+                response?.Success, response?.Message);
 
             if (response?.Success == true && response.Data != null)
             {
+                Logger.LogInformation("League created successfully: {LeagueId}", response.Data.Id);
                 // League created successfully
                 showCreateModal = false;
                 await LoadLeagues(); // Reload the leagues list
             }
             else
             {
-                createErrorMessage = response?.Message ?? "Failed to create league. Please try again.";
+                var errorMsg = response?.Message ?? "Failed to create league. Please try again.";
+                Logger.LogWarning("League creation failed: {ErrorMessage}", errorMsg);
+                createErrorMessage = errorMsg;
             }
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Exception in HandleCreateLeague: {Message}", ex.Message);
             createErrorMessage = $"An error occurred: {ex.Message}";
         }
         finally
@@ -239,9 +416,115 @@
         Navigation.NavigateTo($"/league/{key}");
     }
 
+    private async Task LoadEvents()
+    {
+        isLoadingEvents = true;
+        try
+        {
+            // Use seed data for development - show upcoming events
+            myEvents = SeedData.Events
+                .Where(e => e.Date >= DateTime.Now.Date && !e.IsCompleted)
+                .OrderBy(e => e.Date)
+                .Take(6)
+                .Select(e => new OneTimeEventListResponse
+                {
+                    Id = e.Id,
+                    Key = e.Key,
+                    Name = e.Name,
+                    EventDate = e.Date,
+                    CourseName = e.CourseName,
+                    Format = GolfManager.Core.Enums.ScoringFormat.StrokePlay,
+                    TeamSize = 1,
+                    TotalRounds = 1,
+                    AccessType = GolfManager.Core.Enums.EventAccessType.Public,
+                    Status = GolfManager.Core.Enums.EventStatus.Published,
+                    RegisteredTeamsCount = e.ParticipantCount,
+                    MaxTeams = e.ParticipantCount + 5,
+                    OrganizerName = "League Admin"
+                }).ToList();
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading events");
+        }
+        finally
+        {
+            isLoadingEvents = false;
+        }
+    }
+
+    private void ShowCreateEventModal()
+    {
+        createEventRequest = new CreateOneTimeEventRequest
+        {
+            EventDate = DateTime.UtcNow.AddDays(30),
+            TeamSize = 4,
+            AccessType = EventAccessType.Public
+        };
+        createEventErrorMessage = null;
+        showCreateEventModal = true;
+    }
+
+    private void HideCreateEventModal()
+    {
+        showCreateEventModal = false;
+    }
+
+    private async Task HandleCreateEvent()
+    {
+        isCreatingEvent = true;
+        createEventErrorMessage = null;
+
+        try
+        {
+            var response = await EventService.CreateEventAsync(createEventRequest);
+
+            if (response?.Success == true && response.Data != null)
+            {
+                showCreateEventModal = false;
+                // Navigate to the new event
+                Navigation.NavigateTo($"/event/{response.Data.Key}");
+            }
+            else
+            {
+                createEventErrorMessage = response?.Message ?? "Failed to create event. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating event");
+            createEventErrorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isCreatingEvent = false;
+        }
+    }
+
+    private MaterialChipColor GetStatusColor(EventStatus status)
+    {
+        return status switch
+        {
+            EventStatus.Draft => MaterialChipColor.Default,
+            EventStatus.Published => MaterialChipColor.Primary,
+            EventStatus.InProgress => MaterialChipColor.Info,
+            EventStatus.Completed => MaterialChipColor.Success,
+            EventStatus.Cancelled => MaterialChipColor.Error,
+            _ => MaterialChipColor.Default
+        };
+    }
+
     private async Task HandleLogout()
     {
         await AuthService.LogoutAsync();
         Navigation.NavigateTo("/");
+    }
+
+    private string GetFirstName()
+    {
+        var user = SeedData.Users.FirstOrDefault(u => u.Id == AuthService.UserId);
+        return user?.FirstName ?? "Player";
     }
 }

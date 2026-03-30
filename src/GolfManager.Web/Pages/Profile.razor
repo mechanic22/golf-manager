@@ -1,0 +1,300 @@
+@page "/profile"
+@layout AppLayout
+@using MaterialComponents.Models
+@using GolfManager.Web.Services
+@inject IAuthService AuthService
+@inject SeedDataService SeedData
+@inject NavigationManager Navigation
+@inject ILogger<Profile> Logger
+
+<PageTitle>My Profile - Pinzo</PageTitle>
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-16">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-600">Loading profile...</p>
+        </div>
+    </div>
+}
+else if (user == null)
+{
+    <div class="text-center py-16">
+        <h2 class="text-2xl font-semibold text-gray-900 mb-2">Profile Not Found</h2>
+        <p class="text-gray-600 mb-4">Unable to load your profile.</p>
+        <MaterialButton Style="MaterialButtonStyle.Outlined" 
+                      Text="Back to Dashboard"
+                      OnClick="@(() => Navigation.NavigateTo("/dashboard"))" />
+    </div>
+}
+else
+{
+    <!-- Page Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">My Profile</h1>
+        <p class="text-gray-600">View and manage your golf profile and statistics</p>
+    </div>
+
+    <!-- Profile Card -->
+    <div class="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <div class="flex items-start gap-6">
+            <!-- Avatar -->
+            <div class="flex-shrink-0">
+                <div class="w-24 h-24 bg-primary-600 rounded-full flex items-center justify-center text-white text-3xl font-semibold">
+                    @GetInitials()
+                </div>
+            </div>
+
+            <!-- User Info -->
+            <div class="flex-1">
+                <h2 class="text-2xl font-bold text-gray-900 mb-1">@user.FirstName @user.LastName</h2>
+                <p class="text-gray-600 mb-4">@user.Email</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="text-sm text-gray-500 mb-1">Handicap Index</div>
+                        <div class="text-2xl font-bold text-primary-600">@(currentHandicap?.ToString("F1") ?? "N/A")</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="text-sm text-gray-500 mb-1">Rounds Played</div>
+                        <div class="text-2xl font-bold text-gray-900">@totalRounds</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="text-sm text-gray-500 mb-1">Leagues</div>
+                        <div class="text-2xl font-bold text-gray-900">@totalLeagues</div>
+                    </div>
+                </div>
+
+                <MaterialButton Style="MaterialButtonStyle.Outlined" 
+                              Text="Edit Profile"
+                              LeadingIcon="@EditIcon()"
+                              OnClick="EditProfile" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="bg-white rounded-lg border border-gray-200">
+        <div class="border-b border-gray-200">
+            <MaterialTabs @bind-ActiveTab="activeTab"
+                          Tabs="@GetTabs()"
+                          ShowContent="false"
+                          OnTabChange="HandleTabChange" />
+        </div>
+
+        <div class="p-6">
+            @if (activeTab == "overview")
+            {
+                <!-- Overview Tab -->
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-3">Recent Activity</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                <MaterialIcon Path="@MaterialIcons.Dashboard" Size="MaterialComponents.Icons.IconSize.SM" Class="text-gray-400" />
+                                <div class="flex-1">
+                                    <p class="text-sm font-medium text-gray-900">Played at Pinewood Lake</p>
+                                    <p class="text-xs text-gray-500">Shot 85 • 2 days ago</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                <MaterialIcon Path="@MaterialIcons.Dashboard" Size="MaterialComponents.Icons.IconSize.SM" Class="text-gray-400" />
+                                <div class="flex-1">
+                                    <p class="text-sm font-medium text-gray-900">Joined Summer League 2024</p>
+                                    <p class="text-xs text-gray-500">1 week ago</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                                <MaterialIcon Path="@MaterialIcons.Dashboard" Size="MaterialComponents.Icons.IconSize.SM" Class="text-gray-400" />
+                                <div class="flex-1">
+                                    <p class="text-sm font-medium text-gray-900">Handicap updated to @(currentHandicap?.ToString("F1") ?? "N/A")</p>
+                                    <p class="text-xs text-gray-500">2 weeks ago</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-3">My Leagues</h3>
+                        <div class="text-gray-600 text-sm">
+                            <p>You are a member of @totalLeagues league(s).</p>
+                            <MaterialButton Style="MaterialButtonStyle.Text" 
+                                          Text="View All Leagues"
+                                          OnClick="@(() => Navigation.NavigateTo("/leagues"))"
+                                          Class="mt-2" />
+                        </div>
+                    </div>
+                </div>
+            }
+            else if (activeTab == "stats")
+            {
+                <!-- Stats Tab - Redirect to dedicated page -->
+                <div class="text-center py-8">
+                    <p class="text-gray-600 mb-4">View your detailed statistics</p>
+                    <MaterialButton Style="MaterialButtonStyle.Filled" 
+                                  Text="View Detailed Stats"
+                                  OnClick="@(() => Navigation.NavigateTo("/profile/stats"))" />
+                </div>
+            }
+            else if (activeTab == "rounds")
+            {
+                <!-- Rounds Tab - Redirect to dedicated page -->
+                <div class="text-center py-8">
+                    <p class="text-gray-600 mb-4">View your round history</p>
+                    <MaterialButton Style="MaterialButtonStyle.Filled"
+                                  Text="View All Rounds"
+                                  OnClick="@(() => Navigation.NavigateTo("/profile/rounds"))" />
+                </div>
+            }
+            else if (activeTab == "handicap")
+            {
+                <!-- Handicap Tab - Redirect to dedicated page -->
+                <div class="text-center py-8">
+                    <p class="text-gray-600 mb-4">View your handicap history</p>
+                    <MaterialButton Style="MaterialButtonStyle.Filled"
+                                  Text="View Handicap Details"
+                                  OnClick="@(() => Navigation.NavigateTo("/profile/handicap"))" />
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private MockUser? user;
+    private bool isLoading = true;
+    private string activeTab = "overview";
+    private decimal? currentHandicap = 12.5m;
+    private int totalRounds = 24;
+    private int totalLeagues = 3;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            // Use seed data - find current user by ID or email
+            var currentUserId = AuthService.UserId;
+            var currentUserEmail = AuthService.UserEmail;
+
+            var seedUser = SeedData.Users.FirstOrDefault(u =>
+                u.Id == currentUserId || u.Email.Equals(currentUserEmail, StringComparison.OrdinalIgnoreCase));
+
+            if (seedUser != null)
+            {
+                user = new MockUser
+                {
+                    FirstName = seedUser.FirstName,
+                    LastName = seedUser.LastName,
+                    Email = seedUser.Email
+                };
+
+                // Calculate stats from seed data
+                currentHandicap = (decimal)seedUser.Handicap;
+                totalRounds = SeedData.Rounds.Count(r => r.PlayerId == seedUser.Id);
+
+                // Count leagues the user has played in
+                var leagueIds = SeedData.Rounds
+                    .Where(r => r.PlayerId == seedUser.Id)
+                    .Select(r => SeedData.Events.FirstOrDefault(e => e.Id == r.EventId)?.LeagueId)
+                    .Where(id => id != null)
+                    .Distinct()
+                    .Count();
+                totalLeagues = leagueIds;
+            }
+            else
+            {
+                // Fallback to email-only if user not found in seed data
+                user = new MockUser
+                {
+                    FirstName = "Unknown",
+                    LastName = "User",
+                    Email = currentUserEmail ?? "user@example.com"
+                };
+            }
+
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading profile");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetInitials()
+    {
+        if (user == null) return "?";
+        var first = !string.IsNullOrEmpty(user.FirstName) ? user.FirstName[0].ToString() : "";
+        var last = !string.IsNullOrEmpty(user.LastName) ? user.LastName[0].ToString() : "";
+        return $"{first}{last}".ToUpper();
+    }
+
+    private class MockUser
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+    }
+
+    private List<MaterialTab> GetTabs()
+    {
+        return new List<MaterialTab>
+        {
+            new MaterialTab
+            {
+                Value = "overview",
+                Label = "Overview",
+                Icon = @<MaterialIcon Path="@MaterialIcons.Dashboard" Size="MaterialComponents.Icons.IconSize.SM" />
+            },
+            new MaterialTab
+            {
+                Value = "stats",
+                Label = "Stats",
+                Icon = @<MaterialIcon Path="@MaterialIcons.TableChart" Size="MaterialComponents.Icons.IconSize.SM" />
+            },
+            new MaterialTab
+            {
+                Value = "rounds",
+                Label = "Rounds",
+                Icon = @<MaterialIcon Path="@MaterialIcons.Dashboard" Size="MaterialComponents.Icons.IconSize.SM" />
+            },
+            new MaterialTab
+            {
+                Value = "handicap",
+                Label = "Handicap",
+                Icon = @<MaterialIcon Path="@MaterialIcons.TrendingUp" Size="MaterialComponents.Icons.IconSize.SM" />
+            }
+        };
+    }
+
+    private void HandleTabChange(string tabValue)
+    {
+        activeTab = tabValue;
+    }
+
+    private void EditProfile()
+    {
+        // TODO: Implement edit profile modal or navigate to edit page
+        Logger.LogInformation("Edit profile clicked");
+    }
+
+    // Icon helpers
+    private RenderFragment EditIcon() => @<MaterialIcon Path="@MaterialIcons.Edit" Size="MaterialComponents.Icons.IconSize.SM" />;
+}
+

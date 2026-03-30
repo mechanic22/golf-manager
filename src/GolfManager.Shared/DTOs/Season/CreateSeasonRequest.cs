@@ -9,11 +9,11 @@ public class CreateSeasonRequest
 {
     /// <summary>
     /// URL-friendly key (e.g., "2024", "spring-2024")
+    /// If not provided, will be auto-generated from the Name
     /// </summary>
-    [Required]
     [RegularExpression(@"^[a-z0-9-]+$", ErrorMessage = "Key must contain only lowercase letters, numbers, and hyphens")]
     [StringLength(50, MinimumLength = 2)]
-    public string Key { get; set; } = string.Empty;
+    public string? Key { get; set; }
 
     /// <summary>
     /// Season display name

@@ -1,0 +1,237 @@
+@page "/admin/users"
+@layout AppLayout
+@inject IAuthService AuthService
+@inject IAuthorizationService AuthorizationService
+@inject NavigationManager Navigation
+@inject ILogger<AdminUsers> Logger
+
+<PageTitle>Manage Users - Pinzo Admin</PageTitle>
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-16">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-600">Loading users...</p>
+        </div>
+    </div>
+}
+else if (!isGlobalAdmin)
+{
+    <div class="text-center py-16">
+        <MaterialIcon Path="@MaterialIcons.LockClosed" Size="MaterialComponents.Icons.IconSize.XL" Class="text-gray-400 mb-4" />
+        <h2 class="text-2xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+        <p class="text-gray-600 mb-4">You must be a Global Admin to manage users.</p>
+        <MaterialButton Style="MaterialButtonStyle.Outlined" 
+                      Text="Back to Admin Dashboard"
+                      OnClick="@(() => Navigation.NavigateTo("/admin"))" />
+    </div>
+}
+else
+{
+    <!-- Page Header -->
+    <div class="mb-8">
+        <div class="flex items-center gap-2 text-sm text-gray-600 mb-2">
+            <a href="/dashboard" class="hover:text-primary-600">Dashboard</a>
+            <span>/</span>
+            <a href="/admin" class="hover:text-primary-600">Admin</a>
+            <span>/</span>
+            <span class="text-gray-900">Manage Users</span>
+        </div>
+        <div class="flex items-center justify-between">
+            <div>
+                <h1 class="text-3xl font-bold text-gray-900">Manage Users</h1>
+                <p class="text-gray-600 mt-1">View and manage all platform users</p>
+            </div>
+            <MaterialButton Style="MaterialButtonStyle.Filled"
+                          Text="Invite User"
+                          OnClick="@(() => showInviteModal = true)" />
+        </div>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="bg-white rounded-lg border border-gray-200 p-4 mb-6">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="md:col-span-2">
+                <input type="text" 
+                       @bind="searchQuery" 
+                       @bind:event="oninput"
+                       placeholder="Search by name or email..."
+                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+            </div>
+            <div>
+                <select @bind="roleFilter" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    <option value="all">All Roles</option>
+                    <option value="admin">Global Admin</option>
+                    <option value="league_admin">League Admin</option>
+                    <option value="player">Player</option>
+                </select>
+            </div>
+        </div>
+    </div>
+
+    <!-- Users Table -->
+    <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                @foreach (var user in filteredUsers)
+                {
+                    <tr class="hover:bg-gray-50">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 bg-primary-600 rounded-full flex items-center justify-center text-white font-semibold flex-shrink-0">
+                                    @GetInitials(user.FirstName, user.LastName)
+                                </div>
+                                <div class="ml-4">
+                                    <div class="text-sm font-medium text-gray-900">@user.FirstName @user.LastName</div>
+                                    <div class="text-sm text-gray-500">@user.Email</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 py-1 text-xs font-medium rounded-full @GetRoleBadgeClass(user.Role)">
+                                @user.Role
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            @user.JoinedDate.ToString("MMM dd, yyyy")
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 py-1 text-xs font-medium rounded-full @(user.IsActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800")">
+                                @(user.IsActive ? "Active" : "Inactive")
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button class="text-primary-600 hover:text-primary-900 mr-3">Edit</button>
+                            <button class="text-red-600 hover:text-red-900">@(user.IsActive ? "Deactivate" : "Activate")</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    @if (!filteredUsers.Any())
+    {
+        <div class="text-center py-16">
+            <MaterialIcon Path="@MaterialIcons.Person" Size="MaterialComponents.Icons.IconSize.XL" Class="text-gray-400 mb-4" />
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">No users found</h3>
+            <p class="text-gray-600">Try adjusting your search or filters</p>
+        </div>
+    }
+
+    <!-- Pagination -->
+    <div class="mt-6 flex items-center justify-between">
+        <p class="text-sm text-gray-600">
+            Showing @filteredUsers.Count of @allUsers.Count users
+        </p>
+    </div>
+}
+
+@code {
+    private bool isLoading = true;
+    private bool isGlobalAdmin = false;
+    private bool showInviteModal = false;
+    private string searchQuery = string.Empty;
+    private string roleFilter = "all";
+    private List<MockUser> allUsers = new();
+
+    private List<MockUser> filteredUsers => allUsers
+        .Where(u => string.IsNullOrEmpty(searchQuery) ||
+                    u.FirstName.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                    u.LastName.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
+                    u.Email.Contains(searchQuery, StringComparison.OrdinalIgnoreCase))
+        .Where(u => roleFilter == "all" || u.Role.ToLower().Replace(" ", "_") == roleFilter)
+        .ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        isGlobalAdmin = AuthorizationService.IsGlobalAdmin();
+
+        if (!isGlobalAdmin)
+        {
+            isLoading = false;
+            return;
+        }
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            // TODO: Load actual users from API
+            allUsers = GenerateMockUsers();
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading users");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetInitials(string firstName, string lastName)
+    {
+        var first = !string.IsNullOrEmpty(firstName) ? firstName[0].ToString() : "";
+        var last = !string.IsNullOrEmpty(lastName) ? lastName[0].ToString() : "";
+        return $"{first}{last}".ToUpper();
+    }
+
+    private string GetRoleBadgeClass(string role)
+    {
+        return role switch
+        {
+            "Global Admin" => "bg-red-100 text-red-800",
+            "League Admin" => "bg-blue-100 text-blue-800",
+            "Season Admin" => "bg-green-100 text-green-800",
+            _ => "bg-gray-100 text-gray-800"
+        };
+    }
+
+    private List<MockUser> GenerateMockUsers()
+    {
+        return new List<MockUser>
+        {
+            new() { Id = "1", FirstName = "Sarah", LastName = "Admin", Email = "admin@pinzo.pro", Role = "Global Admin", JoinedDate = DateTime.Now.AddMonths(-12), IsActive = true },
+            new() { Id = "2", FirstName = "Mike", LastName = "Commissioner", Email = "league.admin@pinzo.pro", Role = "League Admin", JoinedDate = DateTime.Now.AddMonths(-8), IsActive = true },
+            new() { Id = "3", FirstName = "John", LastName = "Player", Email = "john.player@pinzo.pro", Role = "Player", JoinedDate = DateTime.Now.AddMonths(-6), IsActive = true },
+            new() { Id = "4", FirstName = "Jane", LastName = "Golfer", Email = "jane.golfer@pinzo.pro", Role = "Player", JoinedDate = DateTime.Now.AddMonths(-4), IsActive = true },
+            new() { Id = "5", FirstName = "Bob", LastName = "Smith", Email = "bob.smith@example.com", Role = "Player", JoinedDate = DateTime.Now.AddMonths(-3), IsActive = true },
+            new() { Id = "6", FirstName = "Alice", LastName = "Johnson", Email = "alice.j@example.com", Role = "League Admin", JoinedDate = DateTime.Now.AddMonths(-2), IsActive = true },
+            new() { Id = "7", FirstName = "Tom", LastName = "Wilson", Email = "tom.w@example.com", Role = "Player", JoinedDate = DateTime.Now.AddMonths(-1), IsActive = false }
+        };
+    }
+
+    private class MockUser
+    {
+        public string Id { get; set; } = string.Empty;
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+        public DateTime JoinedDate { get; set; }
+        public bool IsActive { get; set; }
+    }
+}
+

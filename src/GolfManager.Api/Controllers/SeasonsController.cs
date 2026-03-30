@@ -17,15 +17,18 @@ namespace GolfManager.Api.Controllers;
 public class SeasonsController : ControllerBase
 {
     private readonly ISeasonService _seasonService;
+    private readonly ISeasonSettingsService _seasonSettingsService;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<SeasonsController> _logger;
 
     public SeasonsController(
         ISeasonService seasonService,
+        ISeasonSettingsService seasonSettingsService,
         ICurrentUserService currentUserService,
         ILogger<SeasonsController> logger)
     {
         _seasonService = seasonService;
+        _seasonSettingsService = seasonSettingsService;
         _currentUserService = currentUserService;
         _logger = logger;
     }
@@ -133,5 +136,76 @@ public class SeasonsController : ControllerBase
 
         return Ok(ApiResponse<bool>.SuccessResponse(true));
     }
+
+    #region Season Settings
+
+    /// <summary>
+    /// Get settings for a season
+    /// </summary>
+    [HttpGet("{seasonId}/settings")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    public async Task<ActionResult<ApiResponse<SeasonSettingsResponse>>> GetSeasonSettings(string leagueId, string seasonId)
+    {
+        var settings = await _seasonSettingsService.GetSeasonSettingsAsync(seasonId, leagueId);
+
+        if (settings == null)
+        {
+            return NotFound(ApiResponse<SeasonSettingsResponse>.ErrorResponse("Season settings not found"));
+        }
+
+        return Ok(ApiResponse<SeasonSettingsResponse>.SuccessResponse(settings));
+    }
+
+    /// <summary>
+    /// Update season settings
+    /// </summary>
+    [HttpPut("{seasonId}/settings")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<SeasonSettingsResponse>>> UpdateSeasonSettings(
+        string leagueId,
+        string seasonId,
+        [FromBody] UpdateSeasonSettingsRequest request)
+    {
+        try
+        {
+            var settings = await _seasonSettingsService.UpdateSeasonSettingsAsync(seasonId, leagueId, request);
+
+            _logger.LogInformation("Season settings updated for season {SeasonId} in league {LeagueId}",
+                seasonId, leagueId);
+
+            return Ok(ApiResponse<SeasonSettingsResponse>.SuccessResponse(settings));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<SeasonSettingsResponse>.ErrorResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Create default settings for a season
+    /// </summary>
+    [HttpPost("{seasonId}/settings/default")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<SeasonSettingsResponse>>> CreateDefaultSettings(string leagueId, string seasonId)
+    {
+        try
+        {
+            var settings = await _seasonSettingsService.CreateDefaultSettingsAsync(seasonId, leagueId);
+
+            _logger.LogInformation("Default settings created for season {SeasonId} in league {LeagueId}",
+                seasonId, leagueId);
+
+            return CreatedAtAction(
+                nameof(GetSeasonSettings),
+                new { leagueId, seasonId },
+                ApiResponse<SeasonSettingsResponse>.SuccessResponse(settings));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<SeasonSettingsResponse>.ErrorResponse(ex.Message));
+        }
+    }
+
+    #endregion
 }
 

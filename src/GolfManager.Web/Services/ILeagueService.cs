@@ -22,5 +22,30 @@ public interface ILeagueService
     /// Get a league by its key
     /// </summary>
     Task<ApiResponse<LeagueResponse>?> GetLeagueByKeyAsync(string key);
+
+    /// <summary>
+    /// Update a league
+    /// </summary>
+    Task<ApiResponse<LeagueResponse>?> UpdateLeagueAsync(string leagueId, UpdateLeagueRequest request);
+
+    /// <summary>
+    /// Get all members of a league
+    /// </summary>
+    Task<ApiResponse<List<LeagueMemberResponse>>?> GetLeagueMembersAsync(string leagueId);
+
+    /// <summary>
+    /// Add a member to a league
+    /// </summary>
+    Task<ApiResponse<LeagueMemberResponse>?> AddLeagueMemberAsync(string leagueId, AddLeagueMemberRequest request);
+
+    /// <summary>
+    /// Update a league member's role
+    /// </summary>
+    Task<ApiResponse<LeagueMemberResponse>?> UpdateLeagueMemberAsync(string leagueId, string userId, UpdateLeagueMemberRequest request);
+
+    /// <summary>
+    /// Remove a member from a league
+    /// </summary>
+    Task<ApiResponse<bool>?> RemoveLeagueMemberAsync(string leagueId, string userId);
 }
 

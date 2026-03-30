@@ -1,0 +1,534 @@
+@page "/event/{EventKey}"
+@layout AppLayout
+@inject IOneTimeEventService EventService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
+@inject ILogger<EventDetail> Logger
+
+<PageTitle>@(eventData?.Name ?? "Event") - Pinzo</PageTitle>
+
+@if (isLoading)
+{
+    <div class="flex flex-col items-center justify-center py-16">
+        <MaterialProgressIndicator Variant="MaterialProgressVariant.Circular" />
+        <p class="text-gray-600 mt-4">Loading event...</p>
+    </div>
+}
+else if (eventData == null)
+{
+    <div class="max-w-2xl mx-auto my-8">
+        <MaterialCard Variant="MaterialCardVariant.Elevated">
+            <div class="md-card__content text-center py-16">
+                <MaterialIcon Icon="MaterialIcons.EventBusy" Class="text-gray-400 text-6xl mb-4" />
+                <h2 class="text-2xl font-semibold text-gray-900 mb-3">Event Not Found</h2>
+                <p class="text-gray-600 mb-8">The event you're looking for doesn't exist or has been removed.</p>
+                <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="@(() => Navigation.NavigateTo("/dashboard"))">
+                    Go to Dashboard
+                </MaterialButton>
+            </div>
+        </MaterialCard>
+    </div>
+}
+else
+{
+    <!-- Event Header -->
+    <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8 py-6 mb-8">
+        <div class="flex items-start justify-between flex-wrap gap-4">
+            <div class="flex-1">
+                <div class="flex items-center gap-3 mb-2">
+                    <h1 class="text-3xl font-bold text-gray-900">@eventData.Name</h1>
+                    <MaterialChip Label="@eventData.Status.ToString()"
+                                 Color="@GetStatusColor(eventData.Status)"
+                                 Size="MaterialChipSize.Small" />
+                </div>
+                <div class="flex flex-wrap gap-4 text-sm text-gray-600">
+                    <div class="flex items-center gap-1">
+                        <MaterialIcon Icon="MaterialIcons.CalendarToday" Class="text-base" />
+                        <span>@eventData.EventDate.ToString("MMMM d, yyyy")</span>
+                    </div>
+                    <div class="flex items-center gap-1">
+                        <MaterialIcon Icon="MaterialIcons.Person" Class="text-base" />
+                        <span>Organized by @eventData.OrganizerName</span>
+                    </div>
+                    @if (eventData.MaxTeams.HasValue)
+                    {
+                        <div class="flex items-center gap-1">
+                            <MaterialIcon Icon="MaterialIcons.Groups" Class="text-base" />
+                            <span>@teams.Count / @eventData.MaxTeams teams</span>
+                        </div>
+                    }
+                </div>
+            </div>
+            @if (isOrganizer)
+            {
+                <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="@(() => Navigation.NavigateTo($"/event/{EventKey}/manage"))">
+                    <MaterialIcon Icon="MaterialIcons.Settings" Class="mr-1" />
+                    Manage Event
+                </MaterialButton>
+            }
+        </div>
+    </div>
+
+    <!-- Event Details -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        <!-- Main Content -->
+        <div class="lg:col-span-2 space-y-6">
+            <!-- Description -->
+            @if (!string.IsNullOrEmpty(eventData.Description))
+            {
+                <MaterialCard Variant="MaterialCardVariant.Outlined">
+                    <div class="md-card__content">
+                        <h2 class="text-xl font-semibold text-gray-900 mb-3">About This Event</h2>
+                        <p class="text-gray-700 whitespace-pre-line">@eventData.Description</p>
+                    </div>
+                </MaterialCard>
+            }
+
+            <!-- Teams List -->
+            <MaterialCard Variant="MaterialCardVariant.Outlined">
+                <div class="md-card__content">
+                    <h2 class="text-xl font-semibold text-gray-900 mb-4">Registered Teams (@teams.Count)</h2>
+                    @if (teams.Any())
+                    {
+                        <div class="space-y-3">
+                            @foreach (var team in teams.OrderBy(t => t.TeamName))
+                            {
+                                var isMyTeam = AuthService.IsAuthenticated && team.Players.Any(p => p.Email == AuthService.UserEmail);
+                                var canManagePlayers = isOrganizer || isMyTeam;
+
+                                <div class="border border-gray-200 rounded-lg p-4">
+                                    <div class="flex items-center justify-between mb-2">
+                                        <div>
+                                            <div class="font-semibold text-gray-900">@team.TeamName</div>
+                                            <div class="text-sm text-gray-600">Captain: @team.CaptainName</div>
+                                            <div class="text-xs text-gray-500">@team.Players.Count / @eventData.TeamSize players</div>
+                                        </div>
+                                        @if (team.IsCheckedIn)
+                                        {
+                                            <MaterialChip Label="Checked In" Color="MaterialChipColor.Success" Size="MaterialChipSize.Small" />
+                                        }
+                                    </div>
+
+                                    <!-- Players List -->
+                                    @if (team.Players.Any())
+                                    {
+                                        <div class="mt-3 pt-3 border-t border-gray-200">
+                                            <div class="flex items-center justify-between mb-2">
+                                                <div class="text-sm font-medium text-gray-700">Players</div>
+                                                @if (canManagePlayers && team.Players.Count < eventData.TeamSize)
+                                                {
+                                                    <MaterialButton Style="MaterialButtonStyle.Text" OnClick="@(() => ShowAddPlayerModal(team))">
+                                                        <MaterialIcon Icon="MaterialIcons.PersonAdd" Class="mr-1" />
+                                                        Add Player
+                                                    </MaterialButton>
+                                                }
+                                            </div>
+                                            <div class="space-y-2">
+                                                @foreach (var player in team.Players.OrderBy(p => !p.IsCaptain))
+                                                {
+                                                    <div class="flex items-center justify-between text-sm bg-gray-50 rounded p-2">
+                                                        <div class="flex items-center gap-2">
+                                                            @if (player.IsCaptain)
+                                                            {
+                                                                <MaterialIcon Icon="MaterialIcons.Star" Class="text-base text-yellow-500" />
+                                                            }
+                                                            else
+                                                            {
+                                                                <MaterialIcon Icon="MaterialIcons.Person" Class="text-base text-gray-400" />
+                                                            }
+                                                            <div>
+                                                                <div class="font-medium text-gray-900">@player.PlayerName</div>
+                                                                @if (!string.IsNullOrEmpty(player.Email))
+                                                                {
+                                                                    <div class="text-xs text-gray-500">@player.Email</div>
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                        @if (canManagePlayers && !player.IsCaptain)
+                                                        {
+                                                            <MaterialButton Style="MaterialButtonStyle.Text" Color="MaterialButtonColor.Error" OnClick="@(() => HandleRemovePlayer(player.Id, player.PlayerName))">
+                                                                <MaterialIcon Icon="MaterialIcons.Delete" />
+                                                            </MaterialButton>
+                                                        }
+                                                    </div>
+                                                }
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-gray-500 text-center py-8">No teams registered yet. Be the first!</p>
+                    }
+                </div>
+            </MaterialCard>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="space-y-6">
+            <!-- Event Info -->
+            <MaterialCard Variant="MaterialCardVariant.Outlined">
+                <div class="md-card__content">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Event Details</h3>
+                    <div class="space-y-3 text-sm">
+                        <div>
+                            <div class="text-gray-500 mb-1">Format</div>
+                            <div class="font-medium text-gray-900">@eventData.Format</div>
+                        </div>
+                        <div>
+                            <div class="text-gray-500 mb-1">Team Size</div>
+                            <div class="font-medium text-gray-900">@eventData.TeamSize players</div>
+                        </div>
+                        @if (eventData.RegistrationDeadline.HasValue)
+                        {
+                            <div>
+                                <div class="text-gray-500 mb-1">Registration Deadline</div>
+                                <div class="font-medium text-gray-900">@eventData.RegistrationDeadline.Value.ToString("MMM d, yyyy")</div>
+                            </div>
+                        }
+                        <div>
+                            <div class="text-gray-500 mb-1">Access</div>
+                            <div class="font-medium text-gray-900">@eventData.AccessType</div>
+                        </div>
+                    </div>
+                </div>
+            </MaterialCard>
+
+            <!-- Registration Button -->
+            @if (eventData.Status == EventStatus.Published && !isRegistrationClosed)
+            {
+                <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="ShowRegisterModal" Class="w-full">
+                    <MaterialIcon Icon="MaterialIcons.PersonAdd" Class="mr-1" />
+                    Register Team
+                </MaterialButton>
+            }
+        </div>
+    </div>
+}
+
+<!-- Registration Modal -->
+<MaterialDialog @bind-IsOpen="showRegisterModal" Title="Register Team" MaxWidth="MaterialDialogMaxWidth.Medium">
+    <ChildContent>
+        @if (!string.IsNullOrEmpty(registerErrorMessage))
+        {
+            <div class="alert alert-danger mb-4">
+                @registerErrorMessage
+            </div>
+        }
+
+        <EditForm Model="@registerRequest" OnValidSubmit="HandleRegisterTeam">
+            <DataAnnotationsValidator />
+
+            <div class="space-y-4">
+                <div>
+                    <MaterialInput @bind-Value="registerRequest.TeamName"
+                                  Label="Team Name"
+                                  Placeholder="The Eagles"
+                                  Variant="MaterialInputVariant.Outlined"
+                                  Required="true" />
+                    <ValidationMessage For="@(() => registerRequest.TeamName)" />
+                </div>
+
+                <div>
+                    <MaterialInput @bind-Value="registerRequest.CaptainName"
+                                  Label="Captain Name"
+                                  Placeholder="John Doe"
+                                  Variant="MaterialInputVariant.Outlined"
+                                  Required="true" />
+                    <ValidationMessage For="@(() => registerRequest.CaptainName)" />
+                </div>
+
+                <div>
+                    <MaterialInput @bind-Value="registerRequest.CaptainEmail"
+                                  Label="Captain Email"
+                                  Placeholder="john@example.com"
+                                  Variant="MaterialInputVariant.Outlined"
+                                  Type="email"
+                                  Required="true" />
+                    <ValidationMessage For="@(() => registerRequest.CaptainEmail)" />
+                </div>
+
+                @if (eventData?.AccessType == EventAccessType.Private)
+                {
+                    <div>
+                        <MaterialInput @bind-Value="registerRequest.RegistrationCode"
+                                      Label="Registration Code"
+                                      Placeholder="Enter code"
+                                      Variant="MaterialInputVariant.Outlined"
+                                      Required="true" />
+                        <ValidationMessage For="@(() => registerRequest.RegistrationCode)" />
+                    </div>
+                }
+
+                <div class="mt-4 flex justify-end gap-3">
+                    <MaterialButton Type="button" Style="MaterialButtonStyle.Text" OnClick="HideRegisterModal" Disabled="isRegistering">
+                        Cancel
+                    </MaterialButton>
+                    <MaterialButton Type="submit" Style="MaterialButtonStyle.Filled" Disabled="isRegistering">
+                        @if (isRegistering)
+                        {
+                            <span>Registering...</span>
+                        }
+                        else
+                        {
+                            <span>Register Team</span>
+                        }
+                    </MaterialButton>
+                </div>
+            </div>
+        </EditForm>
+    </ChildContent>
+</MaterialDialog>
+
+<MaterialDialog @bind-IsOpen="showAddPlayerModal" Title="Add Player" MaxWidth="MaterialDialogMaxWidth.Small">
+    <ChildContent>
+        @if (!string.IsNullOrEmpty(addPlayerErrorMessage))
+        {
+            <div class="alert alert-danger mb-4">
+                @addPlayerErrorMessage
+            </div>
+        }
+
+        <EditForm Model="@addPlayerRequest" OnValidSubmit="HandleAddPlayer">
+            <DataAnnotationsValidator />
+
+            <div class="space-y-4">
+                <div>
+                    <MaterialInput @bind-Value="addPlayerRequest.PlayerName"
+                                  Label="Player Name"
+                                  Placeholder="John Doe"
+                                  Variant="MaterialInputVariant.Outlined"
+                                  Required="true" />
+                    <ValidationMessage For="@(() => addPlayerRequest.PlayerName)" />
+                </div>
+
+                <div>
+                    <MaterialInput @bind-Value="addPlayerRequest.Email"
+                                  Label="Email (Optional)"
+                                  Placeholder="john@example.com"
+                                  Type="email"
+                                  Variant="MaterialInputVariant.Outlined" />
+                    <ValidationMessage For="@(() => addPlayerRequest.Email)" />
+                </div>
+
+                <div>
+                    <MaterialInput @bind-Value="addPlayerRequest.Handicap"
+                                  Label="Handicap (Optional)"
+                                  Placeholder="10.5"
+                                  Type="number"
+                                  Variant="MaterialInputVariant.Outlined" />
+                    <ValidationMessage For="@(() => addPlayerRequest.Handicap)" />
+                </div>
+
+                <div class="mt-4 flex justify-end gap-3">
+                    <MaterialButton Type="button" Style="MaterialButtonStyle.Text" OnClick="HideAddPlayerModal" Disabled="isAddingPlayer">
+                        Cancel
+                    </MaterialButton>
+                    <MaterialButton Type="submit" Style="MaterialButtonStyle.Filled" Disabled="isAddingPlayer">
+                        @if (isAddingPlayer)
+                        {
+                            <span>Adding...</span>
+                        }
+                        else
+                        {
+                            <span>Add Player</span>
+                        }
+                    </MaterialButton>
+                </div>
+            </div>
+        </EditForm>
+    </ChildContent>
+</MaterialDialog>
+
+
+@code {
+    [Parameter]
+    public string EventKey { get; set; } = string.Empty;
+
+    private OneTimeEventResponse? eventData;
+    private List<OneTimeEventTeamResponse> teams = new();
+    private bool isLoading = true;
+    private bool isOrganizer = false;
+    private bool isRegistrationClosed = false;
+
+    private bool showRegisterModal = false;
+    private bool isRegistering = false;
+    private RegisterTeamRequest registerRequest = new();
+    private string? registerErrorMessage;
+
+    private bool showAddPlayerModal = false;
+    private bool isAddingPlayer = false;
+    private AddPlayerRequest addPlayerRequest = new();
+    private string? addPlayerErrorMessage;
+    private string? selectedTeamId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadEvent();
+    }
+
+    private async Task LoadEvent()
+    {
+        isLoading = true;
+        try
+        {
+            var response = await EventService.GetEventByKeyAsync(EventKey);
+            if (response?.Success == true && response.Data != null)
+            {
+                eventData = response.Data;
+                isOrganizer = AuthService.IsAuthenticated && AuthService.UserId == eventData.OrganizerId;
+                isRegistrationClosed = eventData.RegistrationDeadline.HasValue && DateTime.UtcNow > eventData.RegistrationDeadline.Value;
+
+                // Load teams
+                var teamsResponse = await EventService.GetEventTeamsAsync(eventData.Id);
+                if (teamsResponse?.Success == true && teamsResponse.Data != null)
+                {
+                    teams = teamsResponse.Data;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading event");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ShowRegisterModal()
+    {
+        registerRequest = new RegisterTeamRequest
+        {
+            Players = new List<RegisterTeamRequest.PlayerInfo>()
+        };
+        registerErrorMessage = null;
+        showRegisterModal = true;
+    }
+
+    private void HideRegisterModal()
+    {
+        showRegisterModal = false;
+    }
+
+    private async Task HandleRegisterTeam()
+    {
+        if (eventData == null) return;
+
+        isRegistering = true;
+        registerErrorMessage = null;
+
+        try
+        {
+            // Add captain as first player
+            registerRequest.Players = new List<RegisterTeamRequest.PlayerInfo>
+            {
+                new() { PlayerName = registerRequest.CaptainName, IsCaptain = true }
+            };
+
+            var response = await EventService.RegisterTeamAsync(eventData.Id, registerRequest);
+
+            if (response?.Success == true)
+            {
+                showRegisterModal = false;
+                await LoadEvent(); // Reload to show new team
+            }
+            else
+            {
+                registerErrorMessage = response?.Message ?? "Failed to register team. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error registering team");
+            registerErrorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isRegistering = false;
+        }
+    }
+
+    private void ShowAddPlayerModal(OneTimeEventTeamResponse team)
+    {
+        selectedTeamId = team.Id;
+        addPlayerRequest = new AddPlayerRequest();
+        addPlayerErrorMessage = null;
+        showAddPlayerModal = true;
+    }
+
+    private void HideAddPlayerModal()
+    {
+        showAddPlayerModal = false;
+        selectedTeamId = null;
+    }
+
+    private async Task HandleAddPlayer()
+    {
+        if (string.IsNullOrEmpty(selectedTeamId)) return;
+
+        isAddingPlayer = true;
+        addPlayerErrorMessage = null;
+
+        try
+        {
+            var response = await EventService.AddPlayerAsync(selectedTeamId, addPlayerRequest);
+
+            if (response?.Success == true)
+            {
+                showAddPlayerModal = false;
+                await LoadEvent(); // Reload to update teams
+            }
+            else
+            {
+                addPlayerErrorMessage = response?.Message ?? "Failed to add player. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error adding player");
+            addPlayerErrorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            isAddingPlayer = false;
+        }
+    }
+
+    private async Task HandleRemovePlayer(string playerId, string playerName)
+    {
+        if (!await JSRuntime.InvokeAsync<bool>("confirm", $"Are you sure you want to remove {playerName}?"))
+            return;
+
+        try
+        {
+            var response = await EventService.RemovePlayerAsync(playerId);
+            if (response?.Success == true)
+            {
+                await LoadEvent(); // Reload to update teams
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error removing player");
+        }
+    }
+
+    private MaterialChipColor GetStatusColor(EventStatus status)
+    {
+        return status switch
+        {
+            EventStatus.Draft => MaterialChipColor.Default,
+            EventStatus.Published => MaterialChipColor.Primary,
+            EventStatus.InProgress => MaterialChipColor.Info,
+            EventStatus.Completed => MaterialChipColor.Success,
+            EventStatus.Cancelled => MaterialChipColor.Error,
+            _ => MaterialChipColor.Default
+        };
+    }
+}

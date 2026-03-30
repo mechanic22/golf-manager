@@ -1,0 +1,241 @@
+@page "/league/{LeagueKey}/player/{PlayerId}"
+@layout AppLayout
+@using GolfManager.Shared.DTOs.Player
+@inject IAuthService AuthService
+@inject ILeagueService LeagueService
+@inject IPlayerService PlayerService
+@inject NavigationManager Navigation
+@inject ILogger<PlayerDetail> Logger
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center min-h-screen">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-600">Loading player...</p>
+        </div>
+    </div>
+}
+else if (league == null || player == null)
+{
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <MaterialCard>
+            <div class="p-8 text-center">
+                <MaterialIcon Icon="MaterialIcons.ErrorOutline" Class="text-6xl text-gray-400 mb-4" />
+                <h2 class="text-xl font-semibold text-gray-900 mb-2">Player Not Found</h2>
+                <p class="text-gray-600 mb-6">The player you're looking for doesn't exist or you don't have access.</p>
+                <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}"))">
+                    Back to League
+                </MaterialButton>
+            </div>
+        </MaterialCard>
+    </div>
+}
+else
+{
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Header -->
+        <div class="mb-6">
+            <MaterialButton Style="MaterialButtonStyle.Text" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}"))">
+                <MaterialIcon Icon="MaterialIcons.ArrowBack" Class="mr-1" />
+                Back to League
+            </MaterialButton>
+        </div>
+
+        <!-- Player Profile Card -->
+        <MaterialCard Class="mb-8">
+            <div class="p-6">
+                <div class="flex flex-col md:flex-row items-start md:items-center gap-6">
+                    <!-- Avatar -->
+                    <div class="flex-shrink-0">
+                        <div class="w-24 h-24 rounded-full bg-primary-100 flex items-center justify-center">
+                            <span class="text-3xl font-bold text-primary-700">@GetInitials(player.DisplayName)</span>
+                        </div>
+                    </div>
+
+                    <!-- Player Info -->
+                    <div class="flex-1">
+                        <h1 class="text-3xl font-bold text-gray-900 mb-2">@player.DisplayName</h1>
+                        @if (!string.IsNullOrEmpty(player.Nickname))
+                        {
+                            <p class="text-lg text-gray-600 mb-2">"@player.Nickname"</p>
+                        }
+                        <p class="text-gray-600">@player.Email</p>
+                        <p class="text-sm text-gray-500 mt-2">Member since @player.JoinedAt.ToString("MMMM d, yyyy")</p>
+                    </div>
+
+                    <!-- Actions -->
+                    @if (league.IsCurrentUserAdmin)
+                    {
+                        <div class="flex gap-2">
+                            <MaterialButton Style="MaterialButtonStyle.Outlined">
+                                <MaterialIcon Icon="MaterialIcons.Edit" Class="mr-1" />
+                                Edit
+                            </MaterialButton>
+                        </div>
+                    }
+                </div>
+            </div>
+        </MaterialCard>
+
+        <!-- Stats Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <!-- Handicap -->
+            <MaterialCard>
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <MaterialIcon Icon="MaterialIcons.TrendingDown" Class="text-primary-600" />
+                    </div>
+                    <div class="text-3xl font-bold text-gray-900 mb-1">
+                        @if (player.LeagueHandicap.HasValue)
+                        {
+                            @string.Format("{0:F1}", player.LeagueHandicap.Value)
+                        }
+                        else
+                        {
+                            <span class="text-gray-400">--</span>
+                        }
+                    </div>
+                    <div class="text-sm text-gray-600">League Handicap</div>
+                    @if (player.LeagueHandicapUpdatedAt.HasValue)
+                    {
+                        <div class="text-xs text-gray-500 mt-1">Updated @player.LeagueHandicapUpdatedAt.Value.ToString("MMM d, yyyy")</div>
+                    }
+                </div>
+            </MaterialCard>
+
+            <!-- Total Rounds -->
+            <MaterialCard>
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <MaterialIcon Icon="MaterialIcons.GolfCourse" Class="text-green-600" />
+                    </div>
+                    <div class="text-3xl font-bold text-gray-900 mb-1">@player.TotalRounds</div>
+                    <div class="text-sm text-gray-600">Total Rounds</div>
+                </div>
+            </MaterialCard>
+
+            <!-- Average Score -->
+            <MaterialCard>
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <MaterialIcon Icon="MaterialIcons.ShowChart" Class="text-blue-600" />
+                    </div>
+                    <div class="text-3xl font-bold text-gray-900 mb-1">
+                        @if (player.AverageScore.HasValue)
+                        {
+                            @string.Format("{0:F1}", player.AverageScore.Value)
+                        }
+                        else
+                        {
+                            <span class="text-gray-400">--</span>
+                        }
+                    </div>
+                    <div class="text-sm text-gray-600">Average Score</div>
+                </div>
+            </MaterialCard>
+
+            <!-- Best Score -->
+            <MaterialCard>
+                <div class="p-6">
+                    <div class="flex items-center justify-between mb-2">
+                        <MaterialIcon Icon="MaterialIcons.EmojiEvents" Class="text-yellow-600" />
+                    </div>
+                    <div class="text-3xl font-bold text-gray-900 mb-1">
+                        @if (player.BestScore.HasValue)
+                        {
+                            @player.BestScore.Value
+                        }
+                        else
+                        {
+                            <span class="text-gray-400">--</span>
+                        }
+                    </div>
+                    <div class="text-sm text-gray-600">Best Score</div>
+                </div>
+            </MaterialCard>
+        </div>
+
+        <!-- Round History Section -->
+        <div class="mb-6">
+            <h2 class="text-xl font-semibold text-gray-900 mb-4">Round History</h2>
+        </div>
+
+        <MaterialCard>
+            <div class="p-6">
+                <div class="text-center py-12">
+                    <MaterialIcon Icon="MaterialIcons.HistoryEdu" Class="text-6xl text-gray-300 mb-4" />
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Round History Coming Soon</h3>
+                    <p class="text-gray-600">
+                        Round history and detailed statistics will be available in a future update.
+                    </p>
+                </div>
+            </div>
+        </MaterialCard>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string LeagueKey { get; set; } = string.Empty;
+
+    [Parameter]
+    public string PlayerId { get; set; } = string.Empty;
+
+    private LeagueResponse? league;
+    private PlayerResponse? player;
+    private bool isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        isLoading = true;
+        try
+        {
+            // Load league first to get the ID
+            var leagueResponse = await LeagueService.GetLeagueByKeyAsync(LeagueKey);
+            if (leagueResponse?.Success == true && leagueResponse.Data != null)
+            {
+                league = leagueResponse.Data;
+
+                // Load player
+                var playerResponse = await PlayerService.GetPlayerAsync(league.Id, PlayerId);
+                if (playerResponse?.Success == true && playerResponse.Data != null)
+                {
+                    player = playerResponse.Data;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading player data");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private string GetInitials(string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+            return "?";
+
+        var parts = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 1)
+            return parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpper();
+
+        return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
+    }
+}
+
