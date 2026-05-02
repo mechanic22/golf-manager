@@ -25,5 +25,16 @@ public class UpdateLeagueRequest
     [Url]
     [StringLength(500)]
     public string? LogoUrl { get; set; }
+
+    /// <summary>
+    /// Custom domain for this league (e.g. "digikeygolf.com")
+    /// </summary>
+    [StringLength(200)]
+    public string? CustomDomain { get; set; }
+
+    /// <summary>
+    /// Whether to use the custom domain for this league
+    /// </summary>
+    public bool? UseCustomDomain { get; set; }
 }
 

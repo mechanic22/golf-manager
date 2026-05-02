@@ -4,6 +4,7 @@
 @using GolfManager.Shared.DTOs.Season
 @using GolfManager.Shared.DTOs.Player
 @using GolfManager.Shared.DTOs.User
+@using GolfManager.Shared.DTOs.Event
 @using GolfManager.Shared.DTOs.Common
 @using GolfManager.Shared.DTOs.Simulation
 @using GolfManager.Core.Enums
@@ -17,7 +18,7 @@
 @inject ISeasonSettingsService SeasonSettingsService
 @inject IPlayerService PlayerService
 @inject IUserService UserService
-@inject SeedDataService SeedData
+@inject IEventService EventService
 @inject NavigationManager Navigation
 @inject ILogger<SeasonDetail> Logger
 @inject HttpClient Http
@@ -111,11 +112,11 @@ else
         </MaterialCard>
     </div>
 
-    <!-- Events Section (Placeholder) -->
+    <!-- Events Section -->
     <div class="mb-6 flex items-center justify-between">
         <div>
             <h2 class="text-xl font-semibold text-gray-900">Events</h2>
-            <p class="text-gray-600 text-sm">Manage season events and competitions</p>
+            <p class="text-gray-600 text-sm">Season events and competitions</p>
         </div>
         @if (league != null && season != null && AuthorizationService.CanManageSeason(league.Id, season.Id))
         {
@@ -126,18 +127,81 @@ else
         }
     </div>
 
-    <MaterialCard Variant="MaterialCardVariant.Outlined">
-        <div class="md-card__content text-center py-12">
-            <MaterialIcon Icon="MaterialIcons.Event" Class="text-gray-400 text-5xl mb-4" />
-            <p class="text-gray-600">Event management coming soon</p>
-        </div>
-    </MaterialCard>
+    @if (isLoadingEvents)
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content text-center py-12">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mb-3"></div>
+                <p class="text-gray-600">Loading events...</p>
+            </div>
+        </MaterialCard>
+    }
+    else if (events.Count == 0)
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content text-center py-12">
+                <MaterialIcon Icon="MaterialIcons.Event" Class="text-gray-400 text-5xl mb-4" />
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">No Events Yet</h3>
+                <p class="text-gray-600">Create your first event to get started</p>
+            </div>
+        </MaterialCard>
+    }
+    else
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content">
+                <div class="divide-y divide-gray-200">
+                    @foreach (var evt in events)
+                    {
+                        <div class="py-4 px-2 hover:bg-gray-50 cursor-pointer transition-colors">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-3">
+                                        <div class="text-center min-w-[60px]">
+                                            <div class="text-2xl font-bold text-primary-600">@evt.EventDate.Day</div>
+                                            <div class="text-xs text-gray-600 uppercase">@evt.EventDate.ToString("MMM")</div>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-base font-semibold text-gray-900">@(evt.Name ?? $"Week {events.IndexOf(evt) + 1}")</h3>
+                                            <div class="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                                                <span class="flex items-center gap-1">
+                                                    <MaterialIcon Icon="MaterialIcons.Event" Class="text-xs" />
+                                                    @evt.EventDate.ToString("dddd, MMMM d, yyyy")
+                                                </span>
+                                                <span class="flex items-center gap-1">
+                                                    <MaterialIcon Icon="MaterialIcons.Flag" Class="text-xs" />
+                                                    @evt.HolesPlayed.ToString()
+                                                </span>
+                                                <span class="flex items-center gap-1">
+                                                    <MaterialIcon Icon="MaterialIcons.Score" Class="text-xs" />
+                                                    @evt.ScoringFormat.ToString()
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="px-2 py-1 text-xs rounded-full @(evt.EventType == Core.Enums.SeasonEventType.Regular ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800")">
+                                        @evt.EventType.ToString()
+                                    </span>
+                                    @if (evt.IsLocked)
+                                    {
+                                        <MaterialIcon Icon="MaterialIcons.Lock" Class="text-gray-400 text-sm" />
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </MaterialCard>
+    }
 
     <!-- Golfers Section -->
     <div class="mt-12 mb-6 flex items-center justify-between">
         <div>
-            <h2 class="text-xl font-semibold text-gray-900">League Players</h2>
-            <p class="text-gray-600 text-sm">All players in this league (season-specific participation coming soon)</p>
+            <h2 class="text-xl font-semibold text-gray-900">Season Players</h2>
+            <p class="text-gray-600 text-sm">Players participating in this season</p>
         </div>
         @if (league != null && season != null && AuthorizationService.CanManageSeason(league.Id, season.Id))
         {
@@ -487,90 +551,7 @@ else
         }
     }
 
-    <!-- Admin Simulation Section -->
-    @if (league != null && season != null && AuthorizationService.CanManageSeason(league.Id, season.Id))
-    {
-        <div class="mt-12 mb-6 flex items-center justify-between">
-            <div>
-                <h2 class="text-xl font-semibold text-gray-900">Season Simulation</h2>
-                <p class="text-gray-600 text-sm">Test and simulate season data for development</p>
-            </div>
-        </div>
 
-        <MaterialCard Variant="MaterialCardVariant.Outlined">
-            <div class="md-card__content p-6">
-                @if (!string.IsNullOrEmpty(simulationMessage))
-                {
-                    <div class="mb-4 p-4 @(simulationSuccess ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200") border rounded-lg">
-                        <p class="text-sm @(simulationSuccess ? "text-green-800" : "text-red-800")">@simulationMessage</p>
-                    </div>
-                }
-
-                <div class="space-y-4">
-                    <div>
-                        <h3 class="text-sm font-semibold text-gray-900 mb-3">Seed Season Data</h3>
-                        <p class="text-sm text-gray-600 mb-4">Generate 60 players with realistic handicaps, create 3-man teams, and schedule 16 weekly events</p>
-                        <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="SeedSeason" Disabled="@isSimulating">
-                            @if (isSimulating)
-                            {
-                                <span>Seeding...</span>
-                            }
-                            else
-                            {
-                                <MaterialIcon Icon="MaterialIcons.GroupAdd" Class="mr-1" />
-                                <span>Seed Season (60 Players)</span>
-                            }
-                        </MaterialButton>
-                    </div>
-
-                    <div class="border-t border-gray-200 pt-4">
-                        <h3 class="text-sm font-semibold text-gray-900 mb-3">Simulate Scores</h3>
-                        <p class="text-sm text-gray-600 mb-4">Generate realistic hole-by-hole scores for events</p>
-                        <div class="flex gap-3">
-                            <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="SimulateNextEvent" Disabled="@isSimulating">
-                                @if (isSimulating)
-                                {
-                                    <span>Simulating...</span>
-                                }
-                                else
-                                {
-                                    <MaterialIcon Icon="MaterialIcons.PlayArrow" Class="mr-1" />
-                                    <span>Simulate Next Event</span>
-                                }
-                            </MaterialButton>
-                            <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="SimulateAllEvents" Disabled="@isSimulating">
-                                @if (isSimulating)
-                                {
-                                    <span>Simulating...</span>
-                                }
-                                else
-                                {
-                                    <MaterialIcon Icon="MaterialIcons.FastForward" Class="mr-1" />
-                                    <span>Simulate All Events</span>
-                                }
-                            </MaterialButton>
-                        </div>
-                    </div>
-
-                    <div class="border-t border-gray-200 pt-4">
-                        <h3 class="text-sm font-semibold text-gray-900 mb-3">Clear Data</h3>
-                        <p class="text-sm text-gray-600 mb-4">Remove all simulated players, teams, events, and scores</p>
-                        <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="ClearSeasonData" Disabled="@isSimulating">
-                            @if (isSimulating)
-                            {
-                                <span>Clearing...</span>
-                            }
-                            else
-                            {
-                                <MaterialIcon Icon="MaterialIcons.Delete" Class="mr-1" />
-                                <span>Clear Season Data</span>
-                            }
-                        </MaterialButton>
-                    </div>
-                </div>
-            </div>
-        </MaterialCard>
-    }
 
     <!-- Edit Settings Modal -->
     @if (showEditSettingsModal && settings != null)
@@ -716,8 +697,10 @@ else
     private LeagueResponse? league;
     private SeasonResponse? season;
     private List<PlayerResponse> golfers = new();
+    private List<EventResponse> events = new();
     private bool isLoading = true;
     private bool isLoadingGolfers = false;
+    private bool isLoadingEvents = false;
 
     // Season Settings State
     private SeasonSettingsResponse? settings;
@@ -736,11 +719,6 @@ else
     private MissingPlayerType editMissingPlayerType;
     private MissingTeamType editMissingTeamType;
     private string? editDefaultStartTime;
-
-    // Simulation State
-    private bool isSimulating = false;
-    private string simulationMessage = string.Empty;
-    private bool simulationSuccess = false;
 
     // Add Player Modal State
     private bool showAddGolferModal = false;
@@ -779,46 +757,32 @@ else
         isLoading = true;
         try
         {
-            // Use seed data - find league by key
-            var seedLeague = SeedData.Leagues.FirstOrDefault(l => l.Key == LeagueKey);
-            if (seedLeague != null)
+            // Load league from API
+            var leagueResponse = await LeagueService.GetLeagueByKeyAsync(LeagueKey);
+            if (leagueResponse == null || !leagueResponse.Success || leagueResponse.Data == null)
             {
-                league = new LeagueResponse
-                {
-                    Id = seedLeague.Id,
-                    Key = seedLeague.Key,
-                    Name = seedLeague.Name,
-                    Description = seedLeague.Description,
-                    MemberCount = seedLeague.MemberCount,
-                    PlayerCount = seedLeague.MemberCount,
-                    SeasonCount = SeedData.Seasons.Count(s => s.LeagueId == seedLeague.Id),
-                    IsCurrentUserAdmin = seedLeague.AdminUserId == AuthService.UserId || AuthService.IsGlobalAdmin,
-                    CreatedAt = seedLeague.CreatedDate
-                };
-
-                // Find season by key
-                var seedSeason = SeedData.Seasons.FirstOrDefault(s => s.LeagueId == seedLeague.Id && s.Key == SeasonKey);
-                if (seedSeason != null)
-                {
-                    var eventCount = SeedData.Events.Count(e => e.SeasonId == seedSeason.Id);
-
-                    season = new SeasonResponse
-                    {
-                        Id = seedSeason.Id,
-                        LeagueId = seedSeason.LeagueId,
-                        Key = seedSeason.Key,
-                        Name = seedSeason.Name,
-                        StartDate = DateOnly.FromDateTime(seedSeason.StartDate),
-                        EndDate = DateOnly.FromDateTime(seedSeason.EndDate),
-                        IsLocked = !seedSeason.IsActive,
-                        EventCount = eventCount,
-                        CreatedAt = seedSeason.StartDate
-                    };
-
-                    // Load golfers
-                    await LoadGolfers();
-                }
+                Logger.LogWarning("League not found: {LeagueKey}", LeagueKey);
+                return;
             }
+            league = leagueResponse.Data;
+
+            // Load season from API
+            var seasonResponse = await SeasonService.GetSeasonByKeyAsync(league.Id, SeasonKey);
+            if (seasonResponse == null || !seasonResponse.Success || seasonResponse.Data == null)
+            {
+                Logger.LogWarning("Season not found: {SeasonKey}", SeasonKey);
+                return;
+            }
+            season = seasonResponse.Data;
+
+            // Load golfers
+            await LoadGolfers();
+
+            // Load events
+            await LoadEvents();
+
+            // Load season settings
+            await LoadSettings();
 
             await Task.CompletedTask;
         }
@@ -834,41 +798,62 @@ else
 
     private async Task LoadGolfers()
     {
-        if (league == null) return;
+        if (league == null || season == null) return;
 
         isLoadingGolfers = true;
         try
         {
-            // Use seed data - get players who have played in this league's events
-            var playerIds = SeedData.Rounds
-                .Where(r => SeedData.Events.Any(e => e.Id == r.EventId && e.LeagueId == league.Id))
-                .Select(r => r.PlayerId)
-                .Distinct()
-                .ToList();
-
-            golfers = SeedData.Users
-                .Where(u => playerIds.Contains(u.Id))
-                .Select(u => new PlayerResponse
-                {
-                    Id = u.Id,
-                    UserId = u.Id,
-                    LeagueId = league.Id,
-                    DisplayName = $"{u.FirstName} {u.LastName}",
-                    Email = u.Email,
-                    LeagueHandicap = (double)u.Handicap,
-                    TotalRounds = SeedData.Rounds.Count(r => r.PlayerId == u.Id),
-                    JoinedAt = u.JoinedDate
-                }).ToList();
-
-            await Task.CompletedTask;
+            // Load golfers for THIS SEASON only (not all league members)
+            var response = await PlayerService.GetSeasonPlayersAsync(league.Id, season.Id);
+            if (response != null && response.Success && response.Data != null)
+            {
+                golfers = response.Data.ToList();
+                Logger.LogInformation("Loaded {Count} golfers for season {SeasonId}", golfers.Count, season.Id);
+            }
+            else
+            {
+                golfers = new List<PlayerResponse>();
+                Logger.LogWarning("Failed to load season golfers: {Error}", response?.Message ?? "Unknown error");
+            }
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error loading golfers");
+            Logger.LogError(ex, "Error loading season golfers from API");
+            golfers = new List<PlayerResponse>();
         }
         finally
         {
             isLoadingGolfers = false;
+        }
+    }
+
+    private async Task LoadEvents()
+    {
+        if (league == null || season == null) return;
+
+        isLoadingEvents = true;
+        try
+        {
+            var response = await EventService.GetSeasonEventsAsync(league.Id, season.Id);
+            if (response != null && response.Success && response.Data != null)
+            {
+                events = response.Data.ToList();
+                Logger.LogInformation("Loaded {Count} events for season {SeasonId}", events.Count, season.Id);
+            }
+            else
+            {
+                events = new List<EventResponse>();
+                Logger.LogWarning("Failed to load events: {Error}", response?.Message ?? "Unknown error");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading events from API");
+            events = new List<EventResponse>();
+        }
+        finally
+        {
+            isLoadingEvents = false;
         }
     }
 
@@ -1101,195 +1086,7 @@ else
         }
     }
 
-    // Simulation Methods
-    private async Task SeedSeason()
-    {
-        if (league == null || season == null) return;
 
-        isSimulating = true;
-        simulationMessage = string.Empty;
-        simulationSuccess = false;
-
-        try
-        {
-            var response = await Http.PostAsJsonAsync(
-                $"/api/v1/leagues/{league.Id}/seasons/{season.Id}/simulation/seed",
-                new { PlayerCount = 60, PlayersPerTeam = 3, WeekCount = 16 });
-
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<ApiResponse<SimulationResult>>();
-                if (result?.Success == true)
-                {
-                    simulationMessage = result.Data?.Message ?? "Season seeded successfully!";
-                    simulationSuccess = true;
-
-                    // Reload season data
-                    await LoadData();
-                }
-                else
-                {
-                    simulationMessage = result?.Message ?? "Failed to seed season";
-                    simulationSuccess = false;
-                }
-            }
-            else
-            {
-                simulationMessage = $"Error: {response.StatusCode}";
-                simulationSuccess = false;
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error seeding season");
-            simulationMessage = ex.Message;
-            simulationSuccess = false;
-        }
-        finally
-        {
-            isSimulating = false;
-        }
-    }
-
-    private async Task SimulateNextEvent()
-    {
-        if (league == null || season == null) return;
-
-        isSimulating = true;
-        simulationMessage = string.Empty;
-        simulationSuccess = false;
-
-        try
-        {
-            var response = await Http.PostAsync(
-                $"/api/v1/leagues/{league.Id}/seasons/{season.Id}/simulation/simulate-next",
-                null);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<ApiResponse<SimulationResult>>();
-                if (result?.Success == true)
-                {
-                    simulationMessage = result.Data?.Message ?? "Event simulated successfully!";
-                    simulationSuccess = true;
-                }
-                else
-                {
-                    simulationMessage = result?.Message ?? "Failed to simulate event";
-                    simulationSuccess = false;
-                }
-            }
-            else
-            {
-                simulationMessage = $"Error: {response.StatusCode}";
-                simulationSuccess = false;
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error simulating next event");
-            simulationMessage = ex.Message;
-            simulationSuccess = false;
-        }
-        finally
-        {
-            isSimulating = false;
-        }
-    }
-
-    private async Task SimulateAllEvents()
-    {
-        if (league == null || season == null) return;
-
-        isSimulating = true;
-        simulationMessage = string.Empty;
-        simulationSuccess = false;
-
-        try
-        {
-            var response = await Http.PostAsync(
-                $"/api/v1/leagues/{league.Id}/seasons/{season.Id}/simulation/simulate-all",
-                null);
-
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<ApiResponse<SimulationResult>>();
-                if (result?.Success == true)
-                {
-                    simulationMessage = result.Data?.Message ?? "All events simulated successfully!";
-                    simulationSuccess = true;
-                }
-                else
-                {
-                    simulationMessage = result?.Message ?? "Failed to simulate events";
-                    simulationSuccess = false;
-                }
-            }
-            else
-            {
-                simulationMessage = $"Error: {response.StatusCode}";
-                simulationSuccess = false;
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error simulating all events");
-            simulationMessage = ex.Message;
-            simulationSuccess = false;
-        }
-        finally
-        {
-            isSimulating = false;
-        }
-    }
-
-    private async Task ClearSeasonData()
-    {
-        if (league == null || season == null) return;
-
-        isSimulating = true;
-        simulationMessage = string.Empty;
-        simulationSuccess = false;
-
-        try
-        {
-            var response = await Http.DeleteAsync(
-                $"/api/v1/leagues/{league.Id}/seasons/{season.Id}/simulation/clear");
-
-            if (response.IsSuccessStatusCode)
-            {
-                var result = await response.Content.ReadFromJsonAsync<ApiResponse<SimulationResult>>();
-                if (result?.Success == true)
-                {
-                    simulationMessage = result.Data?.Message ?? "Season data cleared successfully!";
-                    simulationSuccess = true;
-
-                    // Reload season data
-                    await LoadData();
-                }
-                else
-                {
-                    simulationMessage = result?.Message ?? "Failed to clear season data";
-                    simulationSuccess = false;
-                }
-            }
-            else
-            {
-                simulationMessage = $"Error: {response.StatusCode}";
-                simulationSuccess = false;
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error clearing season data");
-            simulationMessage = ex.Message;
-            simulationSuccess = false;
-        }
-        finally
-        {
-            isSimulating = false;
-        }
-    }
 
     private List<MaterialTab> GetNavigationTabs()
     {

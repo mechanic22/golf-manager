@@ -1,4 +1,5 @@
 using GolfManager.Core.Common;
+using GolfManager.Core.Enums;
 
 namespace GolfManager.Core.Entities;
 
@@ -29,6 +30,11 @@ public class UserLeague : BaseEntity, ITenantEntity
     public bool IsLeagueAdmin { get; set; }
 
     /// <summary>
+    /// User's role within this league.
+    /// </summary>
+    public LeagueMemberRole Role { get; set; } = LeagueMemberRole.Member;
+
+    /// <summary>
     /// When the user joined this league
     /// </summary>
     public DateTime JoinedAt { get; set; } = DateTime.UtcNow;
@@ -50,4 +56,3 @@ public class UserLeague : BaseEntity, ITenantEntity
     /// </summary>
     public LeagueGolfer? LeagueGolfer { get; set; }
 }
-

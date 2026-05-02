@@ -7,6 +7,12 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 
+// Register AppState (singleton for global state)
+builder.Services.AddSingleton<AppState>();
+
+// Register LeagueContextHandler
+builder.Services.AddTransient<LeagueContextHandler>();
+
 // Register services
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IAuthorizationService, AuthorizationService>();
@@ -18,21 +24,23 @@ builder.Services.AddScoped<IPlayerService, PlayerService>();
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IRoundService, RoundService>();
 builder.Services.AddScoped<IOneTimeEventService, OneTimeEventService>();
-
-// Register seed data service as singleton (same data for all users)
-builder.Services.AddSingleton<SeedDataService>();
+builder.Services.AddScoped<GolfManager.Web.Services.IHandicapService, GolfManager.Web.Services.HandicapService>();
 
 // Configure HttpClient with lazy authentication handler
 var apiBaseAddress = builder.Configuration["ApiBaseAddress"] ?? "https://localhost:7012";
 builder.Services.AddScoped(sp =>
 {
-    // Create handler with lazy factory to avoid early service resolution
-    var handler = new AuthenticatedHttpClientHandler(() => sp.GetRequiredService<IAuthService>())
+    // Create league context handler (adds X-League-Context header)
+    var leagueContextHandler = sp.GetRequiredService<LeagueContextHandler>();
+    leagueContextHandler.InnerHandler = new HttpClientHandler();
+
+    // Create auth handler (adds Authorization header)
+    var authHandler = new AuthenticatedHttpClientHandler(() => sp.GetRequiredService<IAuthService>())
     {
-        InnerHandler = new HttpClientHandler()
+        InnerHandler = leagueContextHandler // Chain handlers
     };
 
-    var httpClient = new HttpClient(handler)
+    var httpClient = new HttpClient(authHandler)
     {
         BaseAddress = new Uri(apiBaseAddress)
     };

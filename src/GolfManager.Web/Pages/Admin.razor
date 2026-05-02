@@ -2,6 +2,7 @@
 @layout AppLayout
 @inject IAuthService AuthService
 @inject IAuthorizationService AuthorizationService
+@inject IUserService UserService
 @inject NavigationManager Navigation
 @inject ILogger<Admin> Logger
 
@@ -44,7 +45,11 @@ else
                 <MaterialIcon Path="@MaterialIcons.Person" Size="MaterialComponents.Icons.IconSize.SM" Class="text-primary-600" />
             </div>
             <p class="text-3xl font-bold text-gray-900">@stats.TotalUsers</p>
-            <p class="text-sm text-green-600 mt-2">+@stats.NewUsersThisMonth this month</p>
+            <p class="text-sm text-gray-600 mt-2">@stats.ActiveUsers active</p>
+            @if (stats.NewUsersThisMonth > 0)
+            {
+                <p class="text-sm text-green-600">+@stats.NewUsersThisMonth this month</p>
+            }
         </div>
 
         <!-- Total Leagues -->
@@ -57,24 +62,24 @@ else
             <p class="text-sm text-gray-600 mt-2">@stats.ActiveLeagues active</p>
         </div>
 
+        <!-- Total Seasons -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-sm font-medium text-gray-600">Total Seasons</h3>
+                <MaterialIcon Path="@MaterialIcons.Assignment" Size="MaterialComponents.Icons.IconSize.SM" Class="text-primary-600" />
+            </div>
+            <p class="text-3xl font-bold text-gray-900">@stats.TotalSeasons</p>
+            <p class="text-sm text-gray-600 mt-2">@stats.ActiveSeasons active</p>
+        </div>
+
         <!-- Total Events -->
         <div class="bg-white rounded-lg border border-gray-200 p-6">
             <div class="flex items-center justify-between mb-2">
                 <h3 class="text-sm font-medium text-gray-600">Total Events</h3>
-                <MaterialIcon Path="@MaterialIcons.Assignment" Size="MaterialComponents.Icons.IconSize.SM" Class="text-primary-600" />
+                <MaterialIcon Path="@MaterialIcons.Dashboard" Size="MaterialComponents.Icons.IconSize.SM" Class="text-primary-600" />
             </div>
             <p class="text-3xl font-bold text-gray-900">@stats.TotalEvents</p>
             <p class="text-sm text-gray-600 mt-2">@stats.UpcomingEvents upcoming</p>
-        </div>
-
-        <!-- Total Rounds -->
-        <div class="bg-white rounded-lg border border-gray-200 p-6">
-            <div class="flex items-center justify-between mb-2">
-                <h3 class="text-sm font-medium text-gray-600">Total Rounds</h3>
-                <MaterialIcon Path="@MaterialIcons.Dashboard" Size="MaterialComponents.Icons.IconSize.SM" Class="text-primary-600" />
-            </div>
-            <p class="text-3xl font-bold text-gray-900">@stats.TotalRounds</p>
-            <p class="text-sm text-gray-600 mt-2">@stats.RoundsThisMonth this month</p>
         </div>
     </div>
 
@@ -136,7 +141,7 @@ else
 @code {
     private bool isLoading = true;
     private bool isGlobalAdmin = false;
-    private PlatformStats stats = new();
+    private GolfManager.Shared.DTOs.Admin.PlatformStatsResponse stats = new();
     private List<ActivityLog> recentActivity = new();
 
     protected override async Task OnInitializedAsync()
@@ -163,33 +168,33 @@ else
         isLoading = true;
         try
         {
-            // TODO: Load actual platform stats from API
-            stats = new PlatformStats
+            // Load actual platform stats from API
+            var response = await UserService.GetPlatformStatsAsync();
+            if (response != null && response.Success && response.Data != null)
             {
-                TotalUsers = 1247,
-                NewUsersThisMonth = 43,
-                TotalLeagues = 89,
-                ActiveLeagues = 67,
-                TotalEvents = 342,
-                UpcomingEvents = 28,
-                TotalRounds = 5621,
-                RoundsThisMonth = 234
-            };
+                stats = response.Data;
+                Logger.LogInformation("Loaded platform stats: {Users} users, {Leagues} leagues, {Events} events",
+                    stats.TotalUsers, stats.TotalLeagues, stats.TotalEvents);
+            }
+            else
+            {
+                Logger.LogWarning("Failed to load platform stats: {Message}", response?.Message);
+                stats = new GolfManager.Shared.DTOs.Admin.PlatformStatsResponse();
+            }
 
+            // TODO: Load real activity logs from API
+            // For now, keeping placeholder activity logs
             recentActivity = new List<ActivityLog>
             {
-                new() { Type = "user", Description = "New user registered: john.doe@example.com", Timestamp = DateTime.Now.AddMinutes(-15) },
-                new() { Type = "league", Description = "New league created: Summer Golf League", Timestamp = DateTime.Now.AddHours(-2) },
-                new() { Type = "event", Description = "Event completed: Weekend Tournament", Timestamp = DateTime.Now.AddHours(-5) },
-                new() { Type = "round", Description = "125 new rounds recorded today", Timestamp = DateTime.Now.AddHours(-8) },
-                new() { Type = "user", Description = "User promoted to League Admin: sarah.j@example.com", Timestamp = DateTime.Now.AddDays(-1) }
+                new() { Type = "user", Description = $"{stats.NewUsersThisMonth} new users this month", Timestamp = DateTime.Now.AddHours(-1) },
+                new() { Type = "league", Description = $"{stats.TotalLeagues} total leagues in system", Timestamp = DateTime.Now.AddHours(-2) },
+                new() { Type = "event", Description = $"{stats.UpcomingEvents} upcoming events", Timestamp = DateTime.Now.AddHours(-5) },
             };
-
-            await Task.CompletedTask;
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading admin dashboard");
+            stats = new GolfManager.Shared.DTOs.Admin.PlatformStatsResponse();
         }
         finally
         {
@@ -207,18 +212,6 @@ else
             "round" => MaterialIcons.Dashboard,
             _ => MaterialIcons.Settings
         };
-    }
-
-    private class PlatformStats
-    {
-        public int TotalUsers { get; set; }
-        public int NewUsersThisMonth { get; set; }
-        public int TotalLeagues { get; set; }
-        public int ActiveLeagues { get; set; }
-        public int TotalEvents { get; set; }
-        public int UpcomingEvents { get; set; }
-        public int TotalRounds { get; set; }
-        public int RoundsThisMonth { get; set; }
     }
 
     private class ActivityLog

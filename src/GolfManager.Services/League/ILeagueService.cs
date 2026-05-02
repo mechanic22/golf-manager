@@ -38,6 +38,11 @@ public interface ILeagueService
     Task<bool> DeleteLeagueAsync(string leagueId, string userId);
 
     /// <summary>
+    /// Verify the league custom domain by DNS resolution and TXT record
+    /// </summary>
+    Task<LeagueResponse> VerifyCustomDomainAsync(string leagueId, string userId);
+
+    /// <summary>
     /// Get all members of a league
     /// </summary>
     Task<List<LeagueMemberResponse>> GetLeagueMembersAsync(string leagueId);

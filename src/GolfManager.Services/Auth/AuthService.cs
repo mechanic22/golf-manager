@@ -1,4 +1,5 @@
 using GolfManager.Core.Entities;
+using GolfManager.Core.Services;
 using GolfManager.Data;
 using GolfManager.Shared.DTOs.Auth;
 using Microsoft.EntityFrameworkCore;
@@ -11,6 +12,7 @@ public class AuthService : IAuthService
     private readonly GolfManagerDbContext _context;
     private readonly IPasswordHasher _passwordHasher;
     private readonly IJwtTokenService _jwtTokenService;
+    private readonly IShortIdService _shortIdService;
     private readonly IConfiguration _configuration;
     private readonly int _refreshTokenExpirationDays;
 
@@ -18,11 +20,13 @@ public class AuthService : IAuthService
         GolfManagerDbContext context,
         IPasswordHasher passwordHasher,
         IJwtTokenService jwtTokenService,
+        IShortIdService shortIdService,
         IConfiguration configuration)
     {
         _context = context;
         _passwordHasher = passwordHasher;
         _jwtTokenService = jwtTokenService;
+        _shortIdService = shortIdService;
         _configuration = configuration;
         _refreshTokenExpirationDays = int.Parse(_configuration["Jwt:RefreshTokenExpirationDays"] ?? "30");
     }
@@ -41,7 +45,7 @@ public class AuthService : IAuthService
         // Create new user
         var user = new User
         {
-            Id = Guid.NewGuid().ToString(),
+            Id = _shortIdService.GenerateId(),
             Email = request.Email,
             PasswordHash = _passwordHasher.HashPassword(request.Password),
             FirstName = request.FirstName,
@@ -74,7 +78,8 @@ public class AuthService : IAuthService
             IsGlobalAdmin = user.IsGlobalAdmin,
             AccessToken = accessToken,
             RefreshToken = refreshToken.Token,
-            ExpiresAt = refreshToken.ExpiresAt
+            ExpiresAt = refreshToken.ExpiresAt,
+            LeagueMappings = new List<LeagueMappingResponse>() // Empty for new users
         };
     }
 
@@ -110,6 +115,21 @@ public class AuthService : IAuthService
 
         var accessToken = _jwtTokenService.GenerateAccessToken(user, leagueIds);
 
+        // Get user's league mappings with domain info
+        var leagueMappings = await _context.UserLeagues
+            .Where(ul => ul.UserId == user.Id && ul.IsActive)
+            .Include(ul => ul.League)
+            .Select(ul => new LeagueMappingResponse
+            {
+                LeagueId = ul.LeagueId,
+                LeagueKey = ul.League.Key,
+                LeagueName = ul.League.Name,
+                CustomDomain = ul.League.CustomDomain,
+                IsLeagueAdmin = ul.IsLeagueAdmin,
+                Role = ul.Role
+            })
+            .ToListAsync(cancellationToken);
+
         return new AuthResponse
         {
             UserId = user.Id,
@@ -119,7 +139,8 @@ public class AuthService : IAuthService
             IsGlobalAdmin = user.IsGlobalAdmin,
             AccessToken = accessToken,
             RefreshToken = refreshToken.Token,
-            ExpiresAt = refreshToken.ExpiresAt
+            ExpiresAt = refreshToken.ExpiresAt,
+            LeagueMappings = leagueMappings
         };
     }
 
@@ -227,7 +248,7 @@ public class AuthService : IAuthService
     {
         return new RefreshToken
         {
-            Id = Guid.NewGuid().ToString(),
+            Id = _shortIdService.GenerateId(),
             UserId = userId,
             Token = _jwtTokenService.GenerateRefreshToken(),
             ExpiresAt = DateTime.UtcNow.AddDays(_refreshTokenExpirationDays),
@@ -236,4 +257,3 @@ public class AuthService : IAuthService
         };
     }
 }
-

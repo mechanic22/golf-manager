@@ -1,10 +1,17 @@
+using System.Net;
 using System.Security.Cryptography;
+using DnsClient;
+using DnsClient.Protocol;
+using GolfManager.Core.Configuration;
 using GolfManager.Core.Entities;
+using GolfManager.Core.Enums;
+using GolfManager.Core.Services;
 using GolfManager.Data;
 using GolfManager.Services.Auth;
 using GolfManager.Shared.DTOs.League;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace GolfManager.Services.League;
 
@@ -15,16 +22,24 @@ public class LeagueService : ILeagueService
 {
     private readonly GolfManagerDbContext _context;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly IShortIdService _shortIdService;
     private readonly ILogger<LeagueService> _logger;
+    private readonly CustomDomainVerificationOptions _verificationOptions;
+    private readonly LookupClient _lookupClient;
 
     public LeagueService(
         GolfManagerDbContext context,
         IPasswordHasher passwordHasher,
+        IShortIdService shortIdService,
+        IOptions<CustomDomainVerificationOptions> verificationOptions,
         ILogger<LeagueService> logger)
     {
         _context = context;
         _passwordHasher = passwordHasher;
+        _shortIdService = shortIdService;
         _logger = logger;
+        _verificationOptions = verificationOptions?.Value ?? new CustomDomainVerificationOptions();
+        _lookupClient = new LookupClient();
     }
 
     public async Task<List<LeagueResponse>> GetUserLeaguesAsync(string userId)
@@ -83,14 +98,22 @@ public class LeagueService : ILeagueService
             throw new InvalidOperationException($"League with key '{request.Key}' already exists");
         }
 
+        var normalizedDomain = request.CustomDomain?.Trim();
+
         // Create the league
         var league = new Core.Entities.League
         {
-            Id = Guid.NewGuid().ToString(),
+            Id = _shortIdService.GenerateId(),
             Key = request.Key,
             Name = request.Name,
             Description = request.Description,
             LogoUrl = request.LogoUrl,
+            CustomDomain = !string.IsNullOrWhiteSpace(normalizedDomain) ? normalizedDomain : null,
+            UseCustomDomain = request.UseCustomDomain,
+            CustomDomainVerificationToken = !string.IsNullOrWhiteSpace(normalizedDomain)
+                ? GenerateDomainVerificationToken()
+                : null,
+            CustomDomainVerifiedAt = null,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = userId,
             IsActive = true
@@ -101,10 +124,11 @@ public class LeagueService : ILeagueService
         // Add the creator as a league admin
         var userLeague = new UserLeague
         {
-            Id = Guid.NewGuid().ToString(),
+            Id = _shortIdService.GenerateId(),
             UserId = userId,
             LeagueId = league.Id,
             IsLeagueAdmin = true,
+            Role = LeagueMemberRole.Owner,
             JoinedAt = DateTime.UtcNow,
             CreatedAt = DateTime.UtcNow,
             CreatedBy = userId,
@@ -146,6 +170,24 @@ public class LeagueService : ILeagueService
             league.LogoUrl = request.LogoUrl;
         }
 
+        if (request.CustomDomain != null)
+        {
+            var normalizedDomain = request.CustomDomain.Trim();
+            if (!string.Equals(normalizedDomain, league.CustomDomain, StringComparison.OrdinalIgnoreCase))
+            {
+                league.CustomDomain = !string.IsNullOrWhiteSpace(normalizedDomain) ? normalizedDomain : null;
+                league.CustomDomainVerificationToken = !string.IsNullOrWhiteSpace(normalizedDomain)
+                    ? GenerateDomainVerificationToken()
+                    : null;
+                league.CustomDomainVerifiedAt = null;
+            }
+        }
+
+        if (request.UseCustomDomain.HasValue)
+        {
+            league.UseCustomDomain = request.UseCustomDomain.Value;
+        }
+
         league.UpdatedAt = DateTime.UtcNow;
         league.UpdatedBy = userId;
 
@@ -166,7 +208,6 @@ public class LeagueService : ILeagueService
             return false;
         }
 
-        // Soft delete
         league.IsActive = false;
         league.UpdatedAt = DateTime.UtcNow;
         league.UpdatedBy = userId;
@@ -178,12 +219,94 @@ public class LeagueService : ILeagueService
         return true;
     }
 
+    public async Task<LeagueResponse> VerifyCustomDomainAsync(string leagueId, string userId)
+    {
+        var league = await _context.Leagues
+            .FirstOrDefaultAsync(l => l.Id == leagueId && l.IsActive);
+
+        if (league == null)
+        {
+            throw new KeyNotFoundException($"League with ID {leagueId} not found");
+        }
+
+        if (string.IsNullOrWhiteSpace(league.CustomDomain) || !league.UseCustomDomain)
+        {
+            throw new InvalidOperationException("Custom domain is not configured for this league.");
+        }
+
+        if (string.IsNullOrWhiteSpace(league.CustomDomainVerificationToken))
+        {
+            throw new InvalidOperationException("No custom domain verification token is available for this league.");
+        }
+
+        var domain = league.CustomDomain.Trim();
+        var validationErrors = new List<string>();
+
+        if (_verificationOptions.AllowedIps.Any())
+        {
+            var hostAddresses = await Dns.GetHostAddressesAsync(domain);
+            if (hostAddresses == null || !hostAddresses.Any())
+            {
+                validationErrors.Add("Custom domain did not resolve to any IP addresses.");
+            }
+            else
+            {
+                var allowedAddresses = _verificationOptions.AllowedIps
+                    .Select(ip => IPAddress.TryParse(ip, out var parsed) ? parsed : null)
+                    .Where(ip => ip != null)
+                    .Select(ip => ip!)
+                    .ToList();
+
+                if (!allowedAddresses.Any())
+                {
+                    validationErrors.Add("Custom domain verification is configured, but there are no allowed IP addresses.");
+                }
+                else if (!hostAddresses.Any(addr => allowedAddresses.Contains(addr)))
+                {
+                    validationErrors.Add("Custom domain DNS does not resolve to an allowed server IP.");
+                }
+            }
+        }
+
+        if (_verificationOptions.RequireTxtRecord)
+        {
+            var recordName = _verificationOptions.TxtRecordPrefix.TrimEnd('.') + "." + domain;
+            var queryResult = await _lookupClient.QueryAsync(recordName, QueryType.TXT);
+            var txtValues = queryResult.Answers
+                .TxtRecords()
+                .SelectMany(record => record.Text)
+                .Select(text => text.Trim())
+                .ToList();
+
+            if (!txtValues.Contains(league.CustomDomainVerificationToken))
+            {
+                validationErrors.Add($"TXT record verification failed. Add a TXT record for {recordName} containing the verification token.");
+            }
+        }
+
+        if (validationErrors.Any())
+        {
+            throw new InvalidOperationException(string.Join(" ", validationErrors));
+        }
+
+        league.CustomDomainVerifiedAt = DateTime.UtcNow;
+        league.UpdatedAt = DateTime.UtcNow;
+        league.UpdatedBy = userId;
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("Verified custom domain {CustomDomain} for league {LeagueId} by user {UserId}", league.CustomDomain, leagueId, userId);
+
+        return await MapToResponseAsync(league, userId);
+    }
+
     public async Task<List<LeagueMemberResponse>> GetLeagueMembersAsync(string leagueId)
     {
+        // Get all members (both active and inactive), not deleted
         var members = await _context.UserLeagues
             .IgnoreQueryFilters()
             .Include(ul => ul.User)
-            .Where(ul => ul.LeagueId == leagueId && ul.IsActive)
+            .Where(ul => ul.LeagueId == leagueId && !ul.IsDeleted)
             .OrderBy(ul => ul.User.LastName)
             .ThenBy(ul => ul.User.FirstName)
             .ToListAsync();
@@ -205,6 +328,8 @@ public class LeagueService : ILeagueService
                 FirstName = member.User.FirstName,
                 LastName = member.User.LastName,
                 IsLeagueAdmin = member.IsLeagueAdmin,
+                Role = NormalizeRole(member),
+                IsActive = member.IsActive,
                 JoinedAt = member.JoinedAt,
                 PlayerId = golfer?.GolferId,
                 PlayerDisplayName = golfer?.Golfer?.DisplayName
@@ -243,7 +368,7 @@ public class LeagueService : ILeagueService
 
             user = new User
             {
-                Id = Guid.NewGuid().ToString(),
+                Id = _shortIdService.GenerateId(),
                 Email = request.Email,
                 PasswordHash = _passwordHasher.HashPassword(randomPassword),
                 FirstName = request.FirstName,
@@ -276,20 +401,24 @@ public class LeagueService : ILeagueService
             {
                 // Reactivate the membership
                 existingMembership.IsActive = true;
-                existingMembership.IsLeagueAdmin = request.IsLeagueAdmin;
+                existingMembership.Role = NormalizeRequestedRole(request.Role, request.IsLeagueAdmin);
+                existingMembership.IsLeagueAdmin = IsAdminRole(existingMembership.Role);
                 existingMembership.UpdatedAt = DateTime.UtcNow;
                 existingMembership.UpdatedBy = currentUserId;
             }
         }
         else
         {
+            var role = NormalizeRequestedRole(request.Role, request.IsLeagueAdmin);
+
             // Create new membership
             var userLeague = new UserLeague
             {
-                Id = Guid.NewGuid().ToString(),
+                Id = _shortIdService.GenerateId(),
                 UserId = user.Id,
                 LeagueId = leagueId,
-                IsLeagueAdmin = request.IsLeagueAdmin,
+                IsLeagueAdmin = IsAdminRole(role),
+                Role = role,
                 JoinedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = currentUserId,
@@ -309,7 +438,9 @@ public class LeagueService : ILeagueService
             Email = user.Email,
             FirstName = user.FirstName,
             LastName = user.LastName,
-            IsLeagueAdmin = request.IsLeagueAdmin,
+            IsLeagueAdmin = IsAdminRole(NormalizeRequestedRole(request.Role, request.IsLeagueAdmin)),
+            Role = NormalizeRequestedRole(request.Role, request.IsLeagueAdmin),
+            IsActive = true,
             JoinedAt = DateTime.UtcNow
         };
     }
@@ -343,7 +474,7 @@ public class LeagueService : ILeagueService
             .IgnoreQueryFilters()
             .CountAsync(ul => ul.LeagueId == leagueId && ul.IsLeagueAdmin && ul.IsActive);
 
-        if (membership.IsLeagueAdmin && adminCount <= 1)
+        if (IsAdminRole(NormalizeRole(membership)) && adminCount <= 1)
         {
             throw new InvalidOperationException("Cannot remove the last admin from the league");
         }
@@ -373,7 +504,12 @@ public class LeagueService : ILeagueService
         }
 
         // If demoting from admin, check that there's at least one other admin
-        if (membership.IsLeagueAdmin && !request.IsLeagueAdmin)
+        var currentRole = NormalizeRole(membership);
+        var nextRole = request.Role ?? (request.IsLeagueAdmin.HasValue
+            ? (request.IsLeagueAdmin.Value ? LeagueMemberRole.Admin : LeagueMemberRole.Member)
+            : currentRole);
+
+        if (IsAdminRole(currentRole) && !IsAdminRole(nextRole))
         {
             var adminCount = await _context.UserLeagues
                 .IgnoreQueryFilters()
@@ -385,7 +521,17 @@ public class LeagueService : ILeagueService
             }
         }
 
-        membership.IsLeagueAdmin = request.IsLeagueAdmin;
+        if (request.Role.HasValue || request.IsLeagueAdmin.HasValue)
+        {
+            membership.Role = nextRole;
+            membership.IsLeagueAdmin = IsAdminRole(nextRole);
+        }
+
+        if (request.IsActive.HasValue)
+        {
+            membership.IsActive = request.IsActive.Value;
+        }
+
         membership.UpdatedAt = DateTime.UtcNow;
         membership.UpdatedBy = currentUserId;
 
@@ -400,6 +546,8 @@ public class LeagueService : ILeagueService
             FirstName = membership.User.FirstName,
             LastName = membership.User.LastName,
             IsLeagueAdmin = membership.IsLeagueAdmin,
+            Role = NormalizeRole(membership),
+            IsActive = membership.IsActive,
             JoinedAt = membership.JoinedAt
         };
     }
@@ -439,8 +587,39 @@ public class LeagueService : ILeagueService
             PlayerCount = playerCount,
             SeasonCount = seasonCount,
             IsCurrentUserAdmin = isCurrentUserAdmin,
+            CustomDomain = league.CustomDomain,
+            UseCustomDomain = league.UseCustomDomain,
+            CustomDomainVerificationToken = isCurrentUserAdmin ? league.CustomDomainVerificationToken : null,
+            CustomDomainVerifiedAt = league.CustomDomainVerifiedAt,
             CreatedAt = league.CreatedAt,
             UpdatedAt = league.UpdatedAt
         };
+    }
+
+    private static string GenerateDomainVerificationToken()
+    {
+        return Guid.NewGuid().ToString("N");
+    }
+
+    private static LeagueMemberRole NormalizeRequestedRole(LeagueMemberRole role, bool isLeagueAdmin)
+    {
+        if (isLeagueAdmin && role is LeagueMemberRole.Member or LeagueMemberRole.Viewer)
+        {
+            return LeagueMemberRole.Admin;
+        }
+
+        return role;
+    }
+
+    private static LeagueMemberRole NormalizeRole(UserLeague membership)
+    {
+        return membership.Role == LeagueMemberRole.Member && membership.IsLeagueAdmin
+            ? LeagueMemberRole.Admin
+            : membership.Role;
+    }
+
+    private static bool IsAdminRole(LeagueMemberRole role)
+    {
+        return role is LeagueMemberRole.Owner or LeagueMemberRole.Admin;
     }
 }

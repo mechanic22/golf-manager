@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using GolfManager.Core.Entities;
+using GolfManager.Core.Services;
 using GolfManager.Data;
 using GolfManager.Services.Auth;
 using GolfManager.Shared.DTOs.Player;
@@ -15,15 +16,18 @@ public class PlayerService : IPlayerService
 {
     private readonly GolfManagerDbContext _context;
     private readonly IPasswordHasher _passwordHasher;
+    private readonly IShortIdService _shortIdService;
     private readonly ILogger<PlayerService> _logger;
 
     public PlayerService(
         GolfManagerDbContext context,
         IPasswordHasher passwordHasher,
+        IShortIdService shortIdService,
         ILogger<PlayerService> logger)
     {
         _context = context;
         _passwordHasher = passwordHasher;
+        _shortIdService = shortIdService;
         _logger = logger;
     }
 
@@ -94,7 +98,7 @@ public class PlayerService : IPlayerService
                 // Create golfer profile for existing user
                 var golfer = new Golfer
                 {
-                    Id = Guid.NewGuid().ToString(),
+                    Id = _shortIdService.GenerateId(),
                     UserId = userId,
                     DisplayName = request.DisplayName,
                     Nickname = request.Nickname,
@@ -130,7 +134,7 @@ public class PlayerService : IPlayerService
             // Create new user
             var newUser = new User
             {
-                Id = Guid.NewGuid().ToString(),
+                Id = _shortIdService.GenerateId(),
                 Email = request.Email,
                 PasswordHash = _passwordHasher.HashPassword(randomPassword),
                 FirstName = request.FirstName,
@@ -147,7 +151,7 @@ public class PlayerService : IPlayerService
             // Create golfer profile
             var golfer = new Golfer
             {
-                Id = Guid.NewGuid().ToString(),
+                Id = _shortIdService.GenerateId(),
                 UserId = userId,
                 DisplayName = request.DisplayName,
                 Nickname = request.Nickname,
@@ -185,7 +189,7 @@ public class PlayerService : IPlayerService
             // Create league golfer profile
             var leagueGolfer = new LeagueGolfer
             {
-                Id = Guid.NewGuid().ToString(),
+                Id = _shortIdService.GenerateId(),
                 GolferId = golferId,
                 LeagueId = leagueId,
                 DisplayName = request.DisplayName,
@@ -280,6 +284,22 @@ public class PlayerService : IPlayerService
         _logger.LogInformation("Removed player {PlayerId} from league {LeagueId}", playerId, leagueId);
 
         return true;
+    }
+
+    public async Task<List<PlayerResponse>> GetSeasonPlayersAsync(string seasonId, string leagueId)
+    {
+        // Get all LeagueGolfers who have a SeasonGolfer record for this season
+        var seasonPlayers = await _context.SeasonGolfers
+            .IgnoreQueryFilters()
+            .Include(sg => sg.LeagueGolfer)
+                .ThenInclude(lg => lg.Golfer)
+                    .ThenInclude(g => g.User)
+            .Where(sg => sg.SeasonId == seasonId && sg.LeagueId == leagueId)
+            .Select(sg => sg.LeagueGolfer)
+            .OrderBy(lg => lg.DisplayName)
+            .ToListAsync();
+
+        return seasonPlayers.Select(MapToResponse).ToList();
     }
 
     private static PlayerResponse MapToResponse(LeagueGolfer leagueGolfer)

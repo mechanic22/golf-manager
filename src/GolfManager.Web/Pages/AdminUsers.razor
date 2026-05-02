@@ -1,7 +1,9 @@
 @page "/admin/users"
+@using GolfManager.Shared.DTOs.User
 @layout AppLayout
 @inject IAuthService AuthService
 @inject IAuthorizationService AuthorizationService
+@inject IUserService UserService
 @inject NavigationManager Navigation
 @inject ILogger<AdminUsers> Logger
 
@@ -51,10 +53,10 @@ else
 
     <!-- Search and Filters -->
     <div class="bg-white rounded-lg border border-gray-200 p-4 mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div class="md:col-span-2">
-                <input type="text" 
-                       @bind="searchQuery" 
+                <input type="text"
+                       @bind="searchQuery"
                        @bind:event="oninput"
                        placeholder="Search by name or email..."
                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
@@ -63,8 +65,15 @@ else
                 <select @bind="roleFilter" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
                     <option value="all">All Roles</option>
                     <option value="admin">Global Admin</option>
-                    <option value="league_admin">League Admin</option>
+                    <option value="league_admin">League Admin (@allUsers.Count(u => u.LeagueAdminCount > 0))</option>
                     <option value="player">Player</option>
+                </select>
+            </div>
+            <div>
+                <select @bind="statusFilter" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
+                    <option value="all">All Status</option>
+                    <option value="active">Active (@allUsers.Count(u => u.IsActive))</option>
+                    <option value="inactive">Inactive (@allUsers.Count(u => !u.IsActive))</option>
                 </select>
             </div>
         </div>
@@ -98,21 +107,50 @@ else
                             </div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-2 py-1 text-xs font-medium rounded-full @GetRoleBadgeClass(user.Role)">
-                                @user.Role
+                            <span class="px-2 py-1 text-xs font-medium rounded-full @GetRoleBadgeClass(user)">
+                                @GetRoleText(user)
                             </span>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            @user.JoinedDate.ToString("MMM dd, yyyy")
+                            @user.CreatedAt.ToString("MMM dd, yyyy")
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="px-2 py-1 text-xs font-medium rounded-full @(user.IsActive ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800")">
-                                @(user.IsActive ? "Active" : "Inactive")
-                            </span>
+                            @if (user.IsActive)
+                            {
+                                <MaterialChip Text="Active" Color="MaterialChipColor.Success" Size="MaterialChipSize.Small" />
+                            }
+                            else
+                            {
+                                <MaterialChip Text="Inactive" Color="MaterialChipColor.Error" Size="MaterialChipSize.Small" />
+                            }
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button class="text-primary-600 hover:text-primary-900 mr-3">Edit</button>
-                            <button class="text-red-600 hover:text-red-900">@(user.IsActive ? "Deactivate" : "Activate")</button>
+                            <div class="flex justify-end gap-2">
+                                <button @onclick="() => OpenEditModal(user)"
+                                        class="text-primary-600 hover:text-primary-900 font-medium">
+                                    Edit
+                                </button>
+
+                                <button @onclick="() => SendPasswordReset(user)"
+                                        class="text-primary-600 hover:text-primary-900 font-medium">
+                                    Reset Password
+                                </button>
+
+                                @if (user.IsActive)
+                                {
+                                    <button @onclick="() => ToggleUserStatus(user)"
+                                            class="text-orange-600 hover:text-orange-900 font-medium">
+                                        Deactivate
+                                    </button>
+                                }
+                                else
+                                {
+                                    <button @onclick="() => ToggleUserStatus(user)"
+                                            class="text-green-600 hover:text-green-900 font-medium">
+                                        Reactivate
+                                    </button>
+                                }
+                            </div>
                         </td>
                     </tr>
                 }
@@ -137,20 +175,104 @@ else
     </div>
 }
 
+<!-- Edit User Modal -->
+@if (showEditModal && editingUser != null)
+{
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" @onclick="CloseEditModal">
+        <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4" @onclick:stopPropagation="true">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h2 class="text-xl font-semibold text-gray-900">Edit User</h2>
+            </div>
+
+            <div class="px-6 py-4 space-y-4">
+                <!-- First Name -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">First Name</label>
+                    <input type="text" @bind="editFirstName"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+                </div>
+
+                <!-- Last Name -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Last Name</label>
+                    <input type="text" @bind="editLastName"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+                </div>
+
+                <!-- Email -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                    <input type="email" @bind="editEmail"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+                </div>
+
+                <!-- Is Global Admin -->
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" @bind="editIsGlobalAdmin" id="editIsGlobalAdmin"
+                           class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded" />
+                    <label for="editIsGlobalAdmin" class="text-sm font-medium text-gray-700">Global Admin</label>
+                </div>
+
+                <!-- Is Active -->
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" @bind="editIsActive" id="editIsActive"
+                           class="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded" />
+                    <label for="editIsActive" class="text-sm font-medium text-gray-700">Active</label>
+                </div>
+
+                @if (!string.IsNullOrEmpty(editError))
+                {
+                    <div class="p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
+                        @editError
+                    </div>
+                }
+            </div>
+
+            <div class="px-6 py-4 border-t border-gray-200 flex justify-end gap-2">
+                <MaterialButton Style="MaterialButtonStyle.Text"
+                              Text="Cancel"
+                              OnClick="CloseEditModal"
+                              Disabled="@isSaving" />
+                <MaterialButton Style="MaterialButtonStyle.Filled"
+                              Text="@(isSaving ? "Saving..." : "Save Changes")"
+                              OnClick="SaveUser"
+                              Disabled="@isSaving" />
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private bool isLoading = true;
     private bool isGlobalAdmin = false;
     private bool showInviteModal = false;
+    private bool showEditModal = false;
+    private bool isSaving = false;
     private string searchQuery = string.Empty;
     private string roleFilter = "all";
-    private List<MockUser> allUsers = new();
+    private string statusFilter = "all";
+    private List<UserResponse> allUsers = new();
 
-    private List<MockUser> filteredUsers => allUsers
+    // Edit modal state
+    private UserResponse? editingUser;
+    private string editFirstName = string.Empty;
+    private string editLastName = string.Empty;
+    private string editEmail = string.Empty;
+    private bool editIsGlobalAdmin = false;
+    private bool editIsActive = true;
+    private string editError = string.Empty;
+
+    private List<UserResponse> filteredUsers => allUsers
         .Where(u => string.IsNullOrEmpty(searchQuery) ||
                     u.FirstName.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
                     u.LastName.Contains(searchQuery, StringComparison.OrdinalIgnoreCase) ||
                     u.Email.Contains(searchQuery, StringComparison.OrdinalIgnoreCase))
-        .Where(u => roleFilter == "all" || u.Role.ToLower().Replace(" ", "_") == roleFilter)
+        .Where(u => roleFilter == "all" ||
+                    (roleFilter == "admin" && u.IsGlobalAdmin) ||
+                    (roleFilter == "league_admin" && u.LeagueAdminCount > 0))
+        .Where(u => statusFilter == "all" ||
+                    (statusFilter == "active" && u.IsActive) ||
+                    (statusFilter == "inactive" && !u.IsActive))
         .ToList();
 
     protected override async Task OnInitializedAsync()
@@ -177,17 +299,133 @@ else
         isLoading = true;
         try
         {
-            // TODO: Load actual users from API
-            allUsers = GenerateMockUsers();
-            await Task.CompletedTask;
+            var response = await UserService.GetAllUsersAsync(includeInactive: true);
+            allUsers = (response != null && response.Success && response.Data != null)
+                ? response.Data
+                : new List<UserResponse>();
+
+            Logger.LogInformation("Loaded {Count} users from API", allUsers.Count);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading users");
+            allUsers = new List<UserResponse>();
         }
         finally
         {
             isLoading = false;
+        }
+    }
+
+    private void OpenEditModal(UserResponse user)
+    {
+        editingUser = user;
+        editFirstName = user.FirstName;
+        editLastName = user.LastName;
+        editEmail = user.Email;
+        editIsGlobalAdmin = user.IsGlobalAdmin;
+        editIsActive = user.IsActive;
+        editError = string.Empty;
+        showEditModal = true;
+    }
+
+    private void CloseEditModal()
+    {
+        showEditModal = false;
+        editingUser = null;
+        editError = string.Empty;
+    }
+
+    private async Task SaveUser()
+    {
+        if (editingUser == null) return;
+
+        isSaving = true;
+        editError = string.Empty;
+
+        try
+        {
+            var request = new UpdateUserRequest
+            {
+                FirstName = editFirstName,
+                LastName = editLastName,
+                Email = editEmail,
+                IsGlobalAdmin = editIsGlobalAdmin,
+                IsActive = editIsActive
+            };
+
+            var response = await UserService.UpdateUserAsync(editingUser.Id, request);
+
+            if (response != null && response.Success)
+            {
+                Logger.LogInformation("User {UserId} updated successfully", editingUser.Id);
+                CloseEditModal();
+                await LoadData(); // Reload users
+            }
+            else
+            {
+                editError = response?.Message ?? "Failed to update user";
+                Logger.LogWarning("Failed to update user: {Error}", editError);
+            }
+        }
+        catch (Exception ex)
+        {
+            editError = "An error occurred while saving";
+            Logger.LogError(ex, "Error saving user");
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task ToggleUserStatus(UserResponse user)
+    {
+        try
+        {
+            var request = new UpdateUserRequest
+            {
+                IsActive = !user.IsActive
+            };
+
+            var response = await UserService.UpdateUserAsync(user.Id, request);
+
+            if (response != null && response.Success)
+            {
+                Logger.LogInformation("User {UserId} status toggled to {Status}", user.Id, !user.IsActive);
+                await LoadData(); // Reload users
+            }
+            else
+            {
+                Logger.LogWarning("Failed to toggle user status: {Error}", response?.Message);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error toggling user status");
+        }
+    }
+
+    private async Task SendPasswordReset(UserResponse user)
+    {
+        try
+        {
+            var response = await UserService.SendPasswordResetAsync(user.Id);
+
+            if (response != null && response.Success)
+            {
+                Logger.LogInformation("Password reset sent for user {UserId}", user.Id);
+                // TODO: Show success toast/notification
+            }
+            else
+            {
+                Logger.LogWarning("Failed to send password reset: {Error}", response?.Message);
+                // TODO: Show error toast/notification
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error sending password reset");
         }
     }
 
@@ -198,40 +436,20 @@ else
         return $"{first}{last}".ToUpper();
     }
 
-    private string GetRoleBadgeClass(string role)
+    private string GetRoleBadgeClass(UserResponse user)
     {
-        return role switch
-        {
-            "Global Admin" => "bg-red-100 text-red-800",
-            "League Admin" => "bg-blue-100 text-blue-800",
-            "Season Admin" => "bg-green-100 text-green-800",
-            _ => "bg-gray-100 text-gray-800"
-        };
+        if (user.IsGlobalAdmin)
+            return "bg-red-100 text-red-800";
+        return "bg-gray-100 text-gray-800";
     }
 
-    private List<MockUser> GenerateMockUsers()
+    private string GetRoleText(UserResponse user)
     {
-        return new List<MockUser>
-        {
-            new() { Id = "1", FirstName = "Sarah", LastName = "Admin", Email = "admin@pinzo.pro", Role = "Global Admin", JoinedDate = DateTime.Now.AddMonths(-12), IsActive = true },
-            new() { Id = "2", FirstName = "Mike", LastName = "Commissioner", Email = "league.admin@pinzo.pro", Role = "League Admin", JoinedDate = DateTime.Now.AddMonths(-8), IsActive = true },
-            new() { Id = "3", FirstName = "John", LastName = "Player", Email = "john.player@pinzo.pro", Role = "Player", JoinedDate = DateTime.Now.AddMonths(-6), IsActive = true },
-            new() { Id = "4", FirstName = "Jane", LastName = "Golfer", Email = "jane.golfer@pinzo.pro", Role = "Player", JoinedDate = DateTime.Now.AddMonths(-4), IsActive = true },
-            new() { Id = "5", FirstName = "Bob", LastName = "Smith", Email = "bob.smith@example.com", Role = "Player", JoinedDate = DateTime.Now.AddMonths(-3), IsActive = true },
-            new() { Id = "6", FirstName = "Alice", LastName = "Johnson", Email = "alice.j@example.com", Role = "League Admin", JoinedDate = DateTime.Now.AddMonths(-2), IsActive = true },
-            new() { Id = "7", FirstName = "Tom", LastName = "Wilson", Email = "tom.w@example.com", Role = "Player", JoinedDate = DateTime.Now.AddMonths(-1), IsActive = false }
-        };
-    }
-
-    private class MockUser
-    {
-        public string Id { get; set; } = string.Empty;
-        public string FirstName { get; set; } = string.Empty;
-        public string LastName { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
-        public string Role { get; set; } = string.Empty;
-        public DateTime JoinedDate { get; set; }
-        public bool IsActive { get; set; }
+        if (user.IsGlobalAdmin)
+            return "Global Admin";
+        if (user.LeagueAdminCount > 0)
+            return $"League Admin ({user.LeagueAdminCount})";
+        return "Player";
     }
 }
 

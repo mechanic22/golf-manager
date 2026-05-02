@@ -32,5 +32,10 @@ public interface IPlayerService
     /// Remove a player from a league
     /// </summary>
     Task<ApiResponse<bool>?> RemovePlayerFromLeagueAsync(string leagueId, string playerId);
+
+    /// <summary>
+    /// Get players participating in a specific season
+    /// </summary>
+    Task<ApiResponse<List<PlayerResponse>>?> GetSeasonPlayersAsync(string leagueId, string seasonId);
 }
 

@@ -1,3 +1,5 @@
+using GolfManager.Core.Enums;
+
 namespace GolfManager.Shared.DTOs.League;
 
 /// <summary>
@@ -36,6 +38,16 @@ public class LeagueMemberResponse
     public bool IsLeagueAdmin { get; set; }
 
     /// <summary>
+    /// User's role within this league.
+    /// </summary>
+    public LeagueMemberRole Role { get; set; } = LeagueMemberRole.Member;
+
+    /// <summary>
+    /// Whether the member is active in the league
+    /// </summary>
+    public bool IsActive { get; set; }
+
+    /// <summary>
     /// When the user joined the league
     /// </summary>
     public DateTime JoinedAt { get; set; }
@@ -50,4 +62,3 @@ public class LeagueMemberResponse
     /// </summary>
     public string? PlayerDisplayName { get; set; }
 }
-

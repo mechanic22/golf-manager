@@ -1,3 +1,4 @@
+using GolfManager.Core.Services;
 using GolfManager.Data;
 using GolfManager.Shared.DTOs.Season;
 using GolfManager.Shared.Extensions;
@@ -12,11 +13,16 @@ namespace GolfManager.Services.Season;
 public class SeasonService : ISeasonService
 {
     private readonly GolfManagerDbContext _context;
+    private readonly IShortIdService _shortIdService;
     private readonly ILogger<SeasonService> _logger;
 
-    public SeasonService(GolfManagerDbContext context, ILogger<SeasonService> logger)
+    public SeasonService(
+        GolfManagerDbContext context,
+        IShortIdService shortIdService,
+        ILogger<SeasonService> logger)
     {
         _context = context;
+        _shortIdService = shortIdService;
         _logger = logger;
     }
 
@@ -88,7 +94,7 @@ public class SeasonService : ISeasonService
 
         var season = new Core.Entities.Season
         {
-            Id = Guid.NewGuid().ToString(),
+            Id = _shortIdService.GenerateId(),
             LeagueId = leagueId,
             Key = seasonKey,
             Name = request.Name,

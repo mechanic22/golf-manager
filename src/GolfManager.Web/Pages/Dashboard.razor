@@ -1,10 +1,12 @@
 @page "/dashboard"
 @layout AppLayout
 @using GolfManager.Web.Services
+@using GolfManager.Web.Components.Dashboard
+@using GolfManager.Shared.DTOs.User
 @inject IAuthService AuthService
 @inject ILeagueService LeagueService
 @inject IOneTimeEventService EventService
-@inject SeedDataService SeedData
+@inject IUserService UserService
 @inject NavigationManager Navigation
 @inject ILogger<Dashboard> Logger
 
@@ -38,10 +40,69 @@ else
             <a href="/events" class="text-primary-600 hover:text-primary-700 text-sm font-medium">View All →</a>
         </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        @foreach (var league in leagues)
+        @if (isLoadingEvents)
         {
-            <MaterialCard Variant="MaterialCardVariant.Outlined" Class="hover:shadow-md transition-shadow">
+            <div class="flex justify-center py-8">
+                <MaterialProgressIndicator Variant="MaterialProgressVariant.Circular" />
+            </div>
+        }
+        else if (myEvents == null || !myEvents.Any())
+        {
+            <MaterialCard Variant="MaterialCardVariant.Outlined">
+                <div class="md-card__content text-center py-12">
+                    <MaterialIcon Icon="MaterialIcons.EventBusy" Class="text-gray-400 text-4xl mb-3" />
+                    <p class="text-gray-600">No upcoming events. Create one to get started!</p>
+                </div>
+            </MaterialCard>
+        }
+        else
+        {
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                @foreach (var evt in myEvents)
+                {
+                    <MaterialCard Variant="MaterialCardVariant.Outlined" Class="hover:shadow-md transition-shadow">
+                        <div class="md-card__content">
+                            <div class="flex items-start justify-between mb-3">
+                                <h3 class="text-lg font-semibold text-gray-900">@evt.Name</h3>
+                                <MaterialChip Label="@evt.Status.ToString()"
+                                             Color="@GetStatusColor(evt.Status)"
+                                             Size="MaterialChipSize.Small" />
+                            </div>
+
+                            <div class="space-y-2 text-sm text-gray-600 mb-4">
+                                <div class="flex items-center gap-2">
+                                    <MaterialIcon Icon="MaterialIcons.CalendarToday" Class="text-base" />
+                                    <span>@evt.EventDate.ToString("MMM d, yyyy")</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <MaterialIcon Icon="MaterialIcons.GolfCourse" Class="text-base" />
+                                    <span>@evt.Format</span>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <MaterialIcon Icon="MaterialIcons.Groups" Class="text-base" />
+                                    <span>@evt.RegisteredTeamsCount / @(evt.MaxTeams?.ToString() ?? "∞") teams</span>
+                                </div>
+                            </div>
+
+                            <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="@(() => Navigation.NavigateTo($"/event/{evt.Key}"))">
+                                View Event
+                            </MaterialButton>
+                        </div>
+                    </MaterialCard>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="mb-4">
+        <h2 class="text-2xl font-bold text-gray-900">Your Leagues</h2>
+        <p class="text-gray-600 text-sm">Leagues you belong to</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        @foreach (var league in leagues ?? [])
+        {
+            <MaterialCard Variant="MaterialCardVariant.Filled" Class="hover:shadow-md transition-shadow">
                 <div class="md-card__content">
                     <div class="flex items-start gap-4 mb-4">
                         @if (!string.IsNullOrEmpty(league.LogoUrl))
@@ -94,189 +155,32 @@ else
         }
     </div>
 
-    <!-- My Events Section -->
-    <div class="mt-12 mb-6">
-        <h2 class="text-xl font-semibold text-gray-900">My Events</h2>
-        <p class="text-gray-600 text-sm">Upcoming tournaments and events</p>
-    </div>
-
-    @if (isLoadingEvents)
+    <!-- Handicap Widget -->
+    @if (currentUser?.IsGolfer == true && !string.IsNullOrEmpty(currentUser.GolferId))
     {
-        <div class="flex justify-center py-8">
-            <MaterialProgressIndicator Variant="MaterialProgressVariant.Circular" />
+        <div class="mt-12 mb-6">
+            <HandicapWidget CurrentUser="@currentUser" />
         </div>
     }
-    else if (myEvents == null || !myEvents.Any())
-    {
-        <MaterialCard Variant="MaterialCardVariant.Outlined">
-            <div class="md-card__content text-center py-12">
-                <MaterialIcon Icon="MaterialIcons.EventBusy" Class="text-gray-400 text-4xl mb-3" />
-                <p class="text-gray-600">No upcoming events. Create one to get started!</p>
-            </div>
-        </MaterialCard>
-    }
-    else
-    {
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            @foreach (var evt in myEvents)
-            {
-                <MaterialCard Variant="MaterialCardVariant.Outlined" Class="hover:shadow-md transition-shadow">
-                    <div class="md-card__content">
-                        <div class="flex items-start justify-between mb-3">
-                            <h3 class="text-lg font-semibold text-gray-900">@evt.Name</h3>
-                            <MaterialChip Label="@evt.Status.ToString()"
-                                         Color="@GetStatusColor(evt.Status)"
-                                         Size="MaterialChipSize.Small" />
-                        </div>
 
-                        <div class="space-y-2 text-sm text-gray-600 mb-4">
-                            <div class="flex items-center gap-2">
-                                <MaterialIcon Icon="MaterialIcons.CalendarToday" Class="text-base" />
-                                <span>@evt.EventDate.ToString("MMM d, yyyy")</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <MaterialIcon Icon="MaterialIcons.GolfCourse" Class="text-base" />
-                                <span>@evt.Format</span>
-                            </div>
-                            <div class="flex items-center gap-2">
-                                <MaterialIcon Icon="MaterialIcons.Groups" Class="text-base" />
-                                <span>@evt.RegisteredTeamsCount / @(evt.MaxTeams?.ToString() ?? "∞") teams</span>
-                            </div>
-                        </div>
-
-                        <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="@(() => Navigation.NavigateTo($"/event/{evt.Key}"))">
-                            View Event
-                        </MaterialButton>
-                    </div>
-                </MaterialCard>
-            }
-        </div>
-    }
 }
 
-<MaterialDialog @bind-IsOpen="showCreateModal" Title="Create New League" MaxWidth="MaterialDialogMaxWidth.Small">
-    <ChildContent>
-        @if (!string.IsNullOrEmpty(createErrorMessage))
-        {
-            <div class="alert alert-danger mb-4">
-                @createErrorMessage
-            </div>
-        }
+<CreateLeagueDialog IsOpen="showCreateModal"
+                     IsOpenChanged="@((value) => showCreateModal = value)"
+                     OnLeagueCreated="@HandleLeagueCreated" />
 
-        <EditForm Model="@createLeagueRequest" OnValidSubmit="HandleCreateLeague">
-            <DataAnnotationsValidator />
-
-            <div>
-                <MaterialInput Value="@createLeagueRequest.Name"
-                              ValueChanged="@((string value) => OnLeagueNameChanged(value))"
-                              Label="League Name"
-                              Placeholder="My Golf League"
-                              Variant="MaterialInputVariant.Outlined"
-                              Required="true" />
-                <ValidationMessage For="@(() => createLeagueRequest.Name)" />
-            </div>
-
-            <div class="mt-4 flex justify-end gap-3">
-                <MaterialButton Type="button" Style="MaterialButtonStyle.Text" OnClick="HideCreateLeagueModal" Disabled="isCreating">
-                    Cancel
-                </MaterialButton>
-                <MaterialButton Type="submit" Style="MaterialButtonStyle.Filled" Disabled="isCreating">
-                    @if (isCreating)
-                    {
-                        <span>Creating...</span>
-                    }
-                    else
-                    {
-                        <span>Create League</span>
-                    }
-                </MaterialButton>
-            </div>
-        </EditForm>
-    </ChildContent>
-</MaterialDialog>
-
-<MaterialDialog @bind-IsOpen="showCreateEventModal" Title="Create New Event" MaxWidth="MaterialDialogMaxWidth.Medium">
-    <ChildContent>
-        @if (!string.IsNullOrEmpty(createEventErrorMessage))
-        {
-            <div class="alert alert-danger mb-4">
-                @createEventErrorMessage
-            </div>
-        }
-
-        <EditForm Model="@createEventRequest" OnValidSubmit="HandleCreateEvent">
-            <DataAnnotationsValidator />
-
-            <div class="space-y-4">
-                <div>
-                    <MaterialInput @bind-Value="createEventRequest.Name"
-                                  Label="Event Name"
-                                  Placeholder="Summer Golf Tournament"
-                                  Variant="MaterialInputVariant.Outlined"
-                                  Required="true" />
-                    <ValidationMessage For="@(() => createEventRequest.Name)" />
-                </div>
-
-                <div>
-                    <MaterialInput @bind-Value="createEventRequest.EventDate"
-                                  Label="Event Date"
-                                  Type="date"
-                                  Variant="MaterialInputVariant.Outlined"
-                                  Required="true" />
-                    <ValidationMessage For="@(() => createEventRequest.EventDate)" />
-                </div>
-
-                <div>
-                    <MaterialInput @bind-Value="createEventRequest.Format"
-                                  Label="Format"
-                                  Placeholder="Scramble, Best Ball, etc."
-                                  Variant="MaterialInputVariant.Outlined"
-                                  Required="true" />
-                    <ValidationMessage For="@(() => createEventRequest.Format)" />
-                </div>
-
-                <div>
-                    <MaterialInput @bind-Value="createEventRequest.TeamSize"
-                                  Label="Team Size"
-                                  Type="number"
-                                  Variant="MaterialInputVariant.Outlined"
-                                  Required="true" />
-                    <ValidationMessage For="@(() => createEventRequest.TeamSize)" />
-                </div>
-
-                <div class="mt-4 flex justify-end gap-3">
-                    <MaterialButton Type="button" Style="MaterialButtonStyle.Text" OnClick="HideCreateEventModal" Disabled="isCreatingEvent">
-                        Cancel
-                    </MaterialButton>
-                    <MaterialButton Type="submit" Style="MaterialButtonStyle.Filled" Disabled="isCreatingEvent">
-                        @if (isCreatingEvent)
-                        {
-                            <span>Creating...</span>
-                        }
-                        else
-                        {
-                            <span>Create Event</span>
-                        }
-                    </MaterialButton>
-                </div>
-            </div>
-        </EditForm>
-    </ChildContent>
-</MaterialDialog>
+<CreateEventDialog IsOpen="showCreateEventModal"
+                   IsOpenChanged="@((value) => showCreateEventModal = value)"
+                   OnEventCreated="@HandleEventCreated" />
 
 @code {
     private List<LeagueResponse>? leagues;
     private List<OneTimeEventListResponse>? myEvents;
+    private UserProfileResponse? currentUser;
     private bool isLoading = true;
     private bool isLoadingEvents = true;
     private bool showCreateModal = false;
     private bool showCreateEventModal = false;
-    private bool isCreating = false;
-    private bool isCreatingEvent = false;
-    private CreateLeagueRequest createLeagueRequest = new();
-    private CreateOneTimeEventRequest createEventRequest = new();
-    private string? createErrorMessage;
-    private string? createEventErrorMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -287,8 +191,28 @@ else
             return;
         }
 
+        await LoadUserProfile();
         await LoadLeagues();
         await LoadEvents();
+    }
+
+    private async Task LoadUserProfile()
+    {
+        try
+        {
+            var result = await UserService.GetCurrentUserAsync();
+            currentUser = (result != null && result.Success && result.Data != null)
+                ? result.Data
+                : null;
+
+            Logger.LogInformation("Loaded user profile: IsGolfer={IsGolfer}, GolferId={GolferId}",
+                currentUser?.IsGolfer, currentUser?.GolferId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading user profile");
+            currentUser = null;
+        }
     }
 
     private async Task LoadLeagues()
@@ -296,25 +220,19 @@ else
         isLoading = true;
         try
         {
-            // Use seed data for development
-            leagues = SeedData.Leagues.Take(5).Select(l => new LeagueResponse
-            {
-                Id = l.Id,
-                Key = l.Key,
-                Name = l.Name,
-                Description = l.Description,
-                MemberCount = l.MemberCount,
-                PlayerCount = l.MemberCount,
-                SeasonCount = SeedData.Seasons.Count(s => s.LeagueId == l.Id),
-                IsCurrentUserAdmin = l.AdminUserId == AuthService.UserId || AuthService.IsGlobalAdmin,
-                CreatedAt = l.CreatedDate
-            }).ToList();
+            // Load leagues from API
+            var result = await LeagueService.GetUserLeaguesAsync();
+            leagues = (result != null && result.Success && result.Data != null)
+                ? result.Data
+                : new List<LeagueResponse>();
 
-            await Task.CompletedTask;
+            Logger.LogInformation("Loaded {Count} leagues from API", leagues.Count);
         }
         catch (Exception ex)
         {
+            Logger.LogError(ex, "Error loading leagues from API");
             Console.WriteLine($"Error loading leagues: {ex.Message}");
+            leagues = new List<LeagueResponse>();
         }
         finally
         {
@@ -324,91 +242,13 @@ else
 
     private void ShowCreateLeagueModal()
     {
-        createLeagueRequest = new CreateLeagueRequest
-        {
-            LogoUrl = "https://placehold.co/200x200/1a4731/ffffff?text=Golf"
-        };
-        createErrorMessage = null;
         showCreateModal = true;
     }
 
-    private void OnLeagueNameChanged(string name)
+    private async Task HandleLeagueCreated(LeagueResponse league)
     {
-        createLeagueRequest.Name = name;
-        createLeagueRequest.Key = SlugifyLeagueName(name);
-    }
-
-    private string SlugifyLeagueName(string name)
-    {
-        if (string.IsNullOrWhiteSpace(name))
-            return string.Empty;
-
-        // Convert to lowercase
-        var slug = name.ToLowerInvariant();
-
-        // Replace spaces with hyphens
-        slug = slug.Replace(" ", "-");
-
-        // Remove any characters that aren't lowercase letters, numbers, or hyphens
-        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[^a-z0-9-]", "");
-
-        // Remove consecutive hyphens
-        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"-+", "-");
-
-        // Trim hyphens from start and end
-        slug = slug.Trim('-');
-
-        // Limit to 50 characters (max length for Key)
-        if (slug.Length > 50)
-            slug = slug.Substring(0, 50).TrimEnd('-');
-
-        return slug;
-    }
-
-    private void HideCreateLeagueModal()
-    {
-        showCreateModal = false;
-    }
-
-    private async Task HandleCreateLeague()
-    {
-        Logger.LogInformation("HandleCreateLeague called - Name: {Name}, Key: {Key}",
-            createLeagueRequest.Name, createLeagueRequest.Key);
-
-        isCreating = true;
-        createErrorMessage = null;
-
-        try
-        {
-            Logger.LogInformation("Calling LeagueService.CreateLeagueAsync");
-            var response = await LeagueService.CreateLeagueAsync(createLeagueRequest);
-
-            Logger.LogInformation("Response received - Success: {Success}, Message: {Message}",
-                response?.Success, response?.Message);
-
-            if (response?.Success == true && response.Data != null)
-            {
-                Logger.LogInformation("League created successfully: {LeagueId}", response.Data.Id);
-                // League created successfully
-                showCreateModal = false;
-                await LoadLeagues(); // Reload the leagues list
-            }
-            else
-            {
-                var errorMsg = response?.Message ?? "Failed to create league. Please try again.";
-                Logger.LogWarning("League creation failed: {ErrorMessage}", errorMsg);
-                createErrorMessage = errorMsg;
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Exception in HandleCreateLeague: {Message}", ex.Message);
-            createErrorMessage = $"An error occurred: {ex.Message}";
-        }
-        finally
-        {
-            isCreating = false;
-        }
+        Logger.LogInformation("League created successfully: {LeagueId}", league.Id);
+        await LoadLeagues(); // Reload the leagues list
     }
 
     private void NavigateToLeague(string key)
@@ -421,33 +261,30 @@ else
         isLoadingEvents = true;
         try
         {
-            // Use seed data for development - show upcoming events
-            myEvents = SeedData.Events
-                .Where(e => e.Date >= DateTime.Now.Date && !e.IsCompleted)
-                .OrderBy(e => e.Date)
-                .Take(6)
-                .Select(e => new OneTimeEventListResponse
+            if (currentUser != null)
+            {
+                var result = await EventService.GetEventsAsync(upcomingOnly: true, organizerId: currentUser.Id);
+                if (result != null && result.Success && result.Data != null)
                 {
-                    Id = e.Id,
-                    Key = e.Key,
-                    Name = e.Name,
-                    EventDate = e.Date,
-                    CourseName = e.CourseName,
-                    Format = GolfManager.Core.Enums.ScoringFormat.StrokePlay,
-                    TeamSize = 1,
-                    TotalRounds = 1,
-                    AccessType = GolfManager.Core.Enums.EventAccessType.Public,
-                    Status = GolfManager.Core.Enums.EventStatus.Published,
-                    RegisteredTeamsCount = e.ParticipantCount,
-                    MaxTeams = e.ParticipantCount + 5,
-                    OrganizerName = "League Admin"
-                }).ToList();
-
-            await Task.CompletedTask;
+                    myEvents = result.Data;
+                    Logger.LogInformation("Loaded {Count} upcoming events for user {UserId}", myEvents.Count, currentUser.Id);
+                }
+                else
+                {
+                    myEvents = new List<OneTimeEventListResponse>();
+                    Logger.LogWarning("Failed to load events: {Message}", result?.Message ?? "Unknown error");
+                }
+            }
+            else
+            {
+                myEvents = new List<OneTimeEventListResponse>();
+                Logger.LogWarning("Cannot load events: current user is null");
+            }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading events");
+            myEvents = new List<OneTimeEventListResponse>();
         }
         finally
         {
@@ -457,50 +294,14 @@ else
 
     private void ShowCreateEventModal()
     {
-        createEventRequest = new CreateOneTimeEventRequest
-        {
-            EventDate = DateTime.UtcNow.AddDays(30),
-            TeamSize = 4,
-            AccessType = EventAccessType.Public
-        };
-        createEventErrorMessage = null;
         showCreateEventModal = true;
     }
 
-    private void HideCreateEventModal()
+    private async Task HandleEventCreated(OneTimeEventResponse eventResponse)
     {
-        showCreateEventModal = false;
-    }
-
-    private async Task HandleCreateEvent()
-    {
-        isCreatingEvent = true;
-        createEventErrorMessage = null;
-
-        try
-        {
-            var response = await EventService.CreateEventAsync(createEventRequest);
-
-            if (response?.Success == true && response.Data != null)
-            {
-                showCreateEventModal = false;
-                // Navigate to the new event
-                Navigation.NavigateTo($"/event/{response.Data.Key}");
-            }
-            else
-            {
-                createEventErrorMessage = response?.Message ?? "Failed to create event. Please try again.";
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error creating event");
-            createEventErrorMessage = $"An error occurred: {ex.Message}";
-        }
-        finally
-        {
-            isCreatingEvent = false;
-        }
+        Logger.LogInformation("Event created successfully: {EventId}", eventResponse.Id);
+        // Navigate to the new event
+        Navigation.NavigateTo($"/event/{eventResponse.Key}");
     }
 
     private MaterialChipColor GetStatusColor(EventStatus status)
@@ -524,7 +325,7 @@ else
 
     private string GetFirstName()
     {
-        var user = SeedData.Users.FirstOrDefault(u => u.Id == AuthService.UserId);
-        return user?.FirstName ?? "Player";
+        // Use the first name from auth service
+        return AuthService.UserEmail?.Split('@')[0] ?? "Player";
     }
 }

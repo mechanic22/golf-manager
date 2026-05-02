@@ -1,4 +1,5 @@
 using GolfManager.Core.Entities;
+using GolfManager.Core.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -35,6 +36,12 @@ public class UserLeagueConfiguration : IEntityTypeConfiguration<UserLeague>
             .IsRequired()
             .HasDefaultValue(false);
 
+        builder.Property(x => x.Role)
+            .HasConversion<string>()
+            .IsRequired()
+            .HasMaxLength(20)
+            .HasDefaultValue(LeagueMemberRole.Member);
+
         builder.Property(x => x.IsActive)
             .IsRequired()
             .HasDefaultValue(true);
@@ -43,4 +50,3 @@ public class UserLeagueConfiguration : IEntityTypeConfiguration<UserLeague>
             .IsRequired();
     }
 }
-

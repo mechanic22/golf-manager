@@ -1,4 +1,5 @@
 using GolfManager.Core.Entities;
+using GolfManager.Core.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -39,6 +40,52 @@ public class DbSeeder
             return;
         }
 
+        // Check if Holy Grail backup file exists
+        // Try multiple possible locations
+        var possiblePaths = new[]
+        {
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "DkGolf_Backup_202604270946.sql"),
+            Path.Combine(Directory.GetCurrentDirectory(), "DkGolf_Backup_202604270946.sql"),
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "..", "..", "DkGolf_Backup_202604270946.sql"), // Project root when running from bin
+            "/Users/tonygilbert/Projects/code/5thbox/dkgolf/golf-manager/src/GolfManager.Api/DkGolf_Backup_202604270946.sql" // Absolute path
+        };
+
+        string? backupPath = null;
+        foreach (var path in possiblePaths)
+        {
+            var normalizedPath = Path.GetFullPath(path);
+            if (File.Exists(normalizedPath))
+            {
+                backupPath = normalizedPath;
+                break;
+            }
+        }
+
+        if (backupPath != null)
+        {
+            _logger.LogInformation("Holy Grail backup file found: {Path}", backupPath);
+            _logger.LogInformation("Importing historical data from Holy Grail v1...");
+
+            var importer = new HolyGrailImporter(_context, _logger);
+            var success = await importer.ImportFromBackupAsync(backupPath);
+
+            if (success)
+            {
+                _logger.LogInformation("✅ Holy Grail data imported successfully!");
+                _logger.LogInformation("Default password for all imported users: ChangeMe123!");
+                return;
+            }
+            else
+            {
+                _logger.LogWarning("⚠️ Holy Grail import failed. Falling back to demo data.");
+            }
+        }
+        else
+        {
+            _logger.LogInformation("No Holy Grail backup found at any expected location. Seeding demo data...");
+        }
+
+        // Fallback to demo data if no backup or import failed
         _logger.LogInformation("Seeding database with demo data...");
 
         // Create Global Admin
@@ -106,28 +153,57 @@ public class DbSeeder
             Key = "pinzo-demo",
             Name = "Pinzo Demo League",
             Description = "A demo league showcasing Pinzo's golf league management features",
+            CustomDomain = "localhost:5001", // For local testing
+            UseCustomDomain = true,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
 
         _context.Leagues.Add(demoLeague);
+
+        // Add a second demo league for multi-tenant testing
+        var riverValleyLeague = new League
+        {
+            Id = Guid.NewGuid().ToString(),
+            Key = "river-valley",
+            Name = "River Valley Golf Club",
+            Description = "A scenic golf club nestled in the river valley",
+            CustomDomain = "localhost:5002", // For local testing
+            UseCustomDomain = true,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        _context.Leagues.Add(riverValleyLeague);
         await _context.SaveChangesAsync();
 
-        // Add Global Admin as league admin
+        // Add Global Admin as league admin to both leagues
         _context.UserLeagues.Add(new UserLeague
         {
             UserId = adminUser.Id,
             LeagueId = demoLeague.Id,
             IsLeagueAdmin = true,
+            Role = LeagueMemberRole.Owner,
             JoinedAt = DateTime.UtcNow
         });
 
-        // Add League Admin as league admin
+        // Add Global Admin to River Valley league
+        _context.UserLeagues.Add(new UserLeague
+        {
+            UserId = adminUser.Id,
+            LeagueId = riverValleyLeague.Id,
+            IsLeagueAdmin = true,
+            Role = LeagueMemberRole.Owner,
+            JoinedAt = DateTime.UtcNow
+        });
+
+        // Add League Admin as league admin (Pinzo Demo only)
         _context.UserLeagues.Add(new UserLeague
         {
             UserId = leagueAdminUser.Id,
             LeagueId = demoLeague.Id,
             IsLeagueAdmin = true,
+            Role = LeagueMemberRole.Admin,
             JoinedAt = DateTime.UtcNow
         });
 
@@ -137,6 +213,7 @@ public class DbSeeder
             UserId = player1.Id,
             LeagueId = demoLeague.Id,
             IsLeagueAdmin = false,
+            Role = LeagueMemberRole.Member,
             JoinedAt = DateTime.UtcNow
         });
 
@@ -146,6 +223,7 @@ public class DbSeeder
             UserId = player2.Id,
             LeagueId = demoLeague.Id,
             IsLeagueAdmin = false,
+            Role = LeagueMemberRole.Member,
             JoinedAt = DateTime.UtcNow
         });
 
@@ -235,4 +313,3 @@ public class DbSeeder
         _logger.LogInformation("Demo Course: demo-course (18 holes, Par 72)");
     }
 }
-

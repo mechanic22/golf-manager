@@ -1,5 +1,6 @@
 using GolfManager.Core.Common;
 using GolfManager.Core.Entities;
+using GolfManager.Core.Services;
 using GolfManager.Data.Services;
 using Microsoft.EntityFrameworkCore;
 
@@ -11,13 +12,16 @@ namespace GolfManager.Data;
 public class GolfManagerDbContext : DbContext
 {
     private readonly ITenantService? _tenantService;
+    private readonly ICurrentUserService? _currentUserService;
 
     public GolfManagerDbContext(
         DbContextOptions<GolfManagerDbContext> options,
-        ITenantService? tenantService = null)
+        ITenantService? tenantService = null,
+        ICurrentUserService? currentUserService = null)
         : base(options)
     {
         _tenantService = tenantService;
+        _currentUserService = currentUserService;
     }
 
     // User & Authentication
@@ -27,6 +31,7 @@ public class GolfManagerDbContext : DbContext
     // Golfer (Global)
     public DbSet<Golfer> Golfers { get; set; } = null!;
     public DbSet<GolferClub> GolferClubs { get; set; } = null!;
+    public DbSet<HandicapHistory> HandicapHistories { get; set; } = null!;
 
     // Multi-Tenancy
     public DbSet<League> Leagues { get; set; } = null!;
@@ -39,6 +44,7 @@ public class GolfManagerDbContext : DbContext
     public DbSet<SeasonGolfer> SeasonGolfers { get; set; } = null!;
     public DbSet<SeasonTeam> SeasonTeams { get; set; } = null!;
     public DbSet<SeasonEvent> SeasonEvents { get; set; } = null!;
+    public DbSet<SeasonEventMatch> SeasonEventMatches { get; set; } = null!;
 
     // One-Time Events
     public DbSet<OneTimeEvent> OneTimeEvents { get; set; } = null!;
@@ -119,22 +125,20 @@ public class GolfManagerDbContext : DbContext
     private void UpdateAuditFields()
     {
         var entries = ChangeTracker.Entries<BaseEntity>();
+        var userId = _currentUserService?.UserId ?? "system";
 
         foreach (var entry in entries)
         {
             if (entry.State == EntityState.Added)
             {
                 entry.Entity.CreatedAt = DateTime.UtcNow;
-                // TODO: Set CreatedBy from current user context
-                // entry.Entity.CreatedBy = _currentUserService.UserId;
+                entry.Entity.CreatedBy = userId;
             }
             else if (entry.State == EntityState.Modified)
             {
                 entry.Entity.UpdatedAt = DateTime.UtcNow;
-                // TODO: Set UpdatedBy from current user context
-                // entry.Entity.UpdatedBy = _currentUserService.UserId;
+                entry.Entity.UpdatedBy = userId;
             }
         }
     }
 }
-

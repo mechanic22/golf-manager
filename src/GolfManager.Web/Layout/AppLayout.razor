@@ -1,4 +1,6 @@
 @using GolfManager.Web.Components.Icons
+@using MaterialComponents
+@using MaterialComponents.Models
 @inherits LayoutComponentBase
 @inject IAuthService AuthService
 @inject IAuthorizationService AuthorizationService
@@ -81,35 +83,35 @@
                         <span class="text-xs text-gray-600">▼</span>
                     </button>
 
-                    @if (showUserMenu)
-                    {
-                        <div class="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50">
-                            <div class="px-4 py-2 border-b border-gray-200">
-                                <p class="text-sm font-semibold text-gray-900">@AuthService.UserEmail</p>
-                                <p class="text-xs text-gray-600">@GetUserRole()</p>
-                            </div>
-
-                            <a href="/profile" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
-                                <Icon Path="@GolfIcons.Person" Size="GolfManager.Web.Components.Icons.IconSize.SM" />
-                                My Profile
-                            </a>
-
-                            @if (AuthorizationService.IsGlobalAdmin())
-                            {
-                                <a href="/admin" class="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
-                                    <Icon Path="@GolfIcons.Settings" Size="GolfManager.Web.Components.Icons.IconSize.SM" />
-                                    Admin Dashboard
-                                </a>
-                            }
-
-                            <div class="border-t border-gray-200 mt-2 pt-2">
-                                <button @onclick="HandleLogout" class="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
-                                    <Icon Path="@GolfIcons.Logout" Size="GolfManager.Web.Components.Icons.IconSize.SM" />
-                                    Logout
-                                </button>
-                            </div>
+                    <MaterialDrop @bind-IsOpen="showUserMenu"
+                                  Position="MaterialDropPosition.Bottom"
+                                  Alignment="MaterialDropAlignment.End"
+                                  class="w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2">
+                        <div class="px-4 py-2 border-b border-gray-200">
+                            <p class="text-sm font-semibold text-gray-900">@AuthService.UserEmail</p>
+                            <p class="text-xs text-gray-600">@GetUserRole()</p>
                         </div>
-                    }
+
+                        <a href="/profile" @onclick="() => showUserMenu = false" class="md-menu-item flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
+                            <Icon Path="@GolfIcons.Person" Size="GolfManager.Web.Components.Icons.IconSize.SM" />
+                            <span>My Profile</span>
+                        </a>
+
+                        @if (AuthorizationService.IsGlobalAdmin())
+                        {
+                            <a href="/admin" @onclick="() => showUserMenu = false" class="md-menu-item flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
+                                <Icon Path="@GolfIcons.Settings" Size="GolfManager.Web.Components.Icons.IconSize.SM" />
+                                <span>Admin Dashboard</span>
+                            </a>
+                        }
+
+                        <div class="md-menu-divider"></div>
+
+                        <button @onclick="HandleLogout" class="md-menu-item flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                            <Icon Path="@GolfIcons.Logout" Size="GolfManager.Web.Components.Icons.IconSize.SM" />
+                            <span>Logout</span>
+                        </button>
+                    </MaterialDrop>
                 </div>
             </div>
 
@@ -220,9 +222,6 @@
     <main class="container max-w-7xl mx-auto px-4 md:px-8 py-8">
         @Body
     </main>
-
-    <!-- Dev User Switcher (only visible in development) -->
-    <DevUserSwitcher />
 </div>
 
 @code {

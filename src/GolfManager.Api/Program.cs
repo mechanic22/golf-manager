@@ -6,8 +6,12 @@ using GolfManager.Api.Middleware;
 using GolfManager.Data;
 using GolfManager.Data.Seed;
 using GolfManager.Data.Services;
+using GolfManager.Core.Configuration;
+using GolfManager.Core.Services;
 using GolfManager.Services.Auth;
+using GolfManager.Services.Common;
 using GolfManager.Services.Event;
+using GolfManager.Services.Handicap;
 using GolfManager.Services.League;
 using GolfManager.Services.OneTimeEvent;
 using GolfManager.Services.Player;
@@ -42,13 +46,42 @@ builder.Services.AddCors(options =>
 // This allows tests to override with InMemory provider
 if (!builder.Environment.IsEnvironment("Testing"))
 {
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+        ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+    var databaseProvider = builder.Configuration["DatabaseProvider"] ?? "Sqlite";
+
     builder.Services.AddDbContext<GolfManagerDbContext>(options =>
-        options.UseSqlite(builder.Configuration.GetConnectionString("DefaultConnection")));
+    {
+        if (databaseProvider.Equals("SqlServer", StringComparison.OrdinalIgnoreCase))
+        {
+            options.UseSqlServer(connectionString, sqlOptions =>
+            {
+                sqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(30),
+                    errorNumbersToAdd: null);
+            });
+        }
+        else // Default to SQLite
+        {
+            options.UseSqlite(connectionString);
+        }
+
+        // Enable detailed errors in development
+        if (builder.Environment.IsDevelopment())
+        {
+            options.EnableSensitiveDataLogging();
+            options.EnableDetailedErrors();
+        }
+    });
 }
 
 // Add tenant service
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ITenantService, TenantService>();
+
+// Add short ID generator service
+builder.Services.AddSingleton<IShortIdService, ShortIdService>();
 
 // Add authentication services
 builder.Services.AddScoped<IPasswordHasher, PasswordHasher>();
@@ -65,6 +98,9 @@ builder.Services.AddScoped<ILeagueAuthorizationService, LeagueAuthorizationServi
 // Add league service
 builder.Services.AddScoped<ILeagueService, LeagueService>();
 
+// Add custom domain verification config
+builder.Services.Configure<CustomDomainVerificationOptions>(builder.Configuration.GetSection("CustomDomainVerification"));
+
 // Add player service
 builder.Services.AddScoped<IPlayerService, PlayerService>();
 
@@ -78,6 +114,9 @@ builder.Services.AddScoped<IEventService, EventService>();
 
 // Add round service
 builder.Services.AddScoped<IRoundService, RoundService>();
+
+// Add handicap service
+builder.Services.AddScoped<IHandicapService, HandicapService>();
 
 // Add one-time event services
 builder.Services.AddScoped<IOneTimeEventService, OneTimeEventService>();
@@ -116,26 +155,35 @@ builder.Services.AddAuthentication(options =>
         OnAuthenticationFailed = context =>
         {
             var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-            logger.LogError(context.Exception, "JWT Authentication failed: {Message}", context.Exception.Message);
+            if(logger.IsEnabled(LogLevel.Error))
+            {
+                logger.LogError(context.Exception, "JWT Authentication failed: {Message}", context.Exception.Message);
+            }
             return Task.CompletedTask;
         },
         OnTokenValidated = context =>
         {
             var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-            logger.LogInformation("JWT Token validated successfully for user: {UserId}",
-                context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value);
+            if(logger.IsEnabled(LogLevel.Information))
+            {
+                logger.LogInformation("JWT Token validated successfully for user: {UserId}",
+                    context.Principal?.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value);
+            }
             return Task.CompletedTask;
         },
         OnMessageReceived = context =>
         {
             var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
-            var hasAuth = context.Request.Headers.ContainsKey("Authorization");
-            logger.LogInformation("JWT OnMessageReceived - Has Authorization header: {HasAuth}", hasAuth);
-            if (hasAuth)
+            if(logger.IsEnabled(LogLevel.Information))
             {
-                var authHeader = context.Request.Headers["Authorization"].ToString();
-                logger.LogInformation("Authorization header: {AuthHeader}",
-                    authHeader.Length > 30 ? authHeader.Substring(0, 30) + "..." : authHeader);
+                var hasAuth = context.Request.Headers.ContainsKey("Authorization");
+                logger.LogInformation("JWT OnMessageReceived - Has Authorization header: {HasAuth}", hasAuth);
+                if (hasAuth)
+                {
+                    var authHeader = context.Request.Headers.Authorization.ToString();
+                    logger.LogInformation("Authorization header: {AuthHeader}",
+                        authHeader.Length > 30 ? string.Concat(authHeader.AsSpan(0, 30), "...") : authHeader);
+                }
             }
             return Task.CompletedTask;
         }
@@ -218,8 +266,13 @@ app.UseHttpsRedirection();
 // Add CORS
 app.UseCors("AllowAll");
 
-// Add authentication and authorization middleware
+// Add authentication middleware
 app.UseAuthentication();
+
+// Add league context validation middleware (after auth, validates user membership)
+app.UseLeagueContext();
+
+// Add authorization middleware
 app.UseAuthorization();
 
 // Map controllers

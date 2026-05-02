@@ -1,5 +1,6 @@
 using GolfManager.Data;
 using GolfManager.Core.Entities;
+using GolfManager.Core.Services;
 using GolfManager.Shared.DTOs.Event;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -12,11 +13,16 @@ namespace GolfManager.Services.Event;
 public class EventService : IEventService
 {
     private readonly GolfManagerDbContext _context;
+    private readonly IShortIdService _shortIdService;
     private readonly ILogger<EventService> _logger;
 
-    public EventService(GolfManagerDbContext context, ILogger<EventService> logger)
+    public EventService(
+        GolfManagerDbContext context,
+        IShortIdService shortIdService,
+        ILogger<EventService> logger)
     {
         _context = context;
+        _shortIdService = shortIdService;
         _logger = logger;
     }
 
@@ -60,7 +66,7 @@ public class EventService : IEventService
 
         var seasonEvent = new SeasonEvent
         {
-            Id = Guid.NewGuid().ToString(),
+            Id = _shortIdService.GenerateId(),
             SeasonId = seasonId,
             LeagueId = leagueId,
             EventDate = request.EventDate,

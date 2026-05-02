@@ -1,6 +1,7 @@
 ﻿@using GolfManager.Web.Components.Icons
 @inject IAuthService AuthService
 @inject NavigationManager Navigation
+@inject AppState AppState
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
@@ -109,6 +110,21 @@
         {
             // Initialize auth service after first render when JSInterop is ready
             await AuthService.InitializeAsync();
+
+            if (AuthService.IsAuthenticated && string.IsNullOrEmpty(AppState.CurrentLeagueKey))
+            {
+                var domain = new Uri(Navigation.Uri).Host;
+                if (AppState.TrySetCurrentLeagueByDomain(domain))
+                {
+                    var relativePath = Navigation.ToBaseRelativePath(Navigation.Uri).Split('?')[0].TrimEnd('/');
+                    if (string.IsNullOrEmpty(relativePath))
+                    {
+                        Navigation.NavigateTo($"/league/{AppState.CurrentLeagueKey}", true);
+                        return;
+                    }
+                }
+            }
+
             StateHasChanged(); // Trigger re-render to show correct auth state
         }
     }

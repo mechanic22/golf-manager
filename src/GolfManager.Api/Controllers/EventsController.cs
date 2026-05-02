@@ -1,5 +1,5 @@
 using GolfManager.Api.Authorization;
-using GolfManager.Services.Auth;
+using GolfManager.Core.Services;
 using GolfManager.Services.Event;
 using GolfManager.Shared.DTOs.Common;
 using GolfManager.Shared.DTOs.Event;
@@ -12,7 +12,7 @@ namespace GolfManager.Api.Controllers;
 /// Controller for managing season events
 /// </summary>
 [ApiController]
-[Route("api/v1/leagues/{leagueId}/seasons/{seasonId}/events")]
+[Route("api/v1/seasons/{seasonId}/events")]
 [Authorize]
 public class EventsController : ControllerBase
 {
@@ -35,8 +35,14 @@ public class EventsController : ControllerBase
     /// </summary>
     [HttpGet]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
-    public async Task<ActionResult<ApiResponse<List<EventResponse>>>> GetSeasonEvents(string leagueId, string seasonId)
+    public async Task<ActionResult<ApiResponse<List<EventResponse>>>> GetSeasonEvents(string seasonId)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<List<EventResponse>>.ErrorResponse("League context required"));
+        }
+
         var events = await _eventService.GetSeasonEventsAsync(seasonId, leagueId);
         return Ok(ApiResponse<List<EventResponse>>.SuccessResponse(events));
     }
@@ -46,8 +52,14 @@ public class EventsController : ControllerBase
     /// </summary>
     [HttpGet("{eventId}")]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
-    public async Task<ActionResult<ApiResponse<EventResponse>>> GetEventById(string leagueId, string seasonId, string eventId)
+    public async Task<ActionResult<ApiResponse<EventResponse>>> GetEventById(string seasonId, string eventId)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<EventResponse>.ErrorResponse("League context required"));
+        }
+
         var seasonEvent = await _eventService.GetEventByIdAsync(eventId, leagueId);
 
         if (seasonEvent == null)
@@ -64,10 +76,15 @@ public class EventsController : ControllerBase
     [HttpPost]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<EventResponse>>> CreateEvent(
-        string leagueId,
         string seasonId,
         [FromBody] CreateEventRequest request)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<EventResponse>.ErrorResponse("League context required"));
+        }
+
         var userId = _currentUserService.UserId!;
         var seasonEvent = await _eventService.CreateEventAsync(request, seasonId, leagueId, userId);
 
@@ -76,7 +93,7 @@ public class EventsController : ControllerBase
 
         return CreatedAtAction(
             nameof(GetEventById),
-            new { leagueId, seasonId, eventId = seasonEvent.Id },
+            new { seasonId, eventId = seasonEvent.Id },
             ApiResponse<EventResponse>.SuccessResponse(seasonEvent));
     }
 
@@ -86,11 +103,16 @@ public class EventsController : ControllerBase
     [HttpPut("{eventId}")]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<EventResponse>>> UpdateEvent(
-        string leagueId,
         string seasonId,
         string eventId,
         [FromBody] UpdateEventRequest request)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<EventResponse>.ErrorResponse("League context required"));
+        }
+
         var userId = _currentUserService.UserId!;
         var seasonEvent = await _eventService.UpdateEventAsync(eventId, request, leagueId, userId);
 
@@ -105,8 +127,14 @@ public class EventsController : ControllerBase
     /// </summary>
     [HttpDelete("{eventId}")]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
-    public async Task<ActionResult<ApiResponse<bool>>> DeleteEvent(string leagueId, string seasonId, string eventId)
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteEvent(string seasonId, string eventId)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<bool>.ErrorResponse("League context required"));
+        }
+
         var userId = _currentUserService.UserId!;
         var result = await _eventService.DeleteEventAsync(eventId, leagueId, userId);
 

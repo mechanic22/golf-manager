@@ -2,8 +2,9 @@
 @layout AppLayout
 @using MaterialComponents.Models
 @using GolfManager.Web.Services
+@using GolfManager.Shared.DTOs.User
 @inject IAuthService AuthService
-@inject SeedDataService SeedData
+@inject IUserService UserService
 @inject NavigationManager Navigation
 @inject ILogger<Profile> Logger
 
@@ -89,41 +90,57 @@ else
                 <!-- Overview Tab -->
                 <div class="space-y-6">
                     <div>
-                        <h3 class="text-lg font-semibold text-gray-900 mb-3">Recent Activity</h3>
-                        <div class="space-y-3">
-                            <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                                <MaterialIcon Path="@MaterialIcons.Dashboard" Size="MaterialComponents.Icons.IconSize.SM" Class="text-gray-400" />
-                                <div class="flex-1">
-                                    <p class="text-sm font-medium text-gray-900">Played at Pinewood Lake</p>
-                                    <p class="text-xs text-gray-500">Shot 85 • 2 days ago</p>
-                                </div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-3">Profile Summary</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-gray-50 rounded-lg p-4">
+                                <div class="text-sm text-gray-500 mb-1">Member Since</div>
+                                <div class="text-lg font-semibold text-gray-900">@user.CreatedAt.ToString("MMMM yyyy")</div>
                             </div>
-                            <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                                <MaterialIcon Path="@MaterialIcons.Dashboard" Size="MaterialComponents.Icons.IconSize.SM" Class="text-gray-400" />
-                                <div class="flex-1">
-                                    <p class="text-sm font-medium text-gray-900">Joined Summer League 2024</p>
-                                    <p class="text-xs text-gray-500">1 week ago</p>
+
+                            @if (user.LastLoginAt.HasValue)
+                            {
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <div class="text-sm text-gray-500 mb-1">Last Login</div>
+                                    <div class="text-lg font-semibold text-gray-900">@user.LastLoginAt.Value.ToString("MMM dd, yyyy")</div>
                                 </div>
-                            </div>
-                            <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                                <MaterialIcon Path="@MaterialIcons.Dashboard" Size="MaterialComponents.Icons.IconSize.SM" Class="text-gray-400" />
-                                <div class="flex-1">
-                                    <p class="text-sm font-medium text-gray-900">Handicap updated to @(currentHandicap?.ToString("F1") ?? "N/A")</p>
-                                    <p class="text-xs text-gray-500">2 weeks ago</p>
+                            }
+
+                            @if (user.IsGolfer)
+                            {
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <div class="text-sm text-gray-500 mb-1">Current Handicap</div>
+                                    <div class="text-lg font-semibold text-primary-600">@(currentHandicap?.ToString("F1") ?? "Not set")</div>
                                 </div>
-                            </div>
+
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <div class="text-sm text-gray-500 mb-1">Total Rounds</div>
+                                    <div class="text-lg font-semibold text-gray-900">@totalRounds</div>
+                                </div>
+                            }
                         </div>
                     </div>
 
                     <div>
                         <h3 class="text-lg font-semibold text-gray-900 mb-3">My Leagues</h3>
-                        <div class="text-gray-600 text-sm">
-                            <p>You are a member of @totalLeagues league(s).</p>
-                            <MaterialButton Style="MaterialButtonStyle.Text" 
-                                          Text="View All Leagues"
-                                          OnClick="@(() => Navigation.NavigateTo("/leagues"))"
-                                          Class="mt-2" />
-                        </div>
+                        @if (totalLeagues > 0)
+                        {
+                            <div class="bg-gray-50 rounded-lg p-4">
+                                <p class="text-gray-700">You are a member of <span class="font-semibold">@totalLeagues</span> league@(totalLeagues > 1 ? "s" : "").</p>
+                                <MaterialButton Style="MaterialButtonStyle.Text"
+                                              Text="View All Leagues"
+                                              OnClick="@(() => Navigation.NavigateTo("/leagues"))"
+                                              Class="mt-2" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="bg-gray-50 rounded-lg p-4 text-center">
+                                <p class="text-gray-600 mb-3">You haven't joined any leagues yet.</p>
+                                <MaterialButton Style="MaterialButtonStyle.Filled"
+                                              Text="Browse Leagues"
+                                              OnClick="@(() => Navigation.NavigateTo("/leagues"))" />
+                            </div>
+                        }
                     </div>
                 </div>
             }
@@ -162,12 +179,12 @@ else
 }
 
 @code {
-    private MockUser? user;
+    private UserProfileResponse? user;
     private bool isLoading = true;
     private string activeTab = "overview";
-    private decimal? currentHandicap = 12.5m;
-    private int totalRounds = 24;
-    private int totalLeagues = 3;
+    private double? currentHandicap;
+    private int totalRounds;
+    private int totalLeagues;
 
     protected override async Task OnInitializedAsync()
     {
@@ -185,51 +202,28 @@ else
         isLoading = true;
         try
         {
-            // Use seed data - find current user by ID or email
-            var currentUserId = AuthService.UserId;
-            var currentUserEmail = AuthService.UserEmail;
+            var response = await UserService.GetCurrentUserAsync();
 
-            var seedUser = SeedData.Users.FirstOrDefault(u =>
-                u.Id == currentUserId || u.Email.Equals(currentUserEmail, StringComparison.OrdinalIgnoreCase));
-
-            if (seedUser != null)
+            if (response != null && response.Success && response.Data != null)
             {
-                user = new MockUser
-                {
-                    FirstName = seedUser.FirstName,
-                    LastName = seedUser.LastName,
-                    Email = seedUser.Email
-                };
+                user = response.Data;
+                totalLeagues = user.LeagueCount;
+                currentHandicap = user.HandicapIndex;
+                totalRounds = user.RoundsCount;
 
-                // Calculate stats from seed data
-                currentHandicap = (decimal)seedUser.Handicap;
-                totalRounds = SeedData.Rounds.Count(r => r.PlayerId == seedUser.Id);
-
-                // Count leagues the user has played in
-                var leagueIds = SeedData.Rounds
-                    .Where(r => r.PlayerId == seedUser.Id)
-                    .Select(r => SeedData.Events.FirstOrDefault(e => e.Id == r.EventId)?.LeagueId)
-                    .Where(id => id != null)
-                    .Distinct()
-                    .Count();
-                totalLeagues = leagueIds;
+                Logger.LogInformation("Loaded profile for user {Email}: {Rounds} rounds, handicap {Handicap}",
+                    user.Email, totalRounds, currentHandicap);
             }
             else
             {
-                // Fallback to email-only if user not found in seed data
-                user = new MockUser
-                {
-                    FirstName = "Unknown",
-                    LastName = "User",
-                    Email = currentUserEmail ?? "user@example.com"
-                };
+                Logger.LogWarning("Failed to load user profile");
+                user = null;
             }
-
-            await Task.CompletedTask;
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading profile");
+            user = null;
         }
         finally
         {
@@ -243,13 +237,6 @@ else
         var first = !string.IsNullOrEmpty(user.FirstName) ? user.FirstName[0].ToString() : "";
         var last = !string.IsNullOrEmpty(user.LastName) ? user.LastName[0].ToString() : "";
         return $"{first}{last}".ToUpper();
-    }
-
-    private class MockUser
-    {
-        public string FirstName { get; set; } = string.Empty;
-        public string LastName { get; set; } = string.Empty;
-        public string Email { get; set; } = string.Empty;
     }
 
     private List<MaterialTab> GetTabs()

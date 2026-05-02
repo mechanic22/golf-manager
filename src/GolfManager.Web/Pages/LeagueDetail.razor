@@ -1,14 +1,16 @@
 @page "/league/{LeagueKey}"
 @page "/league/{LeagueKey}/dashboard"
 @layout AppLayout
+@using GolfManager.Shared.DTOs.League
 @using GolfManager.Shared.DTOs.Season
+@using GolfManager.Core.Enums
 @using GolfManager.Web.Services
+@using GolfManager.Web.Components.League
 @using MaterialComponents.Models
 @inject IAuthService AuthService
 @inject IAuthorizationService AuthorizationService
 @inject ILeagueService LeagueService
 @inject ISeasonService SeasonService
-@inject SeedDataService SeedData
 @inject NavigationManager Navigation
 @inject ILogger<LeagueDetail> Logger
 
@@ -72,234 +74,56 @@ else
     <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8">
         <MaterialTabs @bind-ActiveTab="activeTab"
                       Tabs="@GetNavigationTabs()"
-                      ShowContent="false"
-                      OnTabChange="HandleTabChange" />
+                      ShowContent="false" />
     </div>
 
-    <div class="mt-8"></div>
-
-    <!-- Stats -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <MaterialCard Variant="MaterialCardVariant.Outlined">
-            <div class="md-card__content text-center py-6">
-                <MaterialIcon Icon="MaterialIcons.People" Class="text-primary-600 text-4xl mb-2" />
-                <div class="text-3xl font-bold text-gray-900">@league.MemberCount</div>
-                <div class="text-sm text-gray-600">Members</div>
-            </div>
-        </MaterialCard>
-        <MaterialCard Variant="MaterialCardVariant.Outlined">
-            <div class="md-card__content text-center py-6">
-                <MaterialIcon Icon="MaterialIcons.GolfCourse" Class="text-primary-600 text-4xl mb-2" />
-                <div class="text-3xl font-bold text-gray-900">@league.PlayerCount</div>
-                <div class="text-sm text-gray-600">Players</div>
-            </div>
-        </MaterialCard>
-        <MaterialCard Variant="MaterialCardVariant.Outlined">
-            <div class="md-card__content text-center py-6">
-                <MaterialIcon Icon="MaterialIcons.CalendarToday" Class="text-primary-600 text-4xl mb-2" />
-                <div class="text-3xl font-bold text-gray-900">@league.SeasonCount</div>
-                <div class="text-sm text-gray-600">Seasons</div>
-            </div>
-        </MaterialCard>
-    </div>
-
-    <!-- Members Section -->
-    <div class="mb-6 flex items-center justify-between">
-        <div>
-            <h2 class="text-xl font-semibold text-gray-900">League Members</h2>
-            <p class="text-gray-600 text-sm">Manage who has access to this league</p>
-        </div>
-        @if (AuthorizationService.CanManageLeague(league.Id))
-        {
-            <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="ShowAddMemberModal">
-                <MaterialIcon Icon="MaterialIcons.PersonAdd" Class="mr-1" />
-                Add Member
-            </MaterialButton>
-        }
-    </div>
-
-    @if (isLoadingMembers)
-    {
-        <div class="flex items-center justify-center py-8">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-        </div>
-    }
-    else if (members == null || !members.Any())
-    {
-        <MaterialCard Variant="MaterialCardVariant.Outlined">
-            <div class="md-card__content text-center py-12">
-                <MaterialIcon Icon="MaterialIcons.People" Class="text-gray-400 text-5xl mb-4" />
-                <p class="text-gray-600">No members yet</p>
-            </div>
-        </MaterialCard>
-    }
-    else
-    {
-        <MaterialCard Variant="MaterialCardVariant.Outlined">
-            <div class="md-card__content p-0">
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead class="bg-gray-50 border-b border-gray-200">
-                            <tr>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Member</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
-                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
-                                @if (AuthorizationService.CanManageLeague(league.Id))
-                                {
-                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                                }
-                            </tr>
-                        </thead>
-                        <tbody class="bg-white divide-y divide-gray-200">
-                            @foreach (var member in members)
-                            {
-                                <tr class="hover:bg-gray-50">
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="flex items-center">
-                                            <div class="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
-                                                <span class="text-primary-700 font-semibold">@GetInitials(member.FirstName, member.LastName)</span>
-                                            </div>
-                                            <div class="ml-4">
-                                                <div class="text-sm font-medium text-gray-900">@member.FullName</div>
-                                                @if (!string.IsNullOrEmpty(member.PlayerDisplayName))
-                                                {
-                                                    <div class="text-xs text-gray-500">Player: @member.PlayerDisplayName</div>
-                                                }
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">@member.Email</td>
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        @if (member.IsLeagueAdmin)
-                                        {
-                                            <MaterialChip Text="Admin" Color="MaterialChipColor.Primary" Size="MaterialChipSize.Small" />
-                                        }
-                                        else
-                                        {
-                                            <MaterialChip Text="Member" Color="MaterialChipColor.Secondary" Size="MaterialChipSize.Small" />
-                                        }
-                                    </td>
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">@member.JoinedAt.ToString("MMM d, yyyy")</td>
-                                    @if (AuthorizationService.CanManageLeague(league.Id))
-                                    {
-                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <div class="flex justify-end gap-2">
-                                                @if (!member.IsLeagueAdmin)
-                                                {
-                                                    <MaterialButton Style="MaterialButtonStyle.Text" OnClick="() => PromoteToAdmin(member)">
-                                                        <MaterialIcon Icon="MaterialIcons.ArrowUpward" Class="mr-1" />
-                                                        Promote
-                                                    </MaterialButton>
-                                                }
-                                                else
-                                                {
-                                                    <MaterialButton Style="MaterialButtonStyle.Text" OnClick="() => DemoteFromAdmin(member)">
-                                                        <MaterialIcon Icon="MaterialIcons.ArrowDownward" Class="mr-1" />
-                                                        Demote
-                                                    </MaterialButton>
-                                                }
-                                                <MaterialButton Style="MaterialButtonStyle.Text" OnClick="() => ShowRemoveMemberConfirm(member)">
-                                                    <MaterialIcon Icon="MaterialIcons.Delete" Class="mr-1 text-red-600" />
-                                                    <span class="text-red-600">Remove</span>
-                                                </MaterialButton>
-                                            </div>
-                                        </td>
-                                    }
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </MaterialCard>
-    }
-
-    <!-- Seasons Section -->
-    <div class="mt-12 mb-6 flex items-center justify-between">
-        <div>
-            <h2 class="text-xl font-semibold text-gray-900">Seasons</h2>
-            <p class="text-gray-600 text-sm">Manage league seasons and competitions</p>
-        </div>
-        @if (AuthorizationService.CanManageLeague(league.Id))
-        {
-            <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="ShowAddSeasonModal">
-                <MaterialIcon Icon="MaterialIcons.Add" Class="mr-1" />
-                Create Season
-            </MaterialButton>
-        }
-    </div>
-
-    @if (isLoadingSeasons)
-    {
-        <div class="flex items-center justify-center py-8">
-            <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-        </div>
-    }
-    else if (seasons == null || !seasons.Any())
-    {
-        <MaterialCard Variant="MaterialCardVariant.Outlined">
-            <div class="md-card__content text-center py-12">
-                <MaterialIcon Icon="MaterialIcons.CalendarToday" Class="text-gray-400 text-5xl mb-4" />
-                <p class="text-gray-600">No seasons yet</p>
-                @if (AuthorizationService.CanManageLeague(league.Id))
-                {
-                    <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="ShowAddSeasonModal" Class="mt-4">
-                        Create First Season
-                    </MaterialButton>
-                }
-            </div>
-        </MaterialCard>
-    }
-    else
-    {
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            @foreach (var season in seasons.OrderByDescending(s => s.StartDate))
+    <div class="mt-8">
+        <!-- Dashboard Tab -->
+        <div style="display: @(activeTab == "dashboard" ? "block" : "none")">
+            @if (hasLoadedDashboard && league != null)
             {
-                <MaterialCard Variant="MaterialCardVariant.Outlined" Class="hover:shadow-md transition-shadow">
-                    <div class="md-card__content">
-                        <div class="flex items-start justify-between mb-3">
-                            <div>
-                                <h3 class="text-lg font-semibold text-gray-900">@season.Name</h3>
-                                <p class="text-sm text-gray-600 font-mono">@season.Key</p>
-                            </div>
-                            @if (season.IsLocked)
-                            {
-                                <MaterialChip Text="Locked" Color="MaterialChipColor.Secondary" Size="MaterialChipSize.Small" />
-                            }
-                        </div>
-                        <div class="space-y-2 text-sm text-gray-600 mb-4">
-                            <div class="flex items-center gap-2">
-                                <MaterialIcon Icon="MaterialIcons.CalendarToday" Size="IconSize.SM" />
-                                <span>@season.StartDate.ToString("MMM d, yyyy")</span>
-                                @if (season.EndDate.HasValue)
-                                {
-                                    <span>- @season.EndDate.Value.ToString("MMM d, yyyy")</span>
-                                }
-                            </div>
-                            <div class="flex items-center gap-4">
-                                <div class="flex items-center gap-1">
-                                    <MaterialIcon Icon="MaterialIcons.Event" Size="IconSize.SM" />
-                                    <span>@season.EventCount events</span>
-                                </div>
-                                <div class="flex items-center gap-1">
-                                    <MaterialIcon Icon="MaterialIcons.People" Size="IconSize.SM" />
-                                    <span>@season.GolferCount golfers</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="pt-3 border-t border-gray-200">
-                            <MaterialButton Style="MaterialButtonStyle.Text" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{season.Key}"))">
-                                View Season Details
-                                <MaterialIcon Icon="MaterialIcons.ArrowForward" Class="ml-1" />
-                            </MaterialButton>
-                        </div>
-                    </div>
-                </MaterialCard>
+                <DashboardTab League="@league"
+                             LeagueKey="@LeagueKey"
+                             OnAddMember="ShowAddMemberModal" />
             }
         </div>
-    }
+
+        <!-- Seasons Tab -->
+        <div style="display: @(activeTab == "seasons" ? "block" : "none")">
+            @if (hasLoadedSeasons && league != null)
+            {
+                <SeasonsTab League="@league"
+                           LeagueKey="@LeagueKey"
+                           OnCreateSeason="ShowAddSeasonModal" />
+            }
+        </div>
+
+        <!-- Members Tab -->
+        <div style="display: @(activeTab == "members" ? "block" : "none")">
+            @if (hasLoadedMembers && league != null)
+            {
+                <MembersTab League="@league"
+                           OnAddMember="ShowAddMemberModal"
+                           OnPromoteToAdmin="PromoteToAdmin"
+                           OnDemoteFromAdmin="DemoteFromAdmin"
+                           OnRemoveMember="ShowRemoveMemberConfirm" />
+            }
+        </div>
+
+        <!-- Settings Tab -->
+        <div style="display: @(activeTab == "settings" ? "block" : "none")">
+            @if (hasLoadedSettings && league != null)
+            {
+                <SettingsTab League="@league"
+                            LeagueKey="@LeagueKey"
+                            OnLeagueUpdated="ReloadLeague" />
+            }
+        </div>
+    </div>
+
 }
+
+
 
 <!-- Add Member Modal -->
 <MaterialDialog @bind-IsOpen="showAddMemberModal" Title="Add League Member" MaxWidth="MaterialDialogMaxWidth.Small">
@@ -333,8 +157,16 @@ else
                           Variant="MaterialInputVariant.Outlined"
                           SupportingText="Required if creating a new user" />
 
-            <MaterialCheckbox @bind-Value="addMemberRequest.IsLeagueAdmin"
-                            Label="Make this user a league admin" />
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">League Role</label>
+                <select @bind="addMemberRequest.Role"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    @foreach (var role in LeagueRoles)
+                    {
+                        <option value="@role">@role</option>
+                    }
+                </select>
+            </div>
 
             <MaterialInput @bind-Value="addMemberRequest.InvitationMessage"
                           Label="Invitation Message (Optional)"
@@ -441,11 +273,13 @@ else
     public string LeagueKey { get; set; } = string.Empty;
 
     private LeagueResponse? league;
-    private List<LeagueMemberResponse>? members;
-    private List<SeasonResponse>? seasons;
     private bool isLoading = true;
-    private bool isLoadingMembers = true;
-    private bool isLoadingSeasons = true;
+
+    // Tab lazy loading flags
+    private bool hasLoadedDashboard = false;
+    private bool hasLoadedSeasons = false;
+    private bool hasLoadedMembers = false;
+    private bool hasLoadedSettings = false;
 
     // Add member modal
     private bool showAddMemberModal = false;
@@ -466,6 +300,13 @@ else
 
     // Tab navigation
     private string activeTab = "dashboard";
+    private static readonly LeagueMemberRole[] LeagueRoles =
+    [
+        LeagueMemberRole.Owner,
+        LeagueMemberRole.Admin,
+        LeagueMemberRole.Member,
+        LeagueMemberRole.Viewer
+    ];
 
     protected override async Task OnInitializedAsync()
     {
@@ -479,10 +320,58 @@ else
         await AuthorizationService.InitializeAsync();
 
         await LoadLeague();
-        if (league != null)
+
+        // Load all tabs immediately (lazy loading via MaterialTabs @bind doesn't work well)
+        hasLoadedDashboard = true;
+        hasLoadedSeasons = true;
+        hasLoadedMembers = true;
+        hasLoadedSettings = true;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Trigger lazy loading when active tab changes
+        await LoadActiveTab();
+    }
+
+    private async Task LoadActiveTab()
+    {
+        switch (activeTab)
         {
-            await Task.WhenAll(LoadMembers(), LoadSeasons());
+            case "dashboard":
+                if (!hasLoadedDashboard)
+                {
+                    hasLoadedDashboard = true;
+                    StateHasChanged();
+                }
+                break;
+
+            case "seasons":
+                if (!hasLoadedSeasons)
+                {
+                    hasLoadedSeasons = true;
+                    StateHasChanged();
+                }
+                break;
+
+            case "members":
+                if (!hasLoadedMembers)
+                {
+                    hasLoadedMembers = true;
+                    StateHasChanged();
+                }
+                break;
+
+            case "settings":
+                if (!hasLoadedSettings)
+                {
+                    hasLoadedSettings = true;
+                    StateHasChanged();
+                }
+                break;
         }
+
+        await Task.CompletedTask;
     }
 
     private async Task LoadLeague()
@@ -490,25 +379,17 @@ else
         isLoading = true;
         try
         {
-            // Use seed data - find league by key
-            var seedLeague = SeedData.Leagues.FirstOrDefault(l => l.Key == LeagueKey);
-            if (seedLeague != null)
+            // Load league from API
+            var response = await LeagueService.GetLeagueByKeyAsync(LeagueKey);
+            if (response != null && response.Success && response.Data != null)
             {
-                league = new LeagueResponse
-                {
-                    Id = seedLeague.Id,
-                    Key = seedLeague.Key,
-                    Name = seedLeague.Name,
-                    Description = seedLeague.Description,
-                    MemberCount = seedLeague.MemberCount,
-                    PlayerCount = seedLeague.MemberCount,
-                    SeasonCount = SeedData.Seasons.Count(s => s.LeagueId == seedLeague.Id),
-                    IsCurrentUserAdmin = seedLeague.AdminUserId == AuthService.UserId || AuthService.IsGlobalAdmin,
-                    CreatedAt = seedLeague.CreatedDate
-                };
+                league = response.Data;
+                Logger.LogInformation("Loaded league: {LeagueName}", league.Name);
             }
-
-            await Task.CompletedTask;
+            else
+            {
+                Logger.LogWarning("League not found: {LeagueKey}", LeagueKey);
+            }
         }
         catch (Exception ex)
         {
@@ -520,76 +401,30 @@ else
         }
     }
 
+    private async Task ReloadLeague()
+    {
+        await LoadLeague();
+        StateHasChanged();
+    }
+
+    // Note: Members and Seasons loading moved to tab components
+    // These methods trigger a reload by forcing the tab to reload
     private async Task LoadMembers()
     {
-        if (league == null) return;
-
-        isLoadingMembers = true;
-        try
-        {
-            // Use seed data - get members who have played in this league's events
-            var memberIds = SeedData.Rounds
-                .Where(r => SeedData.Events.Any(e => e.Id == r.EventId && e.LeagueId == league.Id))
-                .Select(r => r.PlayerId)
-                .Distinct()
-                .ToList();
-
-            members = SeedData.Users
-                .Where(u => memberIds.Contains(u.Id))
-                .Select(u => new LeagueMemberResponse
-                {
-                    UserId = u.Id,
-                    FirstName = u.FirstName,
-                    LastName = u.LastName,
-                    Email = u.Email,
-                    IsLeagueAdmin = league.IsCurrentUserAdmin && u.Id == SeedData.Leagues.First(l => l.Id == league.Id).AdminUserId,
-                    JoinedAt = u.JoinedDate
-                }).ToList();
-
-            await Task.CompletedTask;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error loading members");
-        }
-        finally
-        {
-            isLoadingMembers = false;
-        }
+        // Force members tab to reload
+        hasLoadedMembers = false;
+        hasLoadedMembers = true;
+        StateHasChanged();
+        await Task.CompletedTask;
     }
 
     private async Task LoadSeasons()
     {
-        if (league == null) return;
-
-        isLoadingSeasons = true;
-        try
-        {
-            // Use seed data - get seasons for this league
-            seasons = SeedData.Seasons
-                .Where(s => s.LeagueId == league.Id)
-                .Select(s => new SeasonResponse
-                {
-                    Id = s.Id,
-                    LeagueId = s.LeagueId,
-                    Key = s.Key,
-                    Name = s.Name,
-                    StartDate = DateOnly.FromDateTime(s.StartDate),
-                    EndDate = DateOnly.FromDateTime(s.EndDate),
-                    IsLocked = !s.IsActive,
-                    CreatedAt = s.StartDate
-                }).ToList();
-
-            await Task.CompletedTask;
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error loading seasons");
-        }
-        finally
-        {
-            isLoadingSeasons = false;
-        }
+        // Force seasons tab to reload
+        hasLoadedSeasons = false;
+        hasLoadedSeasons = true;
+        StateHasChanged();
+        await Task.CompletedTask;
     }
 
     private void ShowAddMemberModal()
@@ -679,7 +514,7 @@ else
 
         try
         {
-            var request = new UpdateLeagueMemberRequest { IsLeagueAdmin = true };
+            var request = new UpdateLeagueMemberRequest { Role = LeagueMemberRole.Admin };
             var response = await LeagueService.UpdateLeagueMemberAsync(league.Id, member.UserId, request);
 
             if (response?.Success == true)
@@ -699,7 +534,7 @@ else
 
         try
         {
-            var request = new UpdateLeagueMemberRequest { IsLeagueAdmin = false };
+            var request = new UpdateLeagueMemberRequest { Role = LeagueMemberRole.Member };
             var response = await LeagueService.UpdateLeagueMemberAsync(league.Id, member.UserId, request);
 
             if (response?.Success == true)
@@ -806,4 +641,3 @@ else
         Navigation.NavigateTo(route);
     }
 }
-

@@ -1,4 +1,4 @@
-using GolfManager.Services.Auth;
+using GolfManager.Core.Services;
 using GolfManager.Services.OneTimeEvent;
 using GolfManager.Shared.DTOs.Common;
 using GolfManager.Shared.DTOs.OneTimeEvent;

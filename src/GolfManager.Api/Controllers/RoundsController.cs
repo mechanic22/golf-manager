@@ -1,5 +1,5 @@
 using GolfManager.Api.Authorization;
-using GolfManager.Services.Auth;
+using GolfManager.Core.Services;
 using GolfManager.Shared.DTOs.Common;
 using GolfManager.Services.Round;
 using GolfManager.Shared.DTOs.Round;
@@ -12,7 +12,7 @@ namespace GolfManager.Api.Controllers;
 /// Controller for round management
 /// </summary>
 [ApiController]
-[Route("api/v1/leagues/{leagueId}/rounds")]
+[Route("api/v1/rounds")]
 [Authorize]
 public class RoundsController : ControllerBase
 {
@@ -36,9 +36,14 @@ public class RoundsController : ControllerBase
     [HttpGet("golfer/{leagueGolferId}")]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
     public async Task<ActionResult<ApiResponse<List<RoundResponse>>>> GetLeagueGolferRounds(
-        string leagueId,
         string leagueGolferId)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<List<RoundResponse>>.ErrorResponse("League context required"));
+        }
+
         var rounds = await _roundService.GetLeagueGolferRoundsAsync(leagueGolferId, leagueId);
         return Ok(ApiResponse<List<RoundResponse>>.SuccessResponse(rounds));
     }
@@ -49,9 +54,14 @@ public class RoundsController : ControllerBase
     [HttpGet("{roundId}")]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
     public async Task<ActionResult<ApiResponse<RoundResponse>>> GetRound(
-        string leagueId,
         string roundId)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<RoundResponse>.ErrorResponse("League context required"));
+        }
+
         var round = await _roundService.GetRoundByIdAsync(roundId, leagueId);
 
         if (round == null)
@@ -68,9 +78,14 @@ public class RoundsController : ControllerBase
     [HttpGet("event/{seasonEventId}")]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
     public async Task<ActionResult<ApiResponse<List<RoundResponse>>>> GetEventRounds(
-        string leagueId,
         string seasonEventId)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<List<RoundResponse>>.ErrorResponse("League context required"));
+        }
+
         var rounds = await _roundService.GetEventRoundsAsync(seasonEventId, leagueId);
         return Ok(ApiResponse<List<RoundResponse>>.SuccessResponse(rounds));
     }
@@ -81,9 +96,14 @@ public class RoundsController : ControllerBase
     [HttpPost]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<RoundResponse>>> CreateRound(
-        string leagueId,
         [FromBody] CreateRoundRequest request)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<RoundResponse>.ErrorResponse("League context required"));
+        }
+
         var userId = _currentUserService.UserId!;
 
         var round = await _roundService.CreateRoundAsync(request, leagueId, userId);
@@ -93,7 +113,7 @@ public class RoundsController : ControllerBase
 
         return CreatedAtAction(
             nameof(GetRound),
-            new { leagueId, roundId = round.Id },
+            new { roundId = round.Id },
             ApiResponse<RoundResponse>.SuccessResponse(round));
     }
 
@@ -103,10 +123,15 @@ public class RoundsController : ControllerBase
     [HttpPut("{roundId}")]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<RoundResponse>>> UpdateRound(
-        string leagueId,
         string roundId,
         [FromBody] UpdateRoundRequest request)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<RoundResponse>.ErrorResponse("League context required"));
+        }
+
         var userId = _currentUserService.UserId!;
 
         var round = await _roundService.UpdateRoundAsync(roundId, request, leagueId, userId);
@@ -123,9 +148,14 @@ public class RoundsController : ControllerBase
     [HttpDelete("{roundId}")]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<object>>> DeleteRound(
-        string leagueId,
         string roundId)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<object>.ErrorResponse("League context required"));
+        }
+
         var userId = _currentUserService.UserId!;
 
         await _roundService.DeleteRoundAsync(roundId, leagueId, userId);
@@ -142,10 +172,15 @@ public class RoundsController : ControllerBase
     [HttpPost("{roundId}/holes")]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<RoundResponse>>> RecordHoleScore(
-        string leagueId,
         string roundId,
         [FromBody] RecordHoleScoreRequest request)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<RoundResponse>.ErrorResponse("League context required"));
+        }
+
         var userId = _currentUserService.UserId!;
 
         var round = await _roundService.RecordHoleScoreAsync(roundId, request, leagueId, userId);

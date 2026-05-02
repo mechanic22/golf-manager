@@ -1,6 +1,8 @@
 @page "/profile/rounds"
 @layout AppLayout
+@using GolfManager.Shared.DTOs.Round
 @inject IAuthService AuthService
+@inject IUserService UserService
 @inject NavigationManager Navigation
 @inject ILogger<ProfileRounds> Logger
 
@@ -84,20 +86,44 @@ else
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
-                @foreach (var round in mockRounds)
+                @if (isLoading)
                 {
-                    <tr class="hover:bg-gray-50">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">@round.Date.ToString("MMM dd, yyyy")</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">@round.Course</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">@round.League</td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <span class="@GetScoreClass(round.Score)">@round.Score</span>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">@round.Differential.ToString("F1")</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm">
-                            <button class="text-primary-600 hover:text-primary-800">View Details</button>
+                    <tr>
+                        <td colspan="6" class="px-6 py-8 text-center">
+                            <div class="flex justify-center">
+                                <MaterialProgressIndicator Variant="MaterialProgressVariant.Circular" />
+                            </div>
                         </td>
                     </tr>
+                }
+                else if (!rounds.Any())
+                {
+                    <tr>
+                        <td colspan="6" class="px-6 py-8 text-center text-gray-500">
+                            No rounds found. Play some golf and track your scores!
+                        </td>
+                    </tr>
+                }
+                else
+                {
+                    @foreach (var round in rounds)
+                    {
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">@round.RoundDate.ToString("MMM dd, yyyy")</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                <div>@round.CourseName</div>
+                                <div class="text-xs text-gray-500">@round.TeeName</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">@(round.LeagueId != null ? "League" : "Casual")</td>
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <span class="@GetScoreClass(round.TotalScore ?? 0)">@(round.TotalScore?.ToString() ?? "-")</span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">@(round.HandicapUsed?.ToString("F1") ?? "-")</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <button class="text-primary-600 hover:text-primary-800">View Details</button>
+                            </td>
+                        </tr>
+                    }
                 }
             </tbody>
         </table>
@@ -117,19 +143,42 @@ else
 }
 
 @code {
-    private List<MockRound> mockRounds = new()
+    private bool isLoading = true;
+    private List<RoundResponse> rounds = new();
+
+    protected override async Task OnInitializedAsync()
     {
-        new MockRound { Date = DateTime.Now.AddDays(-2), Course = "Pinewood Lake", League = "Summer League 2024", Score = 85, Differential = 12.3m },
-        new MockRound { Date = DateTime.Now.AddDays(-9), Course = "Oak Ridge", League = "Summer League 2024", Score = 89, Differential = 13.1m },
-        new MockRound { Date = DateTime.Now.AddDays(-16), Course = "Pinewood Lake", League = "Summer League 2024", Score = 82, Differential = 11.5m },
-        new MockRound { Date = DateTime.Now.AddDays(-23), Course = "Meadowbrook", League = "One-Time Event", Score = 91, Differential = 14.2m },
-        new MockRound { Date = DateTime.Now.AddDays(-30), Course = "Pinewood Lake", League = "Summer League 2024", Score = 87, Differential = 12.8m },
-        new MockRound { Date = DateTime.Now.AddDays(-37), Course = "Oak Ridge", League = "Summer League 2024", Score = 88, Differential = 13.0m },
-        new MockRound { Date = DateTime.Now.AddDays(-44), Course = "Pinewood Lake", League = "Summer League 2024", Score = 84, Differential = 12.1m },
-        new MockRound { Date = DateTime.Now.AddDays(-51), Course = "Meadowbrook", League = "One-Time Event", Score = 93, Differential = 14.8m },
-        new MockRound { Date = DateTime.Now.AddDays(-58), Course = "Pinewood Lake", League = "Summer League 2024", Score = 86, Differential = 12.6m },
-        new MockRound { Date = DateTime.Now.AddDays(-65), Course = "Oak Ridge", League = "Summer League 2024", Score = 90, Differential = 13.5m },
-    };
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadRounds();
+    }
+
+    private async Task LoadRounds()
+    {
+        isLoading = true;
+        try
+        {
+            var response = await UserService.GetMyRoundsAsync();
+            rounds = (response != null && response.Success && response.Data != null)
+                ? response.Data
+                : new List<RoundResponse>();
+
+            Logger.LogInformation("Loaded {Count} rounds from API", rounds.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading rounds");
+            rounds = new List<RoundResponse>();
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
 
     private string GetScoreClass(int score)
     {
@@ -139,14 +188,5 @@ else
     }
 
     private RenderFragment DownloadIcon() => @<MaterialIcon Path="@MaterialIcons.Download" Size="MaterialComponents.Icons.IconSize.SM" />;
-
-    private class MockRound
-    {
-        public DateTime Date { get; set; }
-        public string Course { get; set; } = string.Empty;
-        public string League { get; set; } = string.Empty;
-        public int Score { get; set; }
-        public decimal Differential { get; set; }
-    }
 }
 

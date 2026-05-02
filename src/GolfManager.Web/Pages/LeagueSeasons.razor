@@ -8,7 +8,6 @@
 @inject IAuthorizationService AuthorizationService
 @inject ILeagueService LeagueService
 @inject ISeasonService SeasonService
-@inject SeedDataService SeedData
 @inject NavigationManager Navigation
 @inject ILogger<LeagueSeasons> Logger
 
@@ -226,25 +225,18 @@ else
         {
             isLoading = true;
 
-            // Use seed data - find league by key
-            var seedLeague = SeedData.Leagues.FirstOrDefault(l => l.Key == LeagueKey);
-            if (seedLeague != null)
+            // Load league from API
+            var response = await LeagueService.GetLeagueByKeyAsync(LeagueKey);
+            if (response != null && response.Success && response.Data != null)
             {
-                league = new LeagueResponse
-                {
-                    Id = seedLeague.Id,
-                    Key = seedLeague.Key,
-                    Name = seedLeague.Name,
-                    Description = seedLeague.Description,
-                    MemberCount = seedLeague.MemberCount,
-                    PlayerCount = seedLeague.MemberCount,
-                    SeasonCount = SeedData.Seasons.Count(s => s.LeagueId == seedLeague.Id),
-                    IsCurrentUserAdmin = seedLeague.AdminUserId == AuthService.UserId || AuthService.IsGlobalAdmin,
-                    CreatedAt = seedLeague.CreatedDate
-                };
+                league = response.Data;
+                Logger.LogInformation("Loaded league: {LeagueName}", league.Name);
             }
-
-            await Task.CompletedTask;
+            else
+            {
+                Logger.LogWarning("League not found: {LeagueKey}", LeagueKey);
+                return;
+            }
         }
         catch (Exception ex)
         {
@@ -264,29 +256,18 @@ else
         {
             isLoadingSeasons = true;
 
-            // Use seed data - get all seasons for this league
-            seasons = SeedData.Seasons
-                .Where(s => s.LeagueId == league.Id)
-                .Select(s => new SeasonResponse
-                {
-                    Id = s.Id,
-                    LeagueId = s.LeagueId,
-                    Key = s.Key,
-                    Name = s.Name,
-                    StartDate = DateOnly.FromDateTime(s.StartDate),
-                    EndDate = DateOnly.FromDateTime(s.EndDate),
-                    IsLocked = !s.IsActive,
-                    EventCount = SeedData.Events.Count(e => e.SeasonId == s.Id),
-                    GolferCount = SeedData.Rounds
-                        .Where(r => SeedData.Events.Any(e => e.Id == r.EventId && e.SeasonId == s.Id))
-                        .Select(r => r.PlayerId)
-                        .Distinct()
-                        .Count(),
-                    CreatedAt = s.StartDate
-                })
-                .ToList();
-
-            await Task.CompletedTask;
+            // Load seasons from API
+            var seasonsResponse = await SeasonService.GetLeagueSeasonsAsync(league.Id);
+            if (seasonsResponse != null && seasonsResponse.Success && seasonsResponse.Data != null)
+            {
+                seasons = seasonsResponse.Data.ToList();
+                Logger.LogInformation("Loaded {Count} seasons for league {LeagueId}", seasons.Count, league.Id);
+            }
+            else
+            {
+                seasons = new List<SeasonResponse>();
+                Logger.LogWarning("Failed to load seasons: {Error}", seasonsResponse?.Message ?? "Unknown error");
+            }
         }
         catch (Exception ex)
         {

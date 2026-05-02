@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using GolfManager.Core.Enums;
 
 namespace GolfManager.Shared.DTOs.League;
 
@@ -34,9 +35,13 @@ public class AddLeagueMemberRequest
     public bool IsLeagueAdmin { get; set; } = false;
 
     /// <summary>
+    /// Role to grant the user in this league.
+    /// </summary>
+    public LeagueMemberRole Role { get; set; } = LeagueMemberRole.Member;
+
+    /// <summary>
     /// Optional invitation message
     /// </summary>
     [StringLength(500)]
     public string? InvitationMessage { get; set; }
 }
-

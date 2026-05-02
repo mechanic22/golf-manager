@@ -7,7 +7,6 @@
 @inject IAuthorizationService AuthorizationService
 @inject ILeagueService LeagueService
 @inject ISeasonService SeasonService
-@inject SeedDataService SeedData
 @inject NavigationManager Navigation
 @inject ILogger<SeasonEvents> Logger
 
@@ -117,43 +116,26 @@ else
         isLoading = true;
         try
         {
-            // Use seed data - find league by key
-            var seedLeague = SeedData.Leagues.FirstOrDefault(l => l.Key == LeagueKey);
-            if (seedLeague != null)
+            // Load league from API
+            var leagueResponse = await LeagueService.GetLeagueByKeyAsync(LeagueKey);
+            if (leagueResponse == null || !leagueResponse.Success || leagueResponse.Data == null)
             {
-                league = new LeagueResponse
-                {
-                    Id = seedLeague.Id,
-                    Key = seedLeague.Key,
-                    Name = seedLeague.Name,
-                    Description = seedLeague.Description,
-                    MemberCount = seedLeague.MemberCount,
-                    PlayerCount = seedLeague.MemberCount,
-                    SeasonCount = SeedData.Seasons.Count(s => s.LeagueId == seedLeague.Id),
-                    IsCurrentUserAdmin = seedLeague.AdminUserId == AuthService.UserId || AuthService.IsGlobalAdmin,
-                    CreatedAt = seedLeague.CreatedDate
-                };
-
-                // Find season by key
-                var seedSeason = SeedData.Seasons.FirstOrDefault(s => s.LeagueId == seedLeague.Id && s.Key == SeasonKey);
-                if (seedSeason != null)
-                {
-                    season = new SeasonResponse
-                    {
-                        Id = seedSeason.Id,
-                        LeagueId = seedSeason.LeagueId,
-                        Key = seedSeason.Key,
-                        Name = seedSeason.Name,
-                        StartDate = DateOnly.FromDateTime(seedSeason.StartDate),
-                        EndDate = DateOnly.FromDateTime(seedSeason.EndDate),
-                        IsLocked = !seedSeason.IsActive,
-                        EventCount = SeedData.Events.Count(e => e.SeasonId == seedSeason.Id),
-                        CreatedAt = seedSeason.StartDate
-                    };
-                }
+                Logger.LogWarning("League not found: {LeagueKey}", LeagueKey);
+                return;
             }
+            league = leagueResponse.Data;
 
-            await Task.CompletedTask;
+            // Load season from API
+            var seasonResponse = await SeasonService.GetSeasonByKeyAsync(league.Id, SeasonKey);
+            if (seasonResponse == null || !seasonResponse.Success || seasonResponse.Data == null)
+            {
+                Logger.LogWarning("Season not found: {SeasonKey}", SeasonKey);
+                return;
+            }
+            season = seasonResponse.Data;
+
+            // TODO: Load season events from API
+            Logger.LogInformation("Loaded season {SeasonName} - events to be implemented", season.Name);
         }
         catch (Exception ex)
         {

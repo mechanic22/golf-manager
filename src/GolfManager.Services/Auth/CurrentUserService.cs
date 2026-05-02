@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using GolfManager.Core.Services;
 using Microsoft.AspNetCore.Http;
 
 namespace GolfManager.Services.Auth;

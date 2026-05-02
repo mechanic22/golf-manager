@@ -1,0 +1,182 @@
+@using GolfManager.Shared.DTOs.Handicap
+@using GolfManager.Shared.DTOs.User
+@using GolfManager.Web.Components.Charts
+@inject Web.Services.IHandicapService HandicapService
+@inject ILogger<HandicapWidget> Logger
+
+<div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+    <!-- Header -->
+    <div class="px-6 py-4 border-b border-gray-200">
+        <h3 class="text-lg font-semibold text-gray-900">My Handicap Trend</h3>
+        <p class="text-sm text-gray-600">Track your improvement over time</p>
+    </div>
+    
+    <!-- Content -->
+    <div class="p-6">
+        @if (isLoading)
+        {
+            <div class="flex items-center justify-center py-12">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="text-center py-8 text-red-600">
+                <p>@errorMessage</p>
+            </div>
+        }
+        else if (currentHandicaps.Count == 0)
+        {
+            <div class="text-center py-8 text-gray-500">
+                <MaterialIcon Icon="MaterialIcons.Dashboard" Size="MaterialComponents.Icons.IconSize.LG" Class="mx-auto mb-2 text-gray-400" />
+                <p>No handicap data available yet</p>
+                <p class="text-sm mt-2">Handicaps will be calculated after you record some rounds</p>
+            </div>
+        }
+        else
+        {
+            <!-- Current Handicaps Summary -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                @if (globalHandicap.HasValue)
+                {
+                    <div class="text-center p-4 bg-primary-50 rounded-lg">
+                        <div class="text-sm text-gray-600 mb-1">Global</div>
+                        <div class="text-2xl font-bold text-primary-600">@globalHandicap.Value.ToString("F1")</div>
+                    </div>
+                }
+                
+                @foreach (var league in leagueHandicaps.Take(2))
+                {
+                    <div class="text-center p-4 bg-gray-50 rounded-lg">
+                        <div class="text-sm text-gray-600 mb-1">@league.LeagueName</div>
+                        <div class="text-2xl font-bold text-gray-700">@league.Handicap.ToString("F1")</div>
+                    </div>
+                }
+            </div>
+            
+            <!-- Chart -->
+            <HandicapChart chartSeries="@chartSeries" isLoading="false" />
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public UserProfileResponse? CurrentUser { get; set; }
+    
+    private bool isLoading = true;
+    private string? errorMessage;
+    private double? globalHandicap;
+    private List<LeagueHandicapInfo> leagueHandicaps = new();
+    private List<CurrentHandicapInfo> currentHandicaps = new();
+    private List<HandicapChart.ChartDataSeries> chartSeries = new();
+    
+    protected override async Task OnParametersSetAsync()
+    {
+        if (CurrentUser?.GolferId != null)
+        {
+            await LoadHandicapData();
+        }
+        else
+        {
+            isLoading = false;
+            errorMessage = "No golfer profile found";
+        }
+    }
+    
+    private async Task LoadHandicapData()
+    {
+        isLoading = true;
+        errorMessage = null;
+        
+        try
+        {
+            var golferId = CurrentUser!.GolferId!;
+            
+            // Load global handicap history
+            var globalResponse = await HandicapService.GetHandicapHistoryAsync(golferId, limit: 20);
+            if (globalResponse?.Success == true && globalResponse.Data != null && globalResponse.Data.Any())
+            {
+                globalHandicap = globalResponse.Data.First().HandicapIndex;
+                currentHandicaps.Add(new CurrentHandicapInfo 
+                { 
+                    Label = "Global", 
+                    Handicap = globalHandicap.Value 
+                });
+                
+                // Add to chart
+                chartSeries.Add(CreateChartSeries("Global", "#2563eb", globalResponse.Data));
+            }
+            
+            // TODO: Load league-specific handicaps
+            // For now, we'll just show global
+            
+            Logger.LogInformation("Loaded handicap data for golfer {GolferId}", golferId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading handicap data");
+            errorMessage = "Failed to load handicap data";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+    
+    private HandicapChart.ChartDataSeries CreateChartSeries(string label, string color, List<HandicapHistoryResponse> history)
+    {
+        var chartWidth = 600;
+        var chartHeight = 300;
+        var padding = 50;
+        
+        var orderedHistory = history.OrderBy(h => h.EffectiveDate).ToList();
+        
+        // Calculate X positions (time axis)
+        var minDate = orderedHistory.First().EffectiveDate.ToDateTime(TimeOnly.MinValue);
+        var maxDate = orderedHistory.Last().EffectiveDate.ToDateTime(TimeOnly.MinValue);
+        var dateRange = (maxDate - minDate).TotalDays;
+        if (dateRange == 0) dateRange = 1; // Avoid division by zero
+        
+        // Calculate Y range
+        var minHandicap = Math.Floor(orderedHistory.Min(h => h.HandicapIndex)) - 1;
+        var maxHandicap = Math.Ceiling(orderedHistory.Max(h => h.HandicapIndex)) + 1;
+        var handicapRange = maxHandicap - minHandicap;
+        if (handicapRange == 0) handicapRange = 1;
+        
+        var points = orderedHistory.Select(h =>
+        {
+            var daysSinceStart = (h.EffectiveDate.ToDateTime(TimeOnly.MinValue) - minDate).TotalDays;
+            var x = padding + (daysSinceStart / dateRange) * (chartWidth - 2 * padding);
+            var y = chartHeight - padding - ((h.HandicapIndex - minHandicap) / handicapRange) * (chartHeight - 2 * padding);
+            
+            return new HandicapChart.ChartPoint
+            {
+                X = x,
+                Y = y,
+                Value = h.HandicapIndex,
+                Date = h.EffectiveDate
+            };
+        }).ToList();
+        
+        return new HandicapChart.ChartDataSeries
+        {
+            Label = label,
+            Color = color,
+            Points = points
+        };
+    }
+    
+    private class CurrentHandicapInfo
+    {
+        public string Label { get; set; } = string.Empty;
+        public double Handicap { get; set; }
+    }
+    
+    private class LeagueHandicapInfo
+    {
+        public string LeagueId { get; set; } = string.Empty;
+        public string LeagueName { get; set; } = string.Empty;
+        public double Handicap { get; set; }
+    }
+}

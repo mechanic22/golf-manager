@@ -22,7 +22,7 @@ public class SeasonService : ISeasonService
     {
         try
         {
-            var response = await _httpClient.GetAsync($"api/v1/leagues/{leagueId}/seasons");
+            var response = await _httpClient.GetAsync("api/v1/seasons");
 
             if (response.IsSuccessStatusCode)
             {
@@ -43,7 +43,7 @@ public class SeasonService : ISeasonService
     {
         try
         {
-            var response = await _httpClient.GetAsync($"api/v1/leagues/{leagueId}/seasons/{seasonId}");
+            var response = await _httpClient.GetAsync($"api/v1/seasons/{seasonId}");
 
             if (response.IsSuccessStatusCode)
             {
@@ -64,7 +64,7 @@ public class SeasonService : ISeasonService
     {
         try
         {
-            var response = await _httpClient.GetAsync($"api/v1/leagues/{leagueId}/seasons/by-key/{seasonKey}");
+            var response = await _httpClient.GetAsync($"api/v1/seasons/by-key/{seasonKey}");
 
             if (response.IsSuccessStatusCode)
             {
@@ -85,7 +85,7 @@ public class SeasonService : ISeasonService
     {
         try
         {
-            var response = await _httpClient.PostAsJsonAsync($"api/v1/leagues/{leagueId}/seasons", request);
+            var response = await _httpClient.PostAsJsonAsync("api/v1/seasons", request);
 
             if (response.IsSuccessStatusCode)
             {
@@ -106,7 +106,7 @@ public class SeasonService : ISeasonService
     {
         try
         {
-            var response = await _httpClient.PutAsJsonAsync($"api/v1/leagues/{leagueId}/seasons/{seasonId}", request);
+            var response = await _httpClient.PutAsJsonAsync($"api/v1/seasons/{seasonId}", request);
 
             if (response.IsSuccessStatusCode)
             {
@@ -127,7 +127,7 @@ public class SeasonService : ISeasonService
     {
         try
         {
-            var response = await _httpClient.DeleteAsync($"api/v1/leagues/{leagueId}/seasons/{seasonId}");
+            var response = await _httpClient.DeleteAsync($"api/v1/seasons/{seasonId}");
             return response.IsSuccessStatusCode;
         }
         catch (Exception ex)

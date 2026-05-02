@@ -1,0 +1,117 @@
+@using GolfManager.Shared.DTOs.Handicap
+@inject ILogger<HandicapChart> Logger
+
+<div class="handicap-chart">
+    @if (isLoading)
+    {
+        <div class="flex items-center justify-center py-8">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        </div>
+    }
+    else if (chartSeries.Count == 0)
+    {
+        <div class="text-center py-8 text-gray-500">
+            <p>No handicap history available</p>
+        </div>
+    }
+    else
+    {
+        <!-- Simple SVG Line Chart -->
+        <svg viewBox="0 0 @chartWidth @chartHeight" class="w-full" style="max-height: 300px;">
+            <!-- Grid lines -->
+            @for (int i = 0; i <= 4; i++)
+            {
+                var y = padding + (i * (chartHeight - 2 * padding) / 4.0);
+                <line x1="@padding" y1="@y" x2="@(chartWidth - padding)" y2="@y" 
+                      stroke="#e5e7eb" stroke-width="1" />
+            }
+            
+            <!-- Y-axis labels -->
+            @for (int i = 0; i <= 4; i++)
+            {
+                var y = padding + (i * (chartHeight - 2 * padding) / 4.0);
+                var value = maxHandicap - (i * (maxHandicap - minHandicap) / 4.0);
+                var xPos = padding - 10;
+                var yPos = y + 5;
+                var label = value.ToString("F1");
+                @:<text x="@xPos" y="@yPos" text-anchor="end" font-size="12" fill="#6b7280">@label</text>
+            }
+            
+            <!-- Chart lines -->
+            @foreach (var series in chartSeries)
+            {
+                var points = string.Join(" ", series.Points.Select(p => $"{p.X},{p.Y}"));
+                <polyline points="@points" 
+                          fill="none" 
+                          stroke="@series.Color" 
+                          stroke-width="2" 
+                          stroke-linejoin="round"
+                          stroke-linecap="round" />
+                
+                <!-- Data points -->
+                @foreach (var point in series.Points)
+                {
+                    <circle cx="@point.X" cy="@point.Y" r="4" 
+                            fill="@series.Color" 
+                            class="cursor-pointer">
+                        <title>@series.Label: @point.Value.ToString("F1") on @point.Date.ToString("MMM d")</title>
+                    </circle>
+                }
+            }
+        </svg>
+        
+        <!-- Legend -->
+        <div class="flex flex-wrap gap-4 mt-4 justify-center text-sm">
+            @foreach (var series in chartSeries)
+            {
+                <div class="flex items-center gap-2">
+                    <div class="w-4 h-4 rounded-full" style="background-color: @series.Color"></div>
+                    <span class="text-gray-700">@series.Label</span>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public List<ChartDataSeries> chartSeries { get; set; } = new();
+    
+    [Parameter]
+    public bool isLoading { get; set; }
+    
+    private int chartWidth = 600;
+    private int chartHeight = 300;
+    private int padding = 50;
+    private double minHandicap = 0;
+    private double maxHandicap = 54;
+    
+    protected override void OnParametersSet()
+    {
+        if (chartSeries.Count > 0)
+        {
+            // Calculate min/max handicap for Y-axis scaling
+            var allValues = chartSeries.SelectMany(s => s.Points).Select(p => p.Value).ToList();
+            if (allValues.Any())
+            {
+                minHandicap = Math.Floor(allValues.Min()) - 1;
+                maxHandicap = Math.Ceiling(allValues.Max()) + 1;
+            }
+        }
+    }
+    
+    public class ChartDataSeries
+    {
+        public string Label { get; set; } = string.Empty;
+        public string Color { get; set; } = string.Empty;
+        public List<ChartPoint> Points { get; set; } = new();
+    }
+    
+    public class ChartPoint
+    {
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Value { get; set; }
+        public DateOnly Date { get; set; }
+    }
+}

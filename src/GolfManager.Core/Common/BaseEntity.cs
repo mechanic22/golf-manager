@@ -31,7 +31,24 @@ public abstract class BaseEntity
     public string? UpdatedBy { get; set; }
 
     /// <summary>
-    /// Soft delete flag
+    /// Soft delete flag - if true, entity is deleted but kept for referential integrity
+    /// Deleted entities should be filtered out of all queries automatically
+    /// </summary>
+    public bool IsDeleted { get; set; } = false;
+
+    /// <summary>
+    /// When entity was soft deleted
+    /// </summary>
+    public DateTime? DeletedAt { get; set; }
+
+    /// <summary>
+    /// User ID who deleted this entity
+    /// </summary>
+    public string? DeletedBy { get; set; }
+
+    /// <summary>
+    /// Active/Inactive flag - business logic state (e.g., active member vs inactive member)
+    /// Inactive entities can still be shown in some contexts and can be reactivated
     /// </summary>
     public bool IsActive { get; set; } = true;
 }

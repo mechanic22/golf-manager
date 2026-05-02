@@ -23,7 +23,7 @@ public class PlayerService : IPlayerService
         try
         {
             var response = await _httpClient.GetFromJsonAsync<ApiResponse<List<PlayerResponse>>>(
-                $"api/v1/leagues/{leagueId}/players");
+                "api/v1/players");
             return response;
         }
         catch (Exception ex)
@@ -38,7 +38,7 @@ public class PlayerService : IPlayerService
         try
         {
             var response = await _httpClient.GetFromJsonAsync<ApiResponse<PlayerResponse>>(
-                $"api/v1/leagues/{leagueId}/players/{playerId}");
+                $"api/v1/players/{playerId}");
             return response;
         }
         catch (Exception ex)
@@ -53,7 +53,7 @@ public class PlayerService : IPlayerService
         try
         {
             var response = await _httpClient.PostAsJsonAsync(
-                $"api/v1/leagues/{leagueId}/players",
+                "api/v1/players",
                 request);
 
             if (!response.IsSuccessStatusCode)
@@ -77,7 +77,7 @@ public class PlayerService : IPlayerService
         try
         {
             var response = await _httpClient.PutAsJsonAsync(
-                $"api/v1/leagues/{leagueId}/players/{playerId}",
+                $"api/v1/players/{playerId}",
                 request);
 
             if (!response.IsSuccessStatusCode)
@@ -101,7 +101,7 @@ public class PlayerService : IPlayerService
         try
         {
             var response = await _httpClient.DeleteAsync(
-                $"api/v1/leagues/{leagueId}/players/{playerId}");
+                $"api/v1/players/{playerId}");
 
             if (!response.IsSuccessStatusCode)
             {
@@ -116,6 +116,22 @@ public class PlayerService : IPlayerService
         {
             _logger.LogError(ex, "Error removing player {PlayerId} from league {LeagueId}", playerId, leagueId);
             return ApiResponse<bool>.ErrorResponse("Failed to remove player", ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse<List<PlayerResponse>>?> GetSeasonPlayersAsync(string leagueId, string seasonId)
+    {
+        try
+        {
+            _logger.LogInformation("Fetching players for season {SeasonId} in league {LeagueId}", seasonId, leagueId);
+            var response = await _httpClient.GetFromJsonAsync<ApiResponse<List<PlayerResponse>>>($"api/v1/seasons/{seasonId}/players");
+            _logger.LogInformation("Fetched {Count} season players", response?.Data?.Count ?? 0);
+            return response;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error fetching season players for season {SeasonId}", seasonId);
+            return ApiResponse<List<PlayerResponse>>.ErrorResponse("Failed to load season players", ex.Message);
         }
     }
 }

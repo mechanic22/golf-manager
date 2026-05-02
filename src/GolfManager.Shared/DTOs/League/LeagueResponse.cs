@@ -56,6 +56,26 @@ public class LeagueResponse
     public bool IsCurrentUserAdmin { get; set; }
 
     /// <summary>
+    /// Custom domain for this league
+    /// </summary>
+    public string? CustomDomain { get; set; }
+
+    /// <summary>
+    /// Whether the custom domain is enabled for this league
+    /// </summary>
+    public bool UseCustomDomain { get; set; }
+
+    /// <summary>
+    /// DNS verification token for custom domains
+    /// </summary>
+    public string? CustomDomainVerificationToken { get; set; }
+
+    /// <summary>
+    /// When the custom domain was verified
+    /// </summary>
+    public DateTime? CustomDomainVerifiedAt { get; set; }
+
+    /// <summary>
     /// When the league was created
     /// </summary>
     public DateTime CreatedAt { get; set; }

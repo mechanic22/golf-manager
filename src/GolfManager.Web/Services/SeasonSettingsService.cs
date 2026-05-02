@@ -23,7 +23,7 @@ public class SeasonSettingsService : ISeasonSettingsService
         try
         {
             var response = await _httpClient.GetFromJsonAsync<ApiResponse<SeasonSettingsResponse>>(
-                $"api/v1/leagues/{leagueId}/seasons/{seasonId}/settings");
+                $"api/v1/seasons/{seasonId}/settings");
 
             return response?.Data;
         }
@@ -42,7 +42,7 @@ public class SeasonSettingsService : ISeasonSettingsService
         try
         {
             var response = await _httpClient.PutAsJsonAsync(
-                $"api/v1/leagues/{leagueId}/seasons/{seasonId}/settings",
+                $"api/v1/seasons/{seasonId}/settings",
                 request);
 
             if (response.IsSuccessStatusCode)
@@ -66,7 +66,7 @@ public class SeasonSettingsService : ISeasonSettingsService
         try
         {
             var response = await _httpClient.PostAsync(
-                $"api/v1/leagues/{leagueId}/seasons/{seasonId}/settings/default",
+                $"api/v1/seasons/{seasonId}/settings/default",
                 null);
 
             if (response.IsSuccessStatusCode)

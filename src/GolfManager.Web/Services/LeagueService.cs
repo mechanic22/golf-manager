@@ -279,5 +279,53 @@ public class LeagueService : ILeagueService
             return ApiResponse<bool>.ErrorResponse("Request failed", ex.Message);
         }
     }
+
+    public async Task<ApiResponse<LeagueResponse>?> VerifyLeagueCustomDomainAsync(string leagueId)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsync($"api/v1/leagues/{leagueId}/custom-domain/verify", null);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<ApiResponse<LeagueResponse>>();
+            }
+
+            var errorContent = await response.Content.ReadAsStringAsync();
+            _logger.LogError("API returned error {StatusCode}: {ErrorContent}", response.StatusCode, errorContent);
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                return ApiResponse<LeagueResponse>.ErrorResponse(
+                    "Unauthorized",
+                    "Your session has expired. Please log in again.");
+            }
+
+            if (!string.IsNullOrEmpty(errorContent))
+            {
+                try
+                {
+                    var errorResponse = await response.Content.ReadFromJsonAsync<ApiResponse<LeagueResponse>>();
+                    if (errorResponse != null)
+                    {
+                        return errorResponse;
+                    }
+                }
+                catch (Exception parseEx)
+                {
+                    _logger.LogWarning(parseEx, "Failed to parse error response as JSON");
+                }
+            }
+
+            return ApiResponse<LeagueResponse>.ErrorResponse(
+                $"Request failed with status {response.StatusCode}",
+                errorContent);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying league custom domain");
+            return ApiResponse<LeagueResponse>.ErrorResponse("Request failed", ex.Message);
+        }
+    }
 }
 

@@ -10,5 +10,10 @@ public class AuthResponse
     public string AccessToken { get; set; } = string.Empty;
     public string RefreshToken { get; set; } = string.Empty;
     public DateTime ExpiresAt { get; set; }
+
+    /// <summary>
+    /// User's league memberships with domain mappings
+    /// </summary>
+    public List<LeagueMappingResponse> LeagueMappings { get; set; } = new();
 }
 

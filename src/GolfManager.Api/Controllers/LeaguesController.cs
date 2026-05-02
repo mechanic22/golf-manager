@@ -120,6 +120,34 @@ public class LeaguesController : ControllerBase
     }
 
     /// <summary>
+    /// Verify a league custom domain
+    /// </summary>
+    [HttpPost("{leagueId}/custom-domain/verify")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<LeagueResponse>>> VerifyLeagueCustomDomain(string leagueId)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized(ApiResponse<LeagueResponse>.ErrorResponse("User not authenticated", "User ID not found in token"));
+        }
+
+        try
+        {
+            var league = await _leagueService.VerifyCustomDomainAsync(leagueId, userId);
+            return Ok(ApiResponse<LeagueResponse>.SuccessResponse(league, "Custom domain verified successfully"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<LeagueResponse>.ErrorResponse("League not found", ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<LeagueResponse>.ErrorResponse("Domain verification failed", ex.Message));
+        }
+    }
+
+    /// <summary>
     /// Delete a league
     /// </summary>
     [HttpDelete("{leagueId}")]

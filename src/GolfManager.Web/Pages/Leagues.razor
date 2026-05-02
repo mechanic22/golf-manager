@@ -5,7 +5,6 @@
 @inject IAuthService AuthService
 @inject IAuthorizationService AuthorizationService
 @inject ILeagueService LeagueService
-@inject SeedDataService SeedData
 @inject NavigationManager Navigation
 @inject ILogger<Leagues> Logger
 
@@ -76,6 +75,34 @@ else
                             {
                                 <p class="text-gray-600 text-sm mb-4 line-clamp-2">@league.Description</p>
                             }
+
+                            @if (!string.IsNullOrEmpty(league.CustomDomain) && (AuthorizationService.IsGlobalAdmin() || league.IsCurrentUserAdmin))
+                            {
+                                <div class="mb-3 flex items-center gap-2">
+                                    @if (league.CustomDomainVerifiedAt.HasValue)
+                                    {
+                                        <span class="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded"
+                                              title="Custom domain verified">
+                                            <span>✓</span>
+                                            <span class="font-mono text-green-800">@league.CustomDomain</span>
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded"
+                                              title="Custom domain pending verification">
+                                            <span>⏳</span>
+                                            <span class="font-mono text-yellow-800">@league.CustomDomain</span>
+                                        </span>
+                                    }
+                                    <div class="group relative inline-block">
+                                        <div class="text-gray-400 cursor-help text-xs font-bold">ⓘ</div>
+                                        <div class="invisible group-hover:visible absolute left-0 mt-1 w-48 p-2 bg-gray-900 text-white text-xs rounded-md z-10 whitespace-normal">
+                                            Add a TXT record: <code class="bg-gray-800 px-1 rounded">_dkgolf.@league.CustomDomain</code> with the verification token to complete verification.
+                                        </div>
+                                    </div>
+                                </div>
+                            }
                             
                             <div class="flex items-center gap-4 text-sm text-gray-500">
                                 <div class="flex items-center gap-1">
@@ -140,6 +167,34 @@ else
                             {
                                 <p class="text-gray-600 text-sm mb-4 line-clamp-3">@league.Description</p>
                             }
+
+                            @if (!string.IsNullOrEmpty(league.CustomDomain) && (AuthorizationService.IsGlobalAdmin() || league.IsCurrentUserAdmin))
+                            {
+                                <div class="mb-3 flex items-center gap-2">
+                                    @if (league.CustomDomainVerifiedAt.HasValue)
+                                    {
+                                        <span class="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs font-medium rounded"
+                                              title="Custom domain verified">
+                                            <span>✓</span>
+                                            <span class="font-mono text-green-800">@league.CustomDomain</span>
+                                        </span>
+                                    }
+                                    else
+                                    {
+                                        <span class="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-700 text-xs font-medium rounded"
+                                              title="Custom domain pending verification">
+                                            <span>⏳</span>
+                                            <span class="font-mono text-yellow-800">@league.CustomDomain</span>
+                                        </span>
+                                    }
+                                    <div class="group relative inline-block">
+                                        <div class="text-gray-400 cursor-help text-xs font-bold">ⓘ</div>
+                                        <div class="invisible group-hover:visible absolute left-0 mt-1 w-48 p-2 bg-gray-900 text-white text-xs rounded-md z-10 whitespace-normal">
+                                            Add a TXT record: <code class="bg-gray-800 px-1 rounded">_dkgolf.@league.CustomDomain</code> with the verification token to complete verification.
+                                        </div>
+                                    </div>
+                                </div>
+                            }
                             
                             <div class="flex items-center gap-4 text-sm text-gray-500 mb-4">
                                 <div class="flex items-center gap-1">
@@ -185,36 +240,17 @@ else
         isLoading = true;
         try
         {
-            // Use seed data for development
-            myLeagues = SeedData.Leagues.Take(3).Select(l => new LeagueResponse
+            // Load all leagues from API
+            var response = await LeagueService.GetUserLeaguesAsync();
+            if (response != null && response.Success && response.Data != null)
             {
-                Id = l.Id,
-                Key = l.Key,
-                Name = l.Name,
-                Description = l.Description,
-                MemberCount = l.MemberCount,
-                PlayerCount = l.MemberCount,
-                SeasonCount = SeedData.Seasons.Count(s => s.LeagueId == l.Id),
-                CreatedAt = l.CreatedDate
-            }).ToList();
-
-            // Load public leagues from seed data
-            publicLeagues = SeedData.Leagues.Skip(3).Where(l => l.IsPublic).Select(l => new LeagueResponse
-            {
-                Id = l.Id,
-                Key = l.Key,
-                Name = l.Name,
-                Description = l.Description,
-                MemberCount = l.MemberCount,
-                PlayerCount = l.MemberCount,
-                SeasonCount = SeedData.Seasons.Count(s => s.LeagueId == l.Id),
-                CreatedAt = l.CreatedDate
-            }).ToList();
+                // All returned leagues are user's leagues (API filters by user)
+                myLeagues = response.Data;
+                publicLeagues = new List<LeagueResponse>(); // TODO: Implement public leagues endpoint
+            }
 
             // Check if user can create leagues
             canCreateLeague = AuthorizationService.IsGlobalAdmin();
-
-            await Task.CompletedTask;
         }
         catch (Exception ex)
         {

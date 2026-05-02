@@ -11,7 +11,7 @@ namespace GolfManager.Api.Controllers;
 /// Controller for managing players within leagues
 /// </summary>
 [ApiController]
-[Route("api/v1/leagues/{leagueId}/players")]
+[Route("api/v1/players")]
 [Authorize]
 public class PlayersController : ControllerBase
 {
@@ -31,8 +31,14 @@ public class PlayersController : ControllerBase
     /// </summary>
     [HttpGet]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
-    public async Task<ActionResult<ApiResponse<List<PlayerResponse>>>> GetPlayers(string leagueId)
+    public async Task<ActionResult<ApiResponse<List<PlayerResponse>>>> GetPlayers()
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<List<PlayerResponse>>.ErrorResponse("League context required"));
+        }
+
         var players = await _playerService.GetLeaguePlayersAsync(leagueId);
         return Ok(ApiResponse<List<PlayerResponse>>.SuccessResponse(players, $"Retrieved {players.Count} players"));
     }
@@ -42,10 +48,16 @@ public class PlayersController : ControllerBase
     /// </summary>
     [HttpGet("{playerId}")]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
-    public async Task<ActionResult<ApiResponse<PlayerResponse>>> GetPlayer(string leagueId, string playerId)
+    public async Task<ActionResult<ApiResponse<PlayerResponse>>> GetPlayer(string playerId)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<PlayerResponse>.ErrorResponse("League context required"));
+        }
+
         var player = await _playerService.GetPlayerAsync(leagueId, playerId);
-        
+
         if (player == null)
         {
             return NotFound(ApiResponse<PlayerResponse>.ErrorResponse("Player not found"));
@@ -60,16 +72,21 @@ public class PlayersController : ControllerBase
     [HttpPost]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<PlayerResponse>>> AddPlayer(
-        string leagueId,
         [FromBody] CreatePlayerRequest request)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<PlayerResponse>.ErrorResponse("League context required"));
+        }
+
         var player = await _playerService.AddPlayerToLeagueAsync(leagueId, request);
-        
+
         _logger.LogInformation("Player {DisplayName} added to league {LeagueId}", request.DisplayName, leagueId);
-        
+
         return CreatedAtAction(
             nameof(GetPlayer),
-            new { leagueId, playerId = player.Id },
+            new { playerId = player.Id },
             ApiResponse<PlayerResponse>.SuccessResponse(player, "Player added successfully"));
     }
 
@@ -79,14 +96,19 @@ public class PlayersController : ControllerBase
     [HttpPut("{playerId}")]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<PlayerResponse>>> UpdatePlayer(
-        string leagueId,
         string playerId,
         [FromBody] UpdatePlayerRequest request)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<PlayerResponse>.ErrorResponse("League context required"));
+        }
+
         var player = await _playerService.UpdatePlayerAsync(leagueId, playerId, request);
-        
+
         _logger.LogInformation("Player {PlayerId} updated in league {LeagueId}", playerId, leagueId);
-        
+
         return Ok(ApiResponse<PlayerResponse>.SuccessResponse(player, "Player updated successfully"));
     }
 
@@ -95,17 +117,23 @@ public class PlayersController : ControllerBase
     /// </summary>
     [HttpDelete("{playerId}")]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
-    public async Task<ActionResult<ApiResponse<bool>>> RemovePlayer(string leagueId, string playerId)
+    public async Task<ActionResult<ApiResponse<bool>>> RemovePlayer(string playerId)
     {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<bool>.ErrorResponse("League context required"));
+        }
+
         var result = await _playerService.RemovePlayerFromLeagueAsync(leagueId, playerId);
-        
+
         if (!result)
         {
             return NotFound(ApiResponse<bool>.ErrorResponse("Player not found"));
         }
 
         _logger.LogInformation("Player {PlayerId} removed from league {LeagueId}", playerId, leagueId);
-        
+
         return Ok(ApiResponse<bool>.SuccessResponse(true, "Player removed successfully"));
     }
 }

@@ -13,7 +13,6 @@
 @inject IEventService EventService
 @inject IPlayerService PlayerService
 @inject IRoundService RoundService
-@inject SeedDataService SeedData
 @inject NavigationManager Navigation
 @inject ILogger<ScoreEntry> Logger
 
@@ -161,84 +160,28 @@ else
         isLoading = true;
         try
         {
-            // Use seed data - find league by key
-            var seedLeague = SeedData.Leagues.FirstOrDefault(l => l.Key == LeagueKey);
-            if (seedLeague != null)
+            // Load league from API
+            var leagueResponse = await LeagueService.GetLeagueByKeyAsync(LeagueKey);
+            if (leagueResponse == null || !leagueResponse.Success || leagueResponse.Data == null)
             {
-                league = new LeagueResponse
-                {
-                    Id = seedLeague.Id,
-                    Key = seedLeague.Key,
-                    Name = seedLeague.Name,
-                    Description = seedLeague.Description,
-                    MemberCount = seedLeague.MemberCount,
-                    PlayerCount = seedLeague.MemberCount,
-                    SeasonCount = SeedData.Seasons.Count(s => s.LeagueId == seedLeague.Id),
-                    IsCurrentUserAdmin = seedLeague.AdminUserId == AuthService.UserId || AuthService.IsGlobalAdmin,
-                    CreatedAt = seedLeague.CreatedDate
-                };
-
-                // Find season by key
-                var seedSeason = SeedData.Seasons.FirstOrDefault(s => s.LeagueId == seedLeague.Id && s.Key == SeasonKey);
-                if (seedSeason != null)
-                {
-                    season = new SeasonResponse
-                    {
-                        Id = seedSeason.Id,
-                        LeagueId = seedSeason.LeagueId,
-                        Key = seedSeason.Key,
-                        Name = seedSeason.Name,
-                        StartDate = DateOnly.FromDateTime(seedSeason.StartDate),
-                        EndDate = DateOnly.FromDateTime(seedSeason.EndDate),
-                        IsLocked = !seedSeason.IsActive,
-                        EventCount = SeedData.Events.Count(e => e.SeasonId == seedSeason.Id),
-                        CreatedAt = seedSeason.StartDate
-                    };
-
-                    // Find event by key
-                    var seedEvent = SeedData.Events.FirstOrDefault(e => e.SeasonId == seedSeason.Id && e.Key == EventKey);
-                    if (seedEvent != null)
-                    {
-                        seasonEvent = new EventResponse
-                        {
-                            Id = seedEvent.Id,
-                            SeasonId = seedEvent.SeasonId,
-                            LeagueId = seedEvent.LeagueId,
-                            Name = seedEvent.Name,
-                            EventDate = seedEvent.Date,
-                            CourseId = null, // SeedEvent doesn't have CourseId, only CourseName
-                            HolesPlayed = HolesPlayed.Eighteen, // Default
-                            EventType = SeasonEventType.Regular,
-                            ScoringFormat = ScoringFormat.StrokePlay,
-                            IsLocked = seedEvent.IsCompleted,
-                            CreatedAt = seedEvent.Date
-                        };
-                    }
-
-                    // Load golfers who have played in this league
-                    var playerIds = SeedData.Rounds
-                        .Where(r => SeedData.Events.Any(e => e.Id == r.EventId && e.LeagueId == league.Id))
-                        .Select(r => r.PlayerId)
-                        .Distinct()
-                        .ToList();
-
-                    golfers = SeedData.Users
-                        .Where(u => playerIds.Contains(u.Id))
-                        .Select(u => new PlayerResponse
-                        {
-                            Id = u.Id,
-                            UserId = u.Id,
-                            LeagueId = league.Id,
-                            DisplayName = $"{u.FirstName} {u.LastName}",
-                            Email = u.Email,
-                            LeagueHandicap = (double)u.Handicap,
-                            TotalRounds = SeedData.Rounds.Count(r => r.PlayerId == u.Id),
-                            JoinedAt = u.JoinedDate
-                        }).ToList();
-                }
+                Logger.LogWarning("League not found: {LeagueKey}", LeagueKey);
+                return;
             }
+            league = leagueResponse.Data;
 
-            await Task.CompletedTask;
+            // Load season from API
+            var seasonResponse = await SeasonService.GetSeasonByKeyAsync(league.Id, SeasonKey);
+            if (seasonResponse == null || !seasonResponse.Success || seasonResponse.Data == null)
+            {
+                Logger.LogWarning("Season not found: {SeasonKey}", SeasonKey);
+                return;
+            }
+            season = seasonResponse.Data;
+
+            // TODO: Load event and golfers from API
+            seasonEvent = null;
+            golfers = new List<PlayerResponse>();
+            Logger.LogInformation("ScoreEntry page - Event and golfers API integration pending");
         }
         catch (Exception ex)
         {

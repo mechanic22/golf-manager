@@ -44,6 +44,11 @@ public interface ILeagueService
     Task<ApiResponse<LeagueMemberResponse>?> UpdateLeagueMemberAsync(string leagueId, string userId, UpdateLeagueMemberRequest request);
 
     /// <summary>
+    /// Verify a league's custom domain using DNS lookup and TXT validation
+    /// </summary>
+    Task<ApiResponse<LeagueResponse>?> VerifyLeagueCustomDomainAsync(string leagueId);
+
+    /// <summary>
     /// Remove a member from a league
     /// </summary>
     Task<ApiResponse<bool>?> RemoveLeagueMemberAsync(string leagueId, string userId);

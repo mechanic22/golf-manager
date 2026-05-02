@@ -1,7 +1,9 @@
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using GolfManager.Shared.DTOs.Auth;
+using GolfManager.Shared.DTOs.Common;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 
 namespace GolfManager.Web.Services;
@@ -14,7 +16,8 @@ public class AuthService : IAuthService
     private readonly HttpClient _httpClient;
     private readonly IJSRuntime _jsRuntime;
     private readonly IWebAssemblyHostEnvironment _environment;
-    private readonly SeedDataService _seedData;
+    private readonly NavigationManager _navigationManager;
+    private readonly AppState _appState;
     private const string TokenKey = "authToken";
     private const string RefreshTokenKey = "refreshToken";
     private const string ExpiresAtKey = "expiresAt";
@@ -28,12 +31,13 @@ public class AuthService : IAuthService
     private Timer? _refreshTimer;
     private bool _initialized = false;
 
-    public AuthService(HttpClient httpClient, IJSRuntime jsRuntime, IWebAssemblyHostEnvironment environment, SeedDataService seedData)
+    public AuthService(HttpClient httpClient, IJSRuntime jsRuntime, IWebAssemblyHostEnvironment environment, NavigationManager navigationManager, AppState appState)
     {
         _httpClient = httpClient;
         _jsRuntime = jsRuntime;
         _environment = environment;
-        _seedData = seedData;
+        _navigationManager = navigationManager;
+        _appState = appState;
     }
 
     // Safe properties that don't trigger initialization
@@ -55,6 +59,13 @@ public class AuthService : IAuthService
                 if (authResponse != null)
                 {
                     await StoreAuthDataAsync(authResponse);
+                    _appState.SetLeagueMappings(authResponse.LeagueMappings);
+
+                    if (string.IsNullOrEmpty(_appState.CurrentLeagueKey))
+                    {
+                        _appState.TrySetCurrentLeagueByDomain(new Uri(_navigationManager.Uri).Host);
+                    }
+
                     return authResponse;
                 }
             }
@@ -72,42 +83,6 @@ public class AuthService : IAuthService
         try
         {
             Console.WriteLine($"[AuthService] Attempting login for: {request.Email}");
-
-            // In development, use mock authentication with seed data
-            if (_environment.IsDevelopment())
-            {
-                Console.WriteLine($"[AuthService] Using mock authentication (Development mode)");
-
-                var user = _seedData.Users.FirstOrDefault(u =>
-                    u.Email.Equals(request.Email, StringComparison.OrdinalIgnoreCase) &&
-                    u.Password == request.Password);
-
-                if (user != null)
-                {
-                    var authResponse = new AuthResponse
-                    {
-                        AccessToken = $"mock-token-{Guid.NewGuid()}",
-                        RefreshToken = $"mock-refresh-{Guid.NewGuid()}",
-                        ExpiresAt = DateTime.UtcNow.AddHours(24),
-                        UserId = user.Id,
-                        Email = user.Email,
-                        FirstName = user.FirstName,
-                        LastName = user.LastName,
-                        IsGlobalAdmin = user.IsGlobalAdmin
-                    };
-
-                    Console.WriteLine($"[AuthService] Mock login successful for: {request.Email}");
-                    await StoreAuthDataAsync(authResponse);
-                    return authResponse;
-                }
-                else
-                {
-                    Console.WriteLine($"[AuthService] Mock login failed - invalid credentials");
-                    return null;
-                }
-            }
-
-            // Production: use real API
             Console.WriteLine($"[AuthService] API Base URL: {_httpClient.BaseAddress}");
 
             var response = await _httpClient.PostAsJsonAsync("api/v1/auth/login", request);
@@ -121,6 +96,16 @@ public class AuthService : IAuthService
                 {
                     Console.WriteLine($"[AuthService] Login successful for: {request.Email}");
                     await StoreAuthDataAsync(authResponse);
+
+                    // Store league mappings in AppState
+                    _appState.SetLeagueMappings(authResponse.LeagueMappings);
+                    Console.WriteLine($"[AuthService] Stored {authResponse.LeagueMappings.Count} league mappings");
+
+                    if (string.IsNullOrEmpty(_appState.CurrentLeagueKey))
+                    {
+                        _appState.TrySetCurrentLeagueByDomain(new Uri(_navigationManager.Uri).Host);
+                    }
+
                     return authResponse;
                 }
             }
@@ -146,6 +131,9 @@ public class AuthService : IAuthService
         _currentAuth = null;
         _refreshTimer?.Dispose();
         _refreshTimer = null;
+
+        // Clear AppState
+        _appState.Clear();
 
         await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", TokenKey);
         await _jsRuntime.InvokeVoidAsync("localStorage.removeItem", RefreshTokenKey);
@@ -192,6 +180,8 @@ public class AuthService : IAuthService
 
                 // Schedule token refresh
                 ScheduleTokenRefresh();
+
+                await LoadLeagueMappingsAsync();
             }
 
             _initialized = true;
@@ -217,6 +207,32 @@ public class AuthService : IAuthService
 
         // Schedule token refresh
         ScheduleTokenRefresh();
+    }
+
+    private async Task LoadLeagueMappingsAsync()
+    {
+        if (_currentAuth == null || string.IsNullOrEmpty(_currentAuth.AccessToken))
+        {
+            return;
+        }
+
+        try
+        {
+            var response = await _httpClient.GetFromJsonAsync<ApiResponse<List<LeagueMappingResponse>>>("api/v1/users/me/leagues");
+            if (response?.Success == true && response.Data != null)
+            {
+                _appState.SetLeagueMappings(response.Data);
+
+                if (string.IsNullOrEmpty(_appState.CurrentLeagueKey))
+                {
+                    _appState.TrySetCurrentLeagueByDomain(new Uri(_navigationManager.Uri).Host);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("[AuthService] Failed to load league mappings: " + ex.Message);
+        }
     }
 
     private void ScheduleTokenRefresh()

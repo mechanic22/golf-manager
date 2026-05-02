@@ -5,7 +5,6 @@
 @inject IAuthService AuthService
 @inject IAuthorizationService AuthorizationService
 @inject IOneTimeEventService EventService
-@inject SeedDataService SeedData
 @inject NavigationManager Navigation
 @inject ILogger<Events> Logger
 
@@ -193,52 +192,11 @@ else
         isLoading = true;
         try
         {
-            // Use seed data - show user's events (first 3 upcoming)
-            myEvents = SeedData.Events
-                .Where(e => e.Date >= DateTime.Now.Date && !e.IsCompleted)
-                .OrderBy(e => e.Date)
-                .Take(3)
-                .Select(e => new OneTimeEventListResponse
-                {
-                    Id = e.Id,
-                    Key = e.Key,
-                    Name = e.Name,
-                    EventDate = e.Date,
-                    CourseName = e.CourseName,
-                    Format = GolfManager.Core.Enums.ScoringFormat.StrokePlay,
-                    TeamSize = 1,
-                    TotalRounds = 1,
-                    AccessType = GolfManager.Core.Enums.EventAccessType.Public,
-                    Status = GolfManager.Core.Enums.EventStatus.Published,
-                    RegisteredTeamsCount = e.ParticipantCount,
-                    MaxTeams = e.ParticipantCount + 5,
-                    OrganizerName = "League Admin"
-                }).ToList();
-
-            // Load upcoming public events (next 10)
-            upcomingEvents = SeedData.Events
-                .Where(e => e.Date >= DateTime.Now.Date && !e.IsCompleted)
-                .OrderBy(e => e.Date)
-                .Skip(3)
-                .Take(10)
-                .Select(e => new OneTimeEventListResponse
-                {
-                    Id = e.Id,
-                    Key = e.Key,
-                    Name = e.Name,
-                    EventDate = e.Date,
-                    CourseName = e.CourseName,
-                    Format = GolfManager.Core.Enums.ScoringFormat.StrokePlay,
-                    TeamSize = 1,
-                    TotalRounds = 1,
-                    AccessType = GolfManager.Core.Enums.EventAccessType.Public,
-                    Status = GolfManager.Core.Enums.EventStatus.Published,
-                    RegisteredTeamsCount = e.ParticipantCount,
-                    MaxTeams = e.ParticipantCount + 5,
-                    OrganizerName = "League Admin"
-                }).ToList();
-
-            await Task.CompletedTask;
+            // TODO: Load one-time events from API
+            // For now, show empty lists
+            myEvents = new List<OneTimeEventListResponse>();
+            upcomingEvents = new List<OneTimeEventListResponse>();
+            Logger.LogInformation("Events page - API integration pending");
         }
         catch (Exception ex)
         {

@@ -1,12 +1,12 @@
 @page "/league/{LeagueKey}/members"
 @layout AppLayout
 @using GolfManager.Shared.DTOs.League
+@using GolfManager.Core.Enums
 @using GolfManager.Web.Services
 @using MaterialComponents.Models
 @inject IAuthService AuthService
 @inject IAuthorizationService AuthorizationService
 @inject ILeagueService LeagueService
-@inject SeedDataService SeedData
 @inject NavigationManager Navigation
 @inject ILogger<LeagueMembers> Logger
 
@@ -125,34 +125,21 @@ else
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">@member.Email</td>
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        @if (member.IsLeagueAdmin)
-                                        {
-                                            <MaterialChip Text="Admin" Color="MaterialChipColor.Primary" Size="MaterialChipSize.Small" />
-                                        }
-                                        else
-                                        {
-                                            <MaterialChip Text="Member" Color="MaterialChipColor.Secondary" Size="MaterialChipSize.Small" />
-                                        }
+                                        <MaterialChip Text="@member.Role.ToString()" Color="@GetRoleColor(member.Role)" Size="MaterialChipSize.Small" />
                                     </td>
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">@member.JoinedAt.ToString("MMM d, yyyy")</td>
                                     @if (AuthorizationService.CanManageLeague(league.Id))
                                     {
                                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                             <div class="flex justify-end gap-2">
-                                                @if (!member.IsLeagueAdmin)
-                                                {
-                                                    <MaterialButton Style="MaterialButtonStyle.Text" OnClick="() => PromoteToAdmin(member)">
-                                                        <MaterialIcon Icon="MaterialIcons.ArrowUpward" Class="mr-1" />
-                                                        Promote
-                                                    </MaterialButton>
-                                                }
-                                                else
-                                                {
-                                                    <MaterialButton Style="MaterialButtonStyle.Text" OnClick="() => DemoteFromAdmin(member)">
-                                                        <MaterialIcon Icon="MaterialIcons.ArrowDownward" Class="mr-1" />
-                                                        Demote
-                                                    </MaterialButton>
-                                                }
+                                                <select value="@member.Role"
+                                                        @onchange="args => ChangeMemberRole(member, args)"
+                                                        class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                                    @foreach (var role in LeagueRoles)
+                                                    {
+                                                        <option value="@role">@role</option>
+                                                    }
+                                                </select>
                                                 <MaterialButton Style="MaterialButtonStyle.Text" OnClick="() => ShowRemoveMemberConfirm(member)">
                                                     <MaterialIcon Icon="MaterialIcons.Delete" Class="mr-1 text-red-600" />
                                                     <span class="text-red-600">Remove</span>
@@ -202,8 +189,16 @@ else
                           Variant="MaterialInputVariant.Outlined"
                           SupportingText="Required if creating a new user" />
 
-            <MaterialCheckbox @bind-Value="addMemberRequest.IsLeagueAdmin"
-                            Label="Make this user a league admin" />
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">League Role</label>
+                <select @bind="addMemberRequest.Role"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    @foreach (var role in LeagueRoles)
+                    {
+                        <option value="@role">@role</option>
+                    }
+                </select>
+            </div>
 
             <MaterialInput @bind-Value="addMemberRequest.InvitationMessage"
                           Label="Invitation Message (Optional)"
@@ -279,6 +274,13 @@ else
 
     // Tab navigation
     private string activeTab = "members";
+    private static readonly LeagueMemberRole[] LeagueRoles =
+    [
+        LeagueMemberRole.Owner,
+        LeagueMemberRole.Admin,
+        LeagueMemberRole.Member,
+        LeagueMemberRole.Viewer
+    ];
 
     protected override async Task OnInitializedAsync()
     {
@@ -301,25 +303,18 @@ else
         {
             isLoading = true;
 
-            // Use seed data - find league by key
-            var seedLeague = SeedData.Leagues.FirstOrDefault(l => l.Key == LeagueKey);
-            if (seedLeague != null)
+            // Load league from API
+            var response = await LeagueService.GetLeagueByKeyAsync(LeagueKey);
+            if (response != null && response.Success && response.Data != null)
             {
-                league = new LeagueResponse
-                {
-                    Id = seedLeague.Id,
-                    Key = seedLeague.Key,
-                    Name = seedLeague.Name,
-                    Description = seedLeague.Description,
-                    MemberCount = seedLeague.MemberCount,
-                    PlayerCount = seedLeague.MemberCount,
-                    SeasonCount = SeedData.Seasons.Count(s => s.LeagueId == seedLeague.Id),
-                    IsCurrentUserAdmin = seedLeague.AdminUserId == AuthService.UserId || AuthService.IsGlobalAdmin,
-                    CreatedAt = seedLeague.CreatedDate
-                };
+                league = response.Data;
+                Logger.LogInformation("Loaded league: {LeagueName}", league.Name);
             }
-
-            await Task.CompletedTask;
+            else
+            {
+                Logger.LogWarning("League not found: {LeagueKey}", LeagueKey);
+                return;
+            }
         }
         catch (Exception ex)
         {
@@ -339,27 +334,18 @@ else
         {
             isLoadingMembers = true;
 
-            // Use seed data - get all users who have played in this league
-            var playerIds = SeedData.Rounds
-                .Where(r => SeedData.Events.Any(e => e.Id == r.EventId && e.LeagueId == league.Id))
-                .Select(r => r.PlayerId)
-                .Distinct()
-                .ToList();
-
-            members = SeedData.Users
-                .Where(u => playerIds.Contains(u.Id))
-                .Select(u => new LeagueMemberResponse
-                {
-                    UserId = u.Id,
-                    Email = u.Email,
-                    FirstName = u.FirstName,
-                    LastName = u.LastName,
-                    IsLeagueAdmin = league.IsCurrentUserAdmin && u.Id == SeedData.Leagues.First(l => l.Id == league.Id).AdminUserId,
-                    JoinedAt = u.JoinedDate
-                })
-                .ToList();
-
-            await Task.CompletedTask;
+            // Load members from API
+            var response = await LeagueService.GetLeagueMembersAsync(league.Id);
+            if (response != null && response.Success && response.Data != null)
+            {
+                members = response.Data.ToList();
+                Logger.LogInformation("Loaded {Count} members for league {LeagueId}", members.Count, league.Id);
+            }
+            else
+            {
+                members = new List<LeagueMemberResponse>();
+                Logger.LogWarning("Failed to load members: {Error}", response?.Message ?? "Unknown error");
+            }
         }
         catch (Exception ex)
         {
@@ -411,13 +397,37 @@ else
         }
     }
 
+    private async Task ChangeMemberRole(LeagueMemberResponse member, ChangeEventArgs args)
+    {
+        if (league == null) return;
+        if (args.Value == null || !Enum.TryParse<LeagueMemberRole>(args.Value.ToString(), out var role))
+        {
+            return;
+        }
+
+        try
+        {
+            var request = new UpdateLeagueMemberRequest { Role = role };
+            var response = await LeagueService.UpdateLeagueMemberAsync(league.Id, member.UserId, request);
+
+            if (response?.Success == true)
+            {
+                await LoadMembers();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating member role");
+        }
+    }
+
     private async Task PromoteToAdmin(LeagueMemberResponse member)
     {
         if (league == null) return;
 
         try
         {
-            var request = new UpdateLeagueMemberRequest { IsLeagueAdmin = true };
+            var request = new UpdateLeagueMemberRequest { Role = LeagueMemberRole.Admin };
             var response = await LeagueService.UpdateLeagueMemberAsync(league.Id, member.UserId, request);
 
             if (response?.Success == true)
@@ -437,7 +447,7 @@ else
 
         try
         {
-            var request = new UpdateLeagueMemberRequest { IsLeagueAdmin = false };
+            var request = new UpdateLeagueMemberRequest { Role = LeagueMemberRole.Member };
             var response = await LeagueService.UpdateLeagueMemberAsync(league.Id, member.UserId, request);
 
             if (response?.Success == true)
@@ -492,6 +502,17 @@ else
         return (first + last).ToUpper();
     }
 
+    private static MaterialChipColor GetRoleColor(LeagueMemberRole role)
+    {
+        return role switch
+        {
+            LeagueMemberRole.Owner => MaterialChipColor.Primary,
+            LeagueMemberRole.Admin => MaterialChipColor.Info,
+            LeagueMemberRole.Viewer => MaterialChipColor.Secondary,
+            _ => MaterialChipColor.Default
+        };
+    }
+
     private List<MaterialTab> GetNavigationTabs()
     {
         var tabs = new List<MaterialTab>
@@ -544,4 +565,3 @@ else
         Navigation.NavigateTo(route);
     }
 }
-

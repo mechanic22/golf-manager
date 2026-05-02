@@ -23,7 +23,7 @@ public class RoundService : IRoundService
         try
         {
             var response = await _httpClient.GetFromJsonAsync<ApiResponse<RoundResponse>>(
-                $"api/v1/leagues/{leagueId}/rounds/{roundId}");
+                $"api/v1/rounds/{roundId}");
 
             return response?.Data;
         }
@@ -39,7 +39,7 @@ public class RoundService : IRoundService
         try
         {
             var response = await _httpClient.GetFromJsonAsync<ApiResponse<List<RoundResponse>>>(
-                $"api/v1/leagues/{leagueId}/rounds?golferId={golferId}");
+                $"api/v1/rounds?golferId={golferId}");
 
             return response?.Data ?? new List<RoundResponse>();
         }
@@ -55,7 +55,7 @@ public class RoundService : IRoundService
         try
         {
             var response = await _httpClient.PostAsJsonAsync(
-                $"api/v1/leagues/{leagueId}/rounds",
+                "api/v1/rounds",
                 request);
 
             return await response.Content.ReadFromJsonAsync<ApiResponse<RoundResponse>>()
@@ -73,7 +73,7 @@ public class RoundService : IRoundService
         try
         {
             var response = await _httpClient.PutAsJsonAsync(
-                $"api/v1/leagues/{leagueId}/rounds/{roundId}",
+                $"api/v1/rounds/{roundId}",
                 request);
 
             return await response.Content.ReadFromJsonAsync<ApiResponse<RoundResponse>>()
@@ -91,7 +91,7 @@ public class RoundService : IRoundService
         try
         {
             var response = await _httpClient.DeleteAsync(
-                $"api/v1/leagues/{leagueId}/rounds/{roundId}");
+                $"api/v1/rounds/{roundId}");
 
             if (response.IsSuccessStatusCode)
             {
@@ -112,7 +112,7 @@ public class RoundService : IRoundService
         try
         {
             var response = await _httpClient.PostAsJsonAsync(
-                $"api/v1/leagues/{leagueId}/rounds/{roundId}/holes",
+                $"api/v1/rounds/{roundId}/holes",
                 request);
 
             return await response.Content.ReadFromJsonAsync<ApiResponse<RoundResponse>>()

@@ -23,7 +23,7 @@ public class EventService : IEventService
         try
         {
             var response = await _httpClient.GetFromJsonAsync<ApiResponse<List<EventResponse>>>(
-                $"api/v1/leagues/{leagueId}/seasons/{seasonId}/events");
+                $"api/v1/seasons/{seasonId}/events");
             return response;
         }
         catch (Exception ex)
@@ -38,7 +38,7 @@ public class EventService : IEventService
         try
         {
             var response = await _httpClient.GetFromJsonAsync<ApiResponse<EventResponse>>(
-                $"api/v1/leagues/{leagueId}/seasons/{seasonId}/events/{eventId}");
+                $"api/v1/seasons/{seasonId}/events/{eventId}");
             return response;
         }
         catch (Exception ex)
@@ -53,8 +53,8 @@ public class EventService : IEventService
         try
         {
             var response = await _httpClient.PostAsJsonAsync(
-                $"api/v1/leagues/{leagueId}/seasons/{seasonId}/events", request);
-            
+                $"api/v1/seasons/{seasonId}/events", request);
+
             if (response.IsSuccessStatusCode)
             {
                 return await response.Content.ReadFromJsonAsync<ApiResponse<EventResponse>>();
@@ -75,8 +75,8 @@ public class EventService : IEventService
         try
         {
             var response = await _httpClient.PutAsJsonAsync(
-                $"api/v1/leagues/{leagueId}/seasons/{seasonId}/events/{eventId}", request);
-            
+                $"api/v1/seasons/{seasonId}/events/{eventId}", request);
+
             if (response.IsSuccessStatusCode)
             {
                 return await response.Content.ReadFromJsonAsync<ApiResponse<EventResponse>>();
@@ -97,8 +97,8 @@ public class EventService : IEventService
         try
         {
             var response = await _httpClient.DeleteAsync(
-                $"api/v1/leagues/{leagueId}/seasons/{seasonId}/events/{eventId}");
-            
+                $"api/v1/seasons/{seasonId}/events/{eventId}");
+
             if (response.IsSuccessStatusCode)
             {
                 return await response.Content.ReadFromJsonAsync<ApiResponse<bool>>();
