@@ -144,6 +144,49 @@ public class AuthService : IAuthService
         };
     }
 
+    public async Task<AuthResponse?> GetAuthResponseForUserAsync(string userId, CancellationToken cancellationToken = default)
+    {
+        var user = await _context.Users
+            .Include(u => u.UserLeagues)
+            .FirstOrDefaultAsync(u => u.Id == userId && u.IsActive, cancellationToken);
+
+        if (user == null)
+        {
+            return null;
+        }
+
+        var leagueIds = user.UserLeagues
+            .Where(ul => ul.IsActive)
+            .Select(ul => ul.LeagueId)
+            .ToList();
+
+        var leagueMappings = await _context.UserLeagues
+            .Where(ul => ul.UserId == user.Id && ul.IsActive)
+            .Include(ul => ul.League)
+            .Select(ul => new LeagueMappingResponse
+            {
+                LeagueId = ul.LeagueId,
+                LeagueKey = ul.League.Key,
+                LeagueName = ul.League.Name,
+                CustomDomain = ul.League.CustomDomain,
+                IsLeagueAdmin = ul.IsLeagueAdmin,
+                Role = ul.Role
+            })
+            .ToListAsync(cancellationToken);
+
+        return new AuthResponse
+        {
+            UserId = user.Id,
+            Email = user.Email,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            IsGlobalAdmin = user.IsGlobalAdmin,
+            AccessToken = _jwtTokenService.GenerateAccessToken(user, leagueIds),
+            ExpiresAt = DateTime.UtcNow.AddMinutes(60),
+            LeagueMappings = leagueMappings
+        };
+    }
+
     public async Task<AuthResponse?> RefreshTokenAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
         Console.WriteLine($"[AuthService.RefreshTokenAsync] Looking up refresh token in database...");

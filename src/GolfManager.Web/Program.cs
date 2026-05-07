@@ -34,8 +34,8 @@ builder.Services.AddScoped(sp =>
     var leagueContextHandler = sp.GetRequiredService<LeagueContextHandler>();
     leagueContextHandler.InnerHandler = new HttpClientHandler();
 
-    // Create auth handler (adds Authorization header)
-    var authHandler = new AuthenticatedHttpClientHandler(() => sp.GetRequiredService<IAuthService>())
+    // Create auth handler (includes local auth cookie)
+    var authHandler = new AuthenticatedHttpClientHandler
     {
         InnerHandler = leagueContextHandler // Chain handlers
     };

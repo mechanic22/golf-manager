@@ -1,4 +1,6 @@
 using System.Text;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using GolfManager.Api.Authorization;
 using GolfManager.Api.Authorization.Handlers;
 using GolfManager.Api.Authorization.Requirements;
@@ -34,11 +36,14 @@ builder.Services.AddOpenApi();
 // Add CORS
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("AllowAll", policy =>
+    options.AddPolicy("WebClient", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins(
+                "https://localhost:7213",
+                "http://localhost:5081")
               .AllowAnyMethod()
-              .AllowAnyHeader();
+              .AllowAnyHeader()
+              .AllowCredentials();
     });
 });
 
@@ -126,15 +131,52 @@ builder.Services.AddScoped<ITeamRegistrationService, TeamRegistrationService>();
 builder.Services.AddScoped<IAuthorizationHandler, LeagueMemberHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, LeagueAdminHandler>();
 
-// Configure JWT authentication
+// Configure authentication. Browser requests use the local auth cookie; API/tooling
+// requests can continue to send bearer JWTs.
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"] ?? throw new InvalidOperationException("JWT SecretKey not configured");
 var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "GolfManager";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "GolfManager";
+const string SmartAuthScheme = "SmartAuth";
+const string LocalCookieScheme = "GolfManager.LocalCookie";
 
 builder.Services.AddAuthentication(options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme = SmartAuthScheme;
+    options.DefaultChallengeScheme = SmartAuthScheme;
+    options.DefaultSignInScheme = LocalCookieScheme;
+})
+.AddPolicyScheme(SmartAuthScheme, "Cookie or Bearer", options =>
+{
+    options.ForwardDefaultSelector = context =>
+    {
+        var authHeader = context.Request.Headers.Authorization.ToString();
+        return authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
+            ? JwtBearerDefaults.AuthenticationScheme
+            : LocalCookieScheme;
+    };
+})
+.AddCookie(LocalCookieScheme, options =>
+{
+    options.Cookie.Name = "GolfManagerAuth";
+    options.Cookie.HttpOnly = true;
+    options.Cookie.SameSite = SameSiteMode.Lax;
+    options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+    options.SlidingExpiration = true;
+    options.ExpireTimeSpan = TimeSpan.FromDays(14);
+
+    options.Events = new CookieAuthenticationEvents
+    {
+        OnRedirectToLogin = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            return Task.CompletedTask;
+        },
+        OnRedirectToAccessDenied = context =>
+        {
+            context.Response.StatusCode = StatusCodes.Status403Forbidden;
+            return Task.CompletedTask;
+        }
+    };
 })
 .AddJwtBearer(options =>
 {
@@ -264,7 +306,7 @@ app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 app.UseHttpsRedirection();
 
 // Add CORS
-app.UseCors("AllowAll");
+app.UseCors("WebClient");
 
 // Add authentication middleware
 app.UseAuthentication();

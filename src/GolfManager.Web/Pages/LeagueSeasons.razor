@@ -8,6 +8,7 @@
 @inject IAuthorizationService AuthorizationService
 @inject ILeagueService LeagueService
 @inject ISeasonService SeasonService
+@inject AppState AppState
 @inject NavigationManager Navigation
 @inject ILogger<LeagueSeasons> Logger
 
@@ -215,6 +216,8 @@ else
         // Initialize authorization service
         await AuthorizationService.InitializeAsync();
 
+        AppState.SetCurrentLeague(LeagueKey);
+
         await LoadLeague();
         await LoadSeasons();
     }
@@ -372,4 +375,3 @@ else
         Navigation.NavigateTo(route);
     }
 }
-

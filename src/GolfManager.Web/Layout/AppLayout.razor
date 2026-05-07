@@ -88,20 +88,20 @@
                                   Alignment="MaterialDropAlignment.End"
                                   class="w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-2">
                         <div class="px-4 py-2 border-b border-gray-200">
-                            <p class="text-sm font-semibold text-gray-900">@AuthService.UserEmail</p>
-                            <p class="text-xs text-gray-600">@GetUserRole()</p>
+                            <p class="text-sm font-semibold text-gray-900 mb-1">@AuthService.UserEmail</p>
+                            <p class="text-xs text-gray-600 mb-1">@GetUserRole()</p>
                         </div>
 
                         <a href="/profile" @onclick="() => showUserMenu = false" class="md-menu-item flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
                             <Icon Path="@GolfIcons.Person" Size="GolfManager.Web.Components.Icons.IconSize.SM" />
-                            <span>My Profile</span>
+                            <span class="text-sm">My Profile</span>
                         </a>
 
                         @if (AuthorizationService.IsGlobalAdmin())
                         {
                             <a href="/admin" @onclick="() => showUserMenu = false" class="md-menu-item flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition-colors">
                                 <Icon Path="@GolfIcons.Settings" Size="GolfManager.Web.Components.Icons.IconSize.SM" />
-                                <span>Admin Dashboard</span>
+                                <span class="text-sm">Admin Dashboard</span>
                             </a>
                         }
 
@@ -109,7 +109,7 @@
 
                         <button @onclick="HandleLogout" class="md-menu-item flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">
                             <Icon Path="@GolfIcons.Logout" Size="GolfManager.Web.Components.Icons.IconSize.SM" />
-                            <span>Logout</span>
+                            <span class="text-sm">Logout</span>
                         </button>
                     </MaterialDrop>
                 </div>

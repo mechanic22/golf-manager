@@ -1,5 +1,8 @@
+using System.Security.Claims;
+using GolfManager.Api.Authorization;
 using GolfManager.Services.Auth;
 using GolfManager.Shared.DTOs.Auth;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,6 +12,7 @@ namespace GolfManager.Api.Controllers;
 [Route("api/v1/[controller]")]
 public class AuthController : ControllerBase
 {
+    private const string LocalCookieScheme = "GolfManager.LocalCookie";
     private readonly IAuthService _authService;
     private readonly ILogger<AuthController> _logger;
 
@@ -33,7 +37,8 @@ public class AuthController : ControllerBase
         }
 
         _logger.LogInformation("User registered successfully: {Email}", request.Email);
-        return Ok(result);
+        await SignInLocalUserAsync(result);
+        return Ok(RemoveClientVisibleTokens(result));
     }
 
     /// <summary>
@@ -51,7 +56,25 @@ public class AuthController : ControllerBase
         }
 
         _logger.LogInformation("User logged in successfully: {Email}", request.Email);
-        return Ok(result);
+        await SignInLocalUserAsync(result);
+        return Ok(RemoveClientVisibleTokens(result));
+    }
+
+    /// <summary>
+    /// Return the current local cookie-authenticated user.
+    /// </summary>
+    [HttpGet("me")]
+    [Authorize]
+    public async Task<ActionResult<AuthResponse>> Me()
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized();
+        }
+
+        var result = await _authService.GetAuthResponseForUserAsync(userId);
+        return result == null ? Unauthorized() : Ok(RemoveClientVisibleTokens(result));
     }
 
     /// <summary>
@@ -89,14 +112,14 @@ public class AuthController : ControllerBase
     /// </summary>
     [HttpPost("logout")]
     [Authorize]
-    public async Task<ActionResult> Logout([FromBody] RefreshTokenRequest request)
+    public async Task<ActionResult> Logout([FromBody] RefreshTokenRequest? request)
     {
-        var result = await _authService.RevokeRefreshTokenAsync(request.RefreshToken);
-
-        if (!result)
+        if (!string.IsNullOrEmpty(request?.RefreshToken))
         {
-            return BadRequest(new { message = "Invalid refresh token" });
+            await _authService.RevokeRefreshTokenAsync(request.RefreshToken);
         }
+
+        await HttpContext.SignOutAsync(LocalCookieScheme);
 
         _logger.LogInformation("User logged out successfully");
         return Ok(new { message = "Logged out successfully" });
@@ -126,5 +149,39 @@ public class AuthController : ControllerBase
         _logger.LogInformation("All tokens revoked for user: {UserId}", userId);
         return Ok(new { message = "All tokens revoked successfully" });
     }
-}
 
+    private async Task SignInLocalUserAsync(AuthResponse authResponse)
+    {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, authResponse.UserId),
+            new(ClaimTypes.Email, authResponse.Email),
+            new(ClaimTypes.GivenName, authResponse.FirstName),
+            new(ClaimTypes.Surname, authResponse.LastName),
+            new(AuthorizationConstants.Claims.IsGlobalAdmin, authResponse.IsGlobalAdmin.ToString().ToLowerInvariant())
+        };
+
+        foreach (var mapping in authResponse.LeagueMappings)
+        {
+            claims.Add(new Claim(AuthorizationConstants.Claims.LeagueId, mapping.LeagueId));
+        }
+
+        var identity = new ClaimsIdentity(claims, LocalCookieScheme);
+        var principal = new ClaimsPrincipal(identity);
+        var properties = new AuthenticationProperties
+        {
+            IsPersistent = true,
+            ExpiresUtc = DateTimeOffset.UtcNow.AddDays(14),
+            AllowRefresh = true
+        };
+
+        await HttpContext.SignInAsync(LocalCookieScheme, principal, properties);
+    }
+
+    private static AuthResponse RemoveClientVisibleTokens(AuthResponse authResponse)
+    {
+        authResponse.AccessToken = string.Empty;
+        authResponse.RefreshToken = string.Empty;
+        return authResponse;
+    }
+}

@@ -11,6 +11,7 @@
 @inject IAuthorizationService AuthorizationService
 @inject ILeagueService LeagueService
 @inject ISeasonService SeasonService
+@inject AppState AppState
 @inject NavigationManager Navigation
 @inject ILogger<LeagueDetail> Logger
 
@@ -74,7 +75,8 @@ else
     <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8">
         <MaterialTabs @bind-ActiveTab="activeTab"
                       Tabs="@GetNavigationTabs()"
-                      ShowContent="false" />
+                      ShowContent="false"
+                      OnTabChange="HandleTabChange" />
     </div>
 
     <div class="mt-8">
@@ -92,7 +94,8 @@ else
         <div style="display: @(activeTab == "seasons" ? "block" : "none")">
             @if (hasLoadedSeasons && league != null)
             {
-                <SeasonsTab League="@league"
+                <SeasonsTab @key="seasonsTabVersion"
+                           League="@league"
                            LeagueKey="@LeagueKey"
                            OnCreateSeason="ShowAddSeasonModal" />
             }
@@ -280,6 +283,7 @@ else
     private bool hasLoadedSeasons = false;
     private bool hasLoadedMembers = false;
     private bool hasLoadedSettings = false;
+    private int seasonsTabVersion = 0;
 
     // Add member modal
     private bool showAddMemberModal = false;
@@ -318,6 +322,8 @@ else
 
         // Initialize authorization service
         await AuthorizationService.InitializeAsync();
+
+        AppState.SetCurrentLeague(LeagueKey);
 
         await LoadLeague();
 
@@ -420,8 +426,7 @@ else
 
     private async Task LoadSeasons()
     {
-        // Force seasons tab to reload
-        hasLoadedSeasons = false;
+        seasonsTabVersion++;
         hasLoadedSeasons = true;
         StateHasChanged();
         await Task.CompletedTask;
