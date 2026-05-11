@@ -1,7 +1,5 @@
-﻿@page "/"
+@page "/"
 @using GolfManager.Web.Components.Icons
-@inject NavigationManager Navigation
-@inject IAuthService AuthService
 
 <PageTitle>Pinzo - Professional Golf League Management</PageTitle>
 
@@ -16,7 +14,7 @@
                     <span class="font-semibold">With Confidence</span>
                 </h1>
                 <p class="text-base md:text-lg lg:text-xl mb-8 md:mb-10 opacity-95 leading-relaxed font-light">
-                    A modern platform designed for golf league organizers. Track scores, manage seasons, calculate handicaps, and build your community—all in one place.
+                    A modern platform designed for golf league organizers. Track scores, manage seasons, calculate handicaps, and build your community all in one place.
                 </p>
                 <div class="flex flex-col sm:flex-row gap-3 md:gap-4">
                     @if (!AuthService.IsAuthenticated)
@@ -91,8 +89,8 @@
                     <div class="w-16 h-16 bg-primary-50 rounded-full flex items-center justify-center mx-auto mb-4 md:mb-6 text-primary-600">
                         <Icon Path="@GolfIcons.GolfFlag" Size="GolfManager.Web.Components.Icons.IconSize.MD" />
                     </div>
-                    <h3 class="text-lg md:text-xl font-semibold text-primary-700 mb-3 tracking-wide">Secure & Private</h3>
-                    <p class="text-gray-600 leading-relaxed text-sm md:text-base">Your data is secure with multi-tenant isolation and enterprise-grade authentication.</p>
+                    <h3 class="text-lg md:text-xl font-semibold text-primary-700 mb-3 tracking-wide">League Identity</h3>
+                    <p class="text-gray-600 leading-relaxed text-sm md:text-base">Make each tenant feel unique with league branding, tone, and member-focused messaging.</p>
                 </div>
             </div>
         </div>
@@ -113,20 +111,3 @@
         </div>
     </section>
 </div>
-
-@code {
-    private void NavigateToRegister()
-    {
-        Navigation.NavigateTo("/register");
-    }
-
-    private void NavigateToLogin()
-    {
-        Navigation.NavigateTo("/login");
-    }
-
-    private void NavigateToDashboard()
-    {
-        Navigation.NavigateTo("/dashboard");
-    }
-}

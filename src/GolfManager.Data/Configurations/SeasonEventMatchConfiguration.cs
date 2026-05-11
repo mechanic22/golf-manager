@@ -36,6 +36,12 @@ public class SeasonEventMatchConfiguration : IEntityTypeConfiguration<SeasonEven
         builder.Property(x => x.AwayTeamId)
             .HasMaxLength(50);
 
+        builder.Property(x => x.HomeSubSeasonGolferId)
+            .HasMaxLength(50);
+
+        builder.Property(x => x.AwaySubSeasonGolferId)
+            .HasMaxLength(50);
+
         builder.Property(x => x.IsComplete)
             .IsRequired()
             .HasDefaultValue(false);

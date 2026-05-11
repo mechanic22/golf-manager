@@ -21,7 +21,12 @@ public interface ILeagueService
     /// <summary>
     /// Get a league by its key
     /// </summary>
-    Task<ApiResponse<LeagueResponse>?> GetLeagueByKeyAsync(string key);
+    Task<ApiResponse<LeagueResponse>?> GetLeagueByKeyAsync(string key, string? anonymousAccessPassword = null);
+
+    /// <summary>
+    /// Verify anonymous/public access password for a league.
+    /// </summary>
+    Task<ApiResponse<bool>?> VerifyAnonymousAccessAsync(string key, string password);
 
     /// <summary>
     /// Update a league

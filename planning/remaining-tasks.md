@@ -6,11 +6,20 @@ Based on a thorough analysis of the golf-manager project (including code, docume
 - **Strengths**: Multi-tenant architecture, authentication, core API controllers, database schema, integration tests, and comprehensive planning docs are complete or near-complete.
 - **Progress by Phase**:
   - Phase 1 (Foundation): ~75% complete ✅
-  - Phase 2 (League & Season Management): ~70% complete ⏳ (custom domain verification completed)
+   - Phase 2 (League & Season Management): ~80% complete ⏳ (custom domain verification + multitenancy auth hardening completed)
   - Phase 3 (Player & Scoring): ~30% complete ⏳
   - Phases 4-7 (Course Management, Real-time, Advanced Features, Clients): 0-15% complete 🚫
-- **Key Gaps**: Real-time updates (SignalR), background job processing, handicap calculations, payment integration, and mobile app are not started or partial.
-- **Recent Completions**: ✅ Custom domain verification system (backend validation, frontend UI, middleware resolution, authorization controls)
+- **Key Gaps**: Real-time updates (SignalR), background job processing, full handicap algorithms, payment integration, mobile app, and importer hardening/validation are not started or partial.
+- **Recent Completions**:
+   - ✅ Custom domain verification system (backend validation, frontend UI, middleware resolution, authorization controls)
+   - ✅ HolyGrail importer expanded to include rounds, round holes, scorecard creation, and tee/hole schema compatibility updates
+   - ✅ Import verification reporting (`LogImportSummary` — logs per-entity counts and post-import DB row counts)
+   - ✅ Course CRUD API — `ICourseService`/`CourseService` + `CoursesController` with full CRUD, tee management, `?includeTees` and `?includeHoles` query params, key-based lookup
+   - ✅ Handicap calculation algorithms — `CalculateHandicapAsync` added to `IHandicapService`/`HandicapService` with WHS (best-N differentials × 0.96), Bob's League (avg-over-par × 0.80), and Scratch methods; `POST /api/v1/golfers/{id}/handicap/calculate` endpoint added
+   - ✅ Multitenancy/auth flow hardening — auth endpoints bypass tenant-context enforcement (`/api/v1/auth/*`) to prevent stale context blocking login/session flows
+   - ✅ Tenant access-denied UX — dedicated `/access-denied` page added; league and season pages route forbidden (`403`) responses to explicit tenant-denied messaging
+   - ✅ Season-scoped deny routing — season paths now prefer `scope=season` with `leagueKey` + `seasonKey` in access-denied redirects for accurate user context
+   - ✅ Live verification rerun — authenticated/anonymous redirects and cross-tenant deny flows revalidated in browser
 
 ## Immediate Tasks (Next 1-2 Weeks)
 These are critical fixes and completions to stabilize the current foundation:
@@ -18,6 +27,7 @@ These are critical fixes and completions to stabilize the current foundation:
 1. **Fix Code TODOs**:
    - ✅ Update `Dashboard.razor` to load and display upcoming events from the API.
    - ✅ Implement audit trail in `GolfManagerDbContext.cs` to populate `CreatedBy`/`UpdatedBy` from current user context.
+   - ✅ Import verification reporting — post-import summary + DB row-count spot-check added to `HolyGrailImporter`.
 
 2. **Complete Phase 2 (League Management)**:
    - ✅ ~~Finish custom domain verification endpoints~~ (COMPLETED)
@@ -29,6 +39,7 @@ These are critical fixes and completions to stabilize the current foundation:
 3. **Enhance Testing**:
    - Add unit tests for service layers (e.g., HandicapService, EventService).
    - Expand integration tests for handicap calculations and multi-tenant isolation.
+   - Add regression tests for tenant-forbidden routing behavior (league scope vs season scope) and auth endpoint tenant-context bypass.
 
 4. **Documentation Updates**:
    - Complete OpenAPI/Swagger docs with response examples.
@@ -38,13 +49,13 @@ These are critical fixes and completions to stabilize the current foundation:
 Focus on core functionality to make the platform usable for basic league operations:
 
 1. **Complete Phase 3 (Player & Scoring)**:
-   - Finish handicap calculation service (currently basic; add full algorithms).
+   - ✅ Handicap calculation service — WHS, Bob's League, and Scratch algorithms implemented.
    - Implement background job queue (e.g., Hangfire) for async handicap recalculations.
    - Complete match play and team scoring logic.
 
 2. **Phase 4 (Course Management)**:
-   - Build Course CRUD endpoints.
-   - Add course rating data management.
+   - ✅ Course CRUD endpoints built (`GET`, `POST`, `PUT`, `DELETE /api/v1/courses`, tee sub-resources, key-based lookup).
+   - Add course rating data management (bulk hole-tee import/update UI).
 
 3. **One-Time Events System**:
    - Complete public event discovery pages.
@@ -81,7 +92,7 @@ Future enhancements for full platform maturity:
 2. **Additional Modules**:
    - Financial management (subscriptions, pay-per-event).
    - GPS features (hole detection, distance to green).
-   - Data migration tools from HolyGrail v1.
+   - HolyGrail v1 migration hardening (idempotency, edge-case mapping, and post-import validation reports).
    - Email/SMS notifications and image storage.
 
 3. **Scalability & Integrations**:
@@ -95,5 +106,4 @@ Future enhancements for full platform maturity:
 - **Team Size**: This roadmap assumes 1-2 developers; adjust timelines accordingly.
 - **Next Steps**: Start with immediate tasks, then tackle Phase 3. Reassess progress after each phase.
 
-This plan aligns with the project's 7-phase roadmap in the planning docs.</content>
-<parameter name="filePath">/Users/tonygilbert/Projects/code/5thbox/dkgolf/golf-manager/planning/remaining-tasks.md
+This plan aligns with the project's 7-phase roadmap in the planning docs.

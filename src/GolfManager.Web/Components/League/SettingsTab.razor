@@ -2,7 +2,6 @@
 @using GolfManager.Web.Services
 @using MaterialComponents.Models
 @inject ILeagueService LeagueService
-@inject IAuthorizationService AuthorizationService
 @inject ILogger<SettingsTab> Logger
 
 <div class="mb-6">
@@ -188,6 +187,9 @@ else
     [Parameter]
     public EventCallback OnLeagueUpdated { get; set; }
 
+    [Parameter]
+    public bool CanEdit { get; set; }
+
     private bool canEdit = false;
     private bool isEditing = false;
     private bool isSaving = false;
@@ -201,7 +203,7 @@ else
 
     protected override void OnInitialized()
     {
-        canEdit = AuthorizationService.CanManageLeague(League.Id);
+        canEdit = CanEdit;
     }
 
     private void StartEdit()

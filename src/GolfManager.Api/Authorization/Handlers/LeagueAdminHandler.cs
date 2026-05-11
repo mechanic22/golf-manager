@@ -46,11 +46,11 @@ public class LeagueAdminHandler : AuthorizationHandler<LeagueAdminRequirement>
             return;
         }
 
-        // Get league ID from route
-        var leagueId = GetLeagueIdFromRoute();
+        // Resolve league ID from route values or middleware-populated context items.
+        var leagueId = await GetLeagueIdForAuthorizationAsync();
         if (string.IsNullOrEmpty(leagueId))
         {
-            _logger.LogWarning("League ID not found in route");
+            _logger.LogWarning("League ID not found in route or context items");
             return;
         }
 
@@ -67,7 +67,7 @@ public class LeagueAdminHandler : AuthorizationHandler<LeagueAdminRequirement>
         }
     }
 
-    private string? GetLeagueIdFromRoute()
+    private async Task<string?> GetLeagueIdForAuthorizationAsync()
     {
         var httpContext = _httpContextAccessor.HttpContext;
         if (httpContext == null)
@@ -81,10 +81,20 @@ public class LeagueAdminHandler : AuthorizationHandler<LeagueAdminRequirement>
             return leagueIdObj?.ToString();
         }
 
-        // Try to get leagueKey from route values
+        // Try to get middleware-resolved league ID from request context items.
+        if (httpContext.Items.TryGetValue("LeagueId", out var leagueIdItem))
+        {
+            return leagueIdItem as string;
+        }
+
+        // Try to get leagueKey from route values and convert to ID
         if (httpContext.Request.RouteValues.TryGetValue(AuthorizationConstants.RouteParams.LeagueKey, out var leagueKeyObj))
         {
-            return leagueKeyObj?.ToString();
+            var leagueKey = leagueKeyObj?.ToString();
+            if (!string.IsNullOrEmpty(leagueKey))
+            {
+                return await _leagueAuthService.GetLeagueIdByKeyAsync(leagueKey);
+            }
         }
 
         return null;

@@ -221,6 +221,67 @@ public class PlayerService : IPlayerService
         return MapToResponse(result);
     }
 
+    public async Task<PlayerResponse> AddPlayerToSeasonAsync(string seasonId, string leagueId, CreatePlayerRequest request, string userId)
+    {
+        var season = await _context.Seasons
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(s => s.Id == seasonId && s.LeagueId == leagueId);
+
+        if (season == null)
+        {
+            throw new KeyNotFoundException($"Season with ID {seasonId} not found");
+        }
+
+        if (season.IsLocked)
+        {
+            throw new InvalidOperationException("Cannot add players to a locked season");
+        }
+
+        var leaguePlayer = await AddPlayerToLeagueAsync(leagueId, request);
+
+        var existingSeasonGolfer = await _context.SeasonGolfers
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(sg =>
+                sg.SeasonId == seasonId
+                && sg.LeagueId == leagueId
+                && sg.LeagueGolferId == leaguePlayer.Id);
+
+        if (existingSeasonGolfer == null)
+        {
+            var seasonGolfer = new SeasonGolfer
+            {
+                Id = _shortIdService.GenerateId(),
+                SeasonId = seasonId,
+                LeagueId = leagueId,
+                LeagueGolferId = leaguePlayer.Id,
+                GolferId = leaguePlayer.GolferId,
+                SeasonHandicap = leaguePlayer.LeagueHandicap,
+                JoinedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = userId,
+                IsActive = true
+            };
+
+            _context.SeasonGolfers.Add(seasonGolfer);
+        }
+        else if (!existingSeasonGolfer.IsActive)
+        {
+            existingSeasonGolfer.IsActive = true;
+            existingSeasonGolfer.UpdatedAt = DateTime.UtcNow;
+            existingSeasonGolfer.UpdatedBy = userId;
+        }
+
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation(
+            "Added player {PlayerId} to season {SeasonId} in league {LeagueId}",
+            leaguePlayer.Id,
+            seasonId,
+            leagueId);
+
+        return leaguePlayer;
+    }
+
     public async Task<PlayerResponse> UpdatePlayerAsync(string leagueId, string playerId, UpdatePlayerRequest request)
     {
         // Use IgnoreQueryFilters() because we're explicitly filtering by leagueId
@@ -288,18 +349,25 @@ public class PlayerService : IPlayerService
 
     public async Task<List<PlayerResponse>> GetSeasonPlayersAsync(string seasonId, string leagueId)
     {
-        // Get all LeagueGolfers who have a SeasonGolfer record for this season
+        // Get all SeasonGolfer records for this season, with their LeagueGolfer/Golfer/User navigation
         var seasonPlayers = await _context.SeasonGolfers
             .IgnoreQueryFilters()
             .Include(sg => sg.LeagueGolfer)
                 .ThenInclude(lg => lg.Golfer)
                     .ThenInclude(g => g.User)
             .Where(sg => sg.SeasonId == seasonId && sg.LeagueId == leagueId)
-            .Select(sg => sg.LeagueGolfer)
-            .OrderBy(lg => lg.DisplayName)
+            .OrderBy(sg => sg.LeagueGolfer.DisplayName)
             .ToListAsync();
 
-        return seasonPlayers.Select(MapToResponse).ToList();
+        return seasonPlayers.Select(sg =>
+        {
+            var r = MapToResponse(sg.LeagueGolfer);
+            r.SeasonGolferId = sg.Id;
+            r.TeamId = sg.TeamId;
+            r.IsPaidForSeason = sg.IsPaidForSeason;
+            r.PaidAt = sg.PaidAt;
+            return r;
+        }).ToList();
     }
 
     private static PlayerResponse MapToResponse(LeagueGolfer leagueGolfer)

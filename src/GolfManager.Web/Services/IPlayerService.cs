@@ -24,9 +24,14 @@ public interface IPlayerService
     Task<ApiResponse<PlayerResponse>?> AddPlayerToLeagueAsync(string leagueId, CreatePlayerRequest request);
 
     /// <summary>
+    /// Add a player to a season (and league membership if needed)
+    /// </summary>
+    Task<ApiResponse<PlayerResponse>?> AddPlayerToSeasonAsync(string leagueId, string seasonId, CreatePlayerRequest request);
+
+    /// <summary>
     /// Update a player's league profile
     /// </summary>
-    Task<ApiResponse<PlayerResponse>?> UpdatePlayerAsync(string leagueId, string playerId, UpdatePlayerRequest request);
+    Task<ApiResponse<PlayerResponse>?> UpdatePlayerAsync(string leagueId, string playerId, GolfManager.Shared.DTOs.Player.UpdatePlayerRequest request);
 
     /// <summary>
     /// Remove a player from a league

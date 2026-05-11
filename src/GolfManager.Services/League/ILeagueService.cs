@@ -20,7 +20,12 @@ public interface ILeagueService
     /// <summary>
     /// Get a specific league by key
     /// </summary>
-    Task<LeagueResponse?> GetLeagueByKeyAsync(string leagueKey, string? userId = null);
+    Task<LeagueResponse?> GetLeagueByKeyAsync(string leagueKey, string? userId = null, string? anonymousAccessPassword = null);
+
+    /// <summary>
+    /// Verify whether a supplied anonymous/public password grants access for a league key.
+    /// </summary>
+    Task<bool> VerifyAnonymousAccessAsync(string leagueKey, string password);
 
     /// <summary>
     /// Create a new league

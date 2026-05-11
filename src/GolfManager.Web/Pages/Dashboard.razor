@@ -3,22 +3,32 @@
 @using GolfManager.Web.Services
 @using GolfManager.Web.Components.Dashboard
 @using GolfManager.Shared.DTOs.User
-@inject IAuthService AuthService
-@inject ILeagueService LeagueService
-@inject IOneTimeEventService EventService
-@inject IUserService UserService
-@inject NavigationManager Navigation
-@inject ILogger<Dashboard> Logger
 
 <PageTitle>Dashboard - Pinzo</PageTitle>
 
 <!-- Header -->
 <div class="mb-8">
     <h1 class="text-3xl font-bold text-gray-900 mb-2">
-        Welcome back, @GetFirstName()
+        @GetWelcomeHeadline()
     </h1>
-    <p class="text-gray-600">Here's what's happening in your golf leagues</p>
+    <p class="text-gray-600">@GetWelcomeSubhead()</p>
 </div>
+
+@if (HasFeaturedAnnouncement())
+{
+    <div class="mb-8 rounded-xl border border-amber-200 bg-amber-50 px-5 py-4">
+        <div class="flex items-start gap-3">
+            <MaterialIcon Icon="MaterialIcons.Campaign" Class="text-amber-700 mt-1" />
+            <div>
+                <h2 class="text-lg font-semibold text-amber-900">@GetAnnouncementTitle()</h2>
+                @if (!string.IsNullOrWhiteSpace(featuredLeague?.AnnouncementBody))
+                {
+                    <p class="mt-1 text-sm text-amber-900/90 whitespace-pre-line">@featuredLeague!.AnnouncementBody</p>
+                }
+            </div>
+        </div>
+    </div>
+}
 
 <!-- Content -->
 @if (isLoading)
@@ -51,7 +61,7 @@ else
             <MaterialCard Variant="MaterialCardVariant.Outlined">
                 <div class="md-card__content text-center py-12">
                     <MaterialIcon Icon="MaterialIcons.EventBusy" Class="text-gray-400 text-4xl mb-3" />
-                    <p class="text-gray-600">No upcoming events. Create one to get started!</p>
+                    <p class="text-gray-600">@GetUpcomingEventsEmptyMessage()</p>
                 </div>
             </MaterialCard>
         }
@@ -172,160 +182,3 @@ else
 <CreateEventDialog IsOpen="showCreateEventModal"
                    IsOpenChanged="@((value) => showCreateEventModal = value)"
                    OnEventCreated="@HandleEventCreated" />
-
-@code {
-    private List<LeagueResponse>? leagues;
-    private List<OneTimeEventListResponse>? myEvents;
-    private UserProfileResponse? currentUser;
-    private bool isLoading = true;
-    private bool isLoadingEvents = true;
-    private bool showCreateModal = false;
-    private bool showCreateEventModal = false;
-
-    protected override async Task OnInitializedAsync()
-    {
-        // Check if user is authenticated
-        if (!AuthService.IsAuthenticated)
-        {
-            Navigation.NavigateTo("/login");
-            return;
-        }
-
-        await LoadUserProfile();
-        await LoadLeagues();
-        await LoadEvents();
-    }
-
-    private async Task LoadUserProfile()
-    {
-        try
-        {
-            var result = await UserService.GetCurrentUserAsync();
-            currentUser = (result != null && result.Success && result.Data != null)
-                ? result.Data
-                : null;
-
-            Logger.LogInformation("Loaded user profile: IsGolfer={IsGolfer}, GolferId={GolferId}",
-                currentUser?.IsGolfer, currentUser?.GolferId);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error loading user profile");
-            currentUser = null;
-        }
-    }
-
-    private async Task LoadLeagues()
-    {
-        isLoading = true;
-        try
-        {
-            // Load leagues from API
-            var result = await LeagueService.GetUserLeaguesAsync();
-            leagues = (result != null && result.Success && result.Data != null)
-                ? result.Data
-                : new List<LeagueResponse>();
-
-            Logger.LogInformation("Loaded {Count} leagues from API", leagues.Count);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error loading leagues from API");
-            Console.WriteLine($"Error loading leagues: {ex.Message}");
-            leagues = new List<LeagueResponse>();
-        }
-        finally
-        {
-            isLoading = false;
-        }
-    }
-
-    private void ShowCreateLeagueModal()
-    {
-        showCreateModal = true;
-    }
-
-    private async Task HandleLeagueCreated(LeagueResponse league)
-    {
-        Logger.LogInformation("League created successfully: {LeagueId}", league.Id);
-        await LoadLeagues(); // Reload the leagues list
-    }
-
-    private void NavigateToLeague(string key)
-    {
-        Navigation.NavigateTo($"/league/{key}");
-    }
-
-    private async Task LoadEvents()
-    {
-        isLoadingEvents = true;
-        try
-        {
-            if (currentUser != null)
-            {
-                var result = await EventService.GetEventsAsync(upcomingOnly: true, organizerId: currentUser.Id);
-                if (result != null && result.Success && result.Data != null)
-                {
-                    myEvents = result.Data;
-                    Logger.LogInformation("Loaded {Count} upcoming events for user {UserId}", myEvents.Count, currentUser.Id);
-                }
-                else
-                {
-                    myEvents = new List<OneTimeEventListResponse>();
-                    Logger.LogWarning("Failed to load events: {Message}", result?.Message ?? "Unknown error");
-                }
-            }
-            else
-            {
-                myEvents = new List<OneTimeEventListResponse>();
-                Logger.LogWarning("Cannot load events: current user is null");
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error loading events");
-            myEvents = new List<OneTimeEventListResponse>();
-        }
-        finally
-        {
-            isLoadingEvents = false;
-        }
-    }
-
-    private void ShowCreateEventModal()
-    {
-        showCreateEventModal = true;
-    }
-
-    private async Task HandleEventCreated(OneTimeEventResponse eventResponse)
-    {
-        Logger.LogInformation("Event created successfully: {EventId}", eventResponse.Id);
-        // Navigate to the new event
-        Navigation.NavigateTo($"/event/{eventResponse.Key}");
-    }
-
-    private MaterialChipColor GetStatusColor(EventStatus status)
-    {
-        return status switch
-        {
-            EventStatus.Draft => MaterialChipColor.Default,
-            EventStatus.Published => MaterialChipColor.Primary,
-            EventStatus.InProgress => MaterialChipColor.Info,
-            EventStatus.Completed => MaterialChipColor.Success,
-            EventStatus.Cancelled => MaterialChipColor.Error,
-            _ => MaterialChipColor.Default
-        };
-    }
-
-    private async Task HandleLogout()
-    {
-        await AuthService.LogoutAsync();
-        Navigation.NavigateTo("/");
-    }
-
-    private string GetFirstName()
-    {
-        // Use the first name from auth service
-        return AuthService.UserEmail?.Split('@')[0] ?? "Player";
-    }
-}

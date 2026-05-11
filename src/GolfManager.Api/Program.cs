@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using GolfManager.Api.Authorization;
 using GolfManager.Api.Authorization.Handlers;
 using GolfManager.Api.Authorization.Requirements;
+using GolfManager.Api.BackgroundServices;
 using GolfManager.Api.Middleware;
 using GolfManager.Data;
 using GolfManager.Data.Seed;
@@ -12,6 +13,7 @@ using GolfManager.Core.Configuration;
 using GolfManager.Core.Services;
 using GolfManager.Services.Auth;
 using GolfManager.Services.Common;
+using GolfManager.Services.Course;
 using GolfManager.Services.Event;
 using GolfManager.Services.Handicap;
 using GolfManager.Services.League;
@@ -24,6 +26,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using System.Data;
+using System.Data.Common;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -117,8 +121,17 @@ builder.Services.AddScoped<ISeasonSimulationService, SeasonSimulationService>();
 // Add event service
 builder.Services.AddScoped<IEventService, EventService>();
 
+// Add season scoring background queues and workers
+builder.Services.AddSingleton<IHandicapRecalculationQueue, HandicapRecalculationQueue>();
+builder.Services.AddSingleton<ISeasonPointsRecalculationQueue, SeasonPointsRecalculationQueue>();
+builder.Services.AddHostedService<HandicapRecalculationWorker>();
+builder.Services.AddHostedService<SeasonPointsRecalculationWorker>();
+
 // Add round service
 builder.Services.AddScoped<IRoundService, RoundService>();
+
+// Add course service
+builder.Services.AddScoped<ICourseService, CourseService>();
 
 // Add handicap service
 builder.Services.AddScoped<IHandicapService, HandicapService>();
@@ -286,8 +299,18 @@ if (app.Environment.IsDevelopment())
     var context = scope.ServiceProvider.GetRequiredService<GolfManagerDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<DbSeeder>>();
 
-    // Ensure database is created
-    await context.Database.EnsureCreatedAsync();
+    // Apply schema changes in development; fall back for legacy EnsureCreated databases.
+    try
+    {
+        await context.Database.MigrateAsync();
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Migration failed during development startup. Falling back to EnsureCreated and compatibility checks.");
+        await context.Database.EnsureCreatedAsync();
+    }
+
+    await EnsureSeasonEventMatchSubstituteColumnsAsync(context, logger);
 
     // Seed demo data
     var seeder = new DbSeeder(context, logger);
@@ -303,7 +326,10 @@ if (app.Environment.IsDevelopment())
 // Add global exception handling middleware (must be first)
 app.UseMiddleware<GlobalExceptionHandlerMiddleware>();
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 
 // Add CORS
 app.UseCors("WebClient");
@@ -321,6 +347,56 @@ app.UseAuthorization();
 app.MapControllers();
 
 app.Run();
+
+static async Task EnsureSeasonEventMatchSubstituteColumnsAsync(GolfManagerDbContext context, ILogger logger)
+{
+    if (!context.Database.IsSqlite())
+    {
+        return;
+    }
+
+    try
+    {
+        await using var connection = context.Database.GetDbConnection();
+        if (connection.State != ConnectionState.Open)
+        {
+            await connection.OpenAsync();
+        }
+
+        if (!await SqliteColumnExistsAsync(connection, "SeasonEventMatches", "HomeSubSeasonGolferId"))
+        {
+            await context.Database.ExecuteSqlRawAsync("ALTER TABLE SeasonEventMatches ADD COLUMN HomeSubSeasonGolferId TEXT NULL;");
+            logger.LogInformation("Added missing column HomeSubSeasonGolferId to SeasonEventMatches.");
+        }
+
+        if (!await SqliteColumnExistsAsync(connection, "SeasonEventMatches", "AwaySubSeasonGolferId"))
+        {
+            await context.Database.ExecuteSqlRawAsync("ALTER TABLE SeasonEventMatches ADD COLUMN AwaySubSeasonGolferId TEXT NULL;");
+            logger.LogInformation("Added missing column AwaySubSeasonGolferId to SeasonEventMatches.");
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "Failed to verify substitute columns on SeasonEventMatches.");
+    }
+}
+
+static async Task<bool> SqliteColumnExistsAsync(DbConnection connection, string tableName, string columnName)
+{
+    await using var command = connection.CreateCommand();
+    command.CommandText = $"PRAGMA table_info({tableName});";
+
+    await using var reader = await command.ExecuteReaderAsync();
+    while (await reader.ReadAsync())
+    {
+        if (string.Equals(reader[1]?.ToString(), columnName, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
 
 // Make the implicit Program class public for integration tests
 public partial class Program { }

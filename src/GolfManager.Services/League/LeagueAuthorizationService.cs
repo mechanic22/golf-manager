@@ -1,4 +1,5 @@
 using GolfManager.Data;
+using GolfManager.Core.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -52,7 +53,11 @@ public class LeagueAuthorizationService : ILeagueAuthorizationService
         // Use IgnoreQueryFilters() because we're checking authorization BEFORE setting the tenant context
         var membership = await _context.UserLeagues
             .IgnoreQueryFilters()
-            .Where(ul => ul.UserId == userId && ul.LeagueId == leagueId && ul.IsActive && ul.IsLeagueAdmin)
+            .Where(ul =>
+                ul.UserId == userId
+                && ul.LeagueId == leagueId
+                && ul.IsActive
+                && (ul.Role == LeagueMemberRole.Owner || ul.Role == LeagueMemberRole.Admin))
             .FirstOrDefaultAsync();
 
         return membership != null;

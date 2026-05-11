@@ -1,0 +1,14 @@
+global using GolfManager.Core.Enums;
+global using GolfManager.Shared.DTOs.Auth;
+global using GolfManager.Shared.DTOs.Event;
+global using GolfManager.Shared.DTOs.League;
+global using GolfManager.Shared.DTOs.OneTimeEvent;
+global using GolfManager.Shared.DTOs.Round;
+global using GolfManager.Shared.DTOs.Season;
+global using GolfManager.Shared.DTOs.User;
+global using GolfManager.Web.Services;
+global using GolfManager.Web.Components.Icons;
+global using MaterialComponents.Models;
+global using MaterialComponents.Icons;
+global using MaterialComponents.Enums;
+global using Microsoft.JSInterop;

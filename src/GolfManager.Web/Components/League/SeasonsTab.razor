@@ -4,7 +4,6 @@
 @using MaterialComponents.Models
 @inject ISeasonService SeasonService
 @inject NavigationManager Navigation
-@inject IAuthorizationService AuthorizationService
 @inject ILogger<SeasonsTab> Logger
 
 <div class="mb-6 flex items-center justify-between">
@@ -12,7 +11,7 @@
         <h2 class="text-xl font-semibold text-gray-900">Seasons</h2>
         <p class="text-gray-600 text-sm">Manage league seasons and competitions</p>
     </div>
-    @if (AuthorizationService.CanManageLeague(League.Id))
+    @if (CanManageLeague)
     {
         <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="OnCreateSeason">
             <MaterialIcon Icon="MaterialIcons.Add" Class="mr-1" />
@@ -33,7 +32,7 @@ else if (seasons == null || !seasons.Any())
         <div class="md-card__content text-center py-12">
             <MaterialIcon Icon="MaterialIcons.CalendarToday" Class="text-gray-400 text-5xl mb-4" />
             <p class="text-gray-600">No seasons yet</p>
-            @if (AuthorizationService.CanManageLeague(League.Id))
+            @if (CanManageLeague)
             {
                 <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="OnCreateSeason" Class="mt-4">
                     Create First Season
@@ -97,6 +96,9 @@ else
     
     [Parameter, EditorRequired]
     public string LeagueKey { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool CanManageLeague { get; set; }
     
     [Parameter]
     public EventCallback OnCreateSeason { get; set; }

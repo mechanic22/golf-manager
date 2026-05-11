@@ -66,10 +66,18 @@ public class LeaguesController : ControllerBase
     /// </summary>
     [HttpGet("by-key/{leagueKey}")]
     [AllowAnonymous]
-    public async Task<ActionResult<ApiResponse<LeagueResponse>>> GetLeagueByKey(string leagueKey)
+    public async Task<ActionResult<ApiResponse<LeagueResponse>>> GetLeagueByKey(
+        string leagueKey,
+        [FromQuery] string? anonymousAccessPassword = null)
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        var league = await _leagueService.GetLeagueByKeyAsync(leagueKey, userId);
+        if (string.IsNullOrWhiteSpace(anonymousAccessPassword)
+            && Request.Headers.TryGetValue("X-League-Anonymous-Password", out var headerPassword))
+        {
+            anonymousAccessPassword = headerPassword.FirstOrDefault();
+        }
+
+        var league = await _leagueService.GetLeagueByKeyAsync(leagueKey, userId, anonymousAccessPassword);
 
         if (league == null)
         {
@@ -77,6 +85,29 @@ public class LeaguesController : ControllerBase
         }
 
         return Ok(ApiResponse<LeagueResponse>.SuccessResponse(league, "League retrieved successfully"));
+    }
+
+    /// <summary>
+    /// Verify anonymous/public access password for a league.
+    /// </summary>
+    [HttpPost("by-key/{leagueKey}/anonymous-access")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<bool>>> VerifyAnonymousAccess(
+        string leagueKey,
+        [FromBody] VerifyAnonymousAccessRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Password))
+        {
+            return BadRequest(ApiResponse<bool>.ErrorResponse("Password is required"));
+        }
+
+        var isValid = await _leagueService.VerifyAnonymousAccessAsync(leagueKey, request.Password);
+        if (!isValid)
+        {
+            return Unauthorized(ApiResponse<bool>.ErrorResponse("Invalid password"));
+        }
+
+        return Ok(ApiResponse<bool>.SuccessResponse(true, "Anonymous access verified"));
     }
 
     /// <summary>
@@ -91,13 +122,20 @@ public class LeaguesController : ControllerBase
             return Unauthorized(ApiResponse<LeagueResponse>.ErrorResponse("User not authenticated", "User ID not found in token"));
         }
 
-        var league = await _leagueService.CreateLeagueAsync(request, userId);
-        _logger.LogInformation("League {LeagueKey} created by user {UserId}", league.Key, userId);
+        try
+        {
+            var league = await _leagueService.CreateLeagueAsync(request, userId);
+            _logger.LogInformation("League {LeagueKey} created by user {UserId}", league.Key, userId);
 
-        return CreatedAtAction(
-            nameof(GetLeagueById),
-            new { leagueId = league.Id },
-            ApiResponse<LeagueResponse>.SuccessResponse(league, "League created successfully"));
+            return CreatedAtAction(
+                nameof(GetLeagueById),
+                new { leagueId = league.Id },
+                ApiResponse<LeagueResponse>.SuccessResponse(league, "League created successfully"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<LeagueResponse>.ErrorResponse("Invalid operation", ex.Message));
+        }
     }
 
     /// <summary>
@@ -113,10 +151,21 @@ public class LeaguesController : ControllerBase
             return Unauthorized(ApiResponse<LeagueResponse>.ErrorResponse("User not authenticated", "User ID not found in token"));
         }
 
-        var league = await _leagueService.UpdateLeagueAsync(leagueId, request, userId);
-        _logger.LogInformation("League {LeagueId} updated by user {UserId}", leagueId, userId);
+        try
+        {
+            var league = await _leagueService.UpdateLeagueAsync(leagueId, request, userId);
+            _logger.LogInformation("League {LeagueId} updated by user {UserId}", leagueId, userId);
 
-        return Ok(ApiResponse<LeagueResponse>.SuccessResponse(league, "League updated successfully"));
+            return Ok(ApiResponse<LeagueResponse>.SuccessResponse(league, "League updated successfully"));
+        }
+        catch (KeyNotFoundException ex)
+        {
+            return NotFound(ApiResponse<LeagueResponse>.ErrorResponse("League not found", ex.Message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<LeagueResponse>.ErrorResponse("Invalid operation", ex.Message));
+        }
     }
 
     /// <summary>

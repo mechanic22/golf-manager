@@ -177,6 +177,37 @@ public class SeasonsController : ControllerBase
         return Ok(ApiResponse<bool>.SuccessResponse(true));
     }
 
+    /// <summary>
+    /// Bulk configure a season from pasted calendar and team roster text.
+    /// </summary>
+    [HttpPost("{seasonId}/setup")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<SeasonSetupResponse>>> SetupSeason(
+        string seasonId,
+        [FromBody] SeasonSetupRequest request)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<SeasonSetupResponse>.ErrorResponse("League context required"));
+        }
+
+        try
+        {
+            var userId = _currentUserService.UserId!;
+            var result = await _seasonService.SetupSeasonAsync(seasonId, request, leagueId, userId);
+
+            _logger.LogInformation("Season {SeasonId} bulk setup completed in league {LeagueId} by user {UserId}",
+                seasonId, leagueId, userId);
+
+            return Ok(ApiResponse<SeasonSetupResponse>.SuccessResponse(result, "Season setup completed"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<SeasonSetupResponse>.ErrorResponse(ex.Message));
+        }
+    }
+
     #region Season Settings
 
     /// <summary>
@@ -282,6 +313,190 @@ public class SeasonsController : ControllerBase
 
         var players = await _playerService.GetSeasonPlayersAsync(seasonId, leagueId);
         return Ok(ApiResponse<List<PlayerResponse>>.SuccessResponse(players, $"Retrieved {players.Count} season players"));
+    }
+
+    /// <summary>
+    /// Add a player to a season (and league membership if needed)
+    /// </summary>
+    [HttpPost("{seasonId}/players")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<PlayerResponse>>> AddSeasonPlayer(
+        string seasonId,
+        [FromBody] CreatePlayerRequest request)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<PlayerResponse>.ErrorResponse("League context required"));
+        }
+
+        var userId = _currentUserService.UserId!;
+        var player = await _playerService.AddPlayerToSeasonAsync(seasonId, leagueId, request, userId);
+
+        return Ok(ApiResponse<PlayerResponse>.SuccessResponse(player, "Player added to season"));
+    }
+
+    /// <summary>
+    /// Remove a player from a season
+    /// </summary>
+    [HttpDelete("{seasonId}/players/{seasonGolferId}")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<bool>>> RemoveSeasonPlayer(string seasonId, string seasonGolferId)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<bool>.ErrorResponse("League context required"));
+
+        var userId = _currentUserService.UserId!;
+        var result = await _seasonService.RemovePlayerFromSeasonAsync(seasonId, seasonGolferId, leagueId, userId);
+
+        if (!result)
+            return NotFound(ApiResponse<bool>.ErrorResponse("Player not found in season"));
+
+        return Ok(ApiResponse<bool>.SuccessResponse(true, "Player removed from season"));
+    }
+
+    /// <summary>
+    /// Mark a season player as paid/unpaid.
+    /// </summary>
+    [HttpPut("{seasonId}/players/{seasonGolferId}/payment")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<bool>>> UpdateSeasonPlayerPayment(
+        string seasonId,
+        string seasonGolferId,
+        [FromBody] UpdateSeasonPlayerPaymentRequest request)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<bool>.ErrorResponse("League context required"));
+
+        try
+        {
+            var userId = _currentUserService.UserId!;
+            await _seasonService.UpdateSeasonPlayerPaymentAsync(seasonId, seasonGolferId, request, leagueId, userId);
+            var message = request.IsPaidForSeason ? "Player marked paid" : "Player marked unpaid";
+            return Ok(ApiResponse<bool>.SuccessResponse(true, message));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return NotFound(ApiResponse<bool>.ErrorResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Assign (or unassign) a season player to a team
+    /// </summary>
+    [HttpPut("{seasonId}/players/{seasonGolferId}/team")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<bool>>> AssignPlayerToTeam(
+        string seasonId,
+        string seasonGolferId,
+        [FromBody] AssignPlayerToTeamRequest request)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<bool>.ErrorResponse("League context required"));
+
+        try
+        {
+            var userId = _currentUserService.UserId!;
+            await _seasonService.AssignPlayerToTeamAsync(seasonId, seasonGolferId, request, leagueId, userId);
+            return Ok(ApiResponse<bool>.SuccessResponse(true, "Player assigned to team"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<bool>.ErrorResponse(ex.Message));
+        }
+    }
+
+    #endregion
+
+    #region Season Teams
+
+    /// <summary>
+    /// Get all teams in a season
+    /// </summary>
+    [HttpGet("{seasonId}/teams")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    public async Task<ActionResult<ApiResponse<List<SeasonTeamResponse>>>> GetSeasonTeams(string seasonId)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<List<SeasonTeamResponse>>.ErrorResponse("League context required"));
+
+        var teams = await _seasonService.GetSeasonTeamsAsync(seasonId, leagueId);
+        return Ok(ApiResponse<List<SeasonTeamResponse>>.SuccessResponse(teams));
+    }
+
+    /// <summary>
+    /// Create a team in a season
+    /// </summary>
+    [HttpPost("{seasonId}/teams")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<SeasonTeamResponse>>> CreateSeasonTeam(
+        string seasonId,
+        [FromBody] CreateSeasonTeamRequest request)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<SeasonTeamResponse>.ErrorResponse("League context required"));
+
+        try
+        {
+            var userId = _currentUserService.UserId!;
+            var team = await _seasonService.CreateSeasonTeamAsync(seasonId, request, leagueId, userId);
+            return Ok(ApiResponse<SeasonTeamResponse>.SuccessResponse(team, "Team created"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<SeasonTeamResponse>.ErrorResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Update a team in a season
+    /// </summary>
+    [HttpPut("{seasonId}/teams/{teamId}")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<SeasonTeamResponse>>> UpdateSeasonTeam(
+        string seasonId,
+        string teamId,
+        [FromBody] UpdateSeasonTeamRequest request)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<SeasonTeamResponse>.ErrorResponse("League context required"));
+
+        try
+        {
+            var userId = _currentUserService.UserId!;
+            var team = await _seasonService.UpdateSeasonTeamAsync(seasonId, teamId, request, leagueId, userId);
+            return Ok(ApiResponse<SeasonTeamResponse>.SuccessResponse(team, "Team updated"));
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(ApiResponse<SeasonTeamResponse>.ErrorResponse(ex.Message));
+        }
+    }
+
+    /// <summary>
+    /// Delete a team from a season
+    /// </summary>
+    [HttpDelete("{seasonId}/teams/{teamId}")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<bool>>> DeleteSeasonTeam(string seasonId, string teamId)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<bool>.ErrorResponse("League context required"));
+
+        var userId = _currentUserService.UserId!;
+        var result = await _seasonService.DeleteSeasonTeamAsync(seasonId, teamId, leagueId, userId);
+
+        if (!result)
+            return NotFound(ApiResponse<bool>.ErrorResponse("Team not found"));
+
+        return Ok(ApiResponse<bool>.SuccessResponse(true, "Team deleted"));
     }
 
     #endregion

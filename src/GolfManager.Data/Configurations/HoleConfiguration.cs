@@ -40,12 +40,9 @@ public class HoleConfiguration : IEntityTypeConfiguration<Hole>
             .IsRequired()
             .HasDefaultValue(true);
 
-        // Navigation: Hole -> HoleTees (one-to-many)
-        builder.HasMany(x => x.HoleTees)
-            .WithOne(x => x.Hole)
-            .HasForeignKey(x => x.HoleNumber)
-            .HasPrincipalKey(x => x.HoleNumber)
-            .OnDelete(DeleteBehavior.Cascade);
+        // HoleTees are modeled from Tee + HoleNumber; avoid mapping a direct FK to HoleNumber,
+        // which would force a global alternate key on Holes.HoleNumber.
+        builder.Ignore(x => x.HoleTees);
     }
 }
 

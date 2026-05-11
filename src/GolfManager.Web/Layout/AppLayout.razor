@@ -1,10 +1,12 @@
 @using GolfManager.Web.Components.Icons
 @using MaterialComponents
 @using MaterialComponents.Models
+@using GolfManager.Shared.DTOs.Auth
 @inherits LayoutComponentBase
 @inject IAuthService AuthService
 @inject IAuthorizationService AuthorizationService
 @inject NavigationManager Navigation
+@inject AppState AppState
 @implements IDisposable
 
 <div class="min-h-screen bg-gray-50">
@@ -18,6 +20,21 @@
 
             <!-- Desktop Navigation - Context Aware -->
             <div class="hidden md:flex gap-2 items-center">
+                @if (AuthService.IsAuthenticated && AppState.UserLeagues.Count > 0)
+                {
+                    <div class="mr-2">
+                        <select class="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-700"
+                                value="@CurrentLeagueSelection"
+                                @onchange="HandleLeagueChange">
+                            <option value="">Select League</option>
+                            @foreach (var leagueOption in LeagueOptions)
+                            {
+                                <option value="@leagueOption.LeagueKey">@leagueOption.LeagueName</option>
+                            }
+                        </select>
+                    </div>
+                }
+
                 @if (IsInSeasonContext)
                 {
                     <!-- Season Context Navigation -->
@@ -47,7 +64,7 @@
                         Members
                     </NavLink>
                 }
-                else if (IsInAdminContext)
+                else if (IsInAdminContext && AuthorizationService.IsGlobalAdmin())
                 {
                     <!-- Admin Context Navigation -->
                     <NavLink href="admin" class="app-nav-link" Match="NavLinkMatch.All" ActiveClass="app-nav-link-active">
@@ -56,7 +73,7 @@
                     <NavLink href="admin/users" class="app-nav-link" ActiveClass="app-nav-link-active">
                         Users
                     </NavLink>
-                    <NavLink href="admin/leagues" class="app-nav-link" ActiveClass="app-nav-link-active">
+                    <NavLink href="leagues" class="app-nav-link" ActiveClass="app-nav-link-active">
                         Leagues
                     </NavLink>
                 }
@@ -69,8 +86,8 @@
                     <NavLink href="events" class="app-nav-link" ActiveClass="app-nav-link-active">
                         Events
                     </NavLink>
-                    <NavLink href="players" class="app-nav-link" ActiveClass="app-nav-link-active">
-                        Players
+                    <NavLink href="leagues" class="app-nav-link" ActiveClass="app-nav-link-active">
+                        Leagues
                     </NavLink>
                 }
 
@@ -138,6 +155,22 @@
                     </div>
 
                     <div class="flex flex-col gap-2">
+                        @if (AuthService.IsAuthenticated && AppState.UserLeagues.Count > 0)
+                        {
+                            <div class="pb-2 mb-2 border-b border-gray-200">
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Current League</label>
+                                <select class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white text-gray-700"
+                                        value="@CurrentLeagueSelection"
+                                        @onchange="HandleLeagueChangeAndCloseMenu">
+                                    <option value="">Select League</option>
+                                    @foreach (var leagueOption in LeagueOptions)
+                                    {
+                                        <option value="@leagueOption.LeagueKey">@leagueOption.LeagueName</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+
                         @if (IsInSeasonContext)
                         {
                             <NavLink href="@GetLeagueUrl()" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
@@ -165,7 +198,7 @@
                                 Members
                             </NavLink>
                         }
-                        else if (IsInAdminContext)
+                        else if (IsInAdminContext && AuthorizationService.IsGlobalAdmin())
                         {
                             <NavLink href="admin" @onclick="ToggleNavMenu" class="app-nav-link" Match="NavLinkMatch.All" ActiveClass="app-nav-link-active">
                                 Dashboard
@@ -173,7 +206,7 @@
                             <NavLink href="admin/users" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
                                 Users
                             </NavLink>
-                            <NavLink href="admin/leagues" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
+                            <NavLink href="leagues" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
                                 Leagues
                             </NavLink>
                         }
@@ -185,8 +218,8 @@
                             <NavLink href="events" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
                                 Events
                             </NavLink>
-                            <NavLink href="players" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
-                                Players
+                            <NavLink href="leagues" @onclick="ToggleNavMenu" class="app-nav-link" ActiveClass="app-nav-link-active">
+                                Leagues
                             </NavLink>
                         }
 
@@ -228,11 +261,14 @@
     private bool collapseNavMenu = true;
     private bool showUserMenu = false;
     private string currentUrl = string.Empty;
+    private string CurrentLeagueSelection => AppState.CurrentLeagueKey ?? string.Empty;
+    private IEnumerable<LeagueMappingResponse> LeagueOptions => AppState.UserLeagues.OrderBy(l => l.LeagueName);
 
     protected override void OnInitialized()
     {
         currentUrl = Navigation.ToBaseRelativePath(Navigation.Uri);
         Navigation.LocationChanged += OnLocationChanged;
+        AppState.OnChange += OnAppStateChanged;
     }
 
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
@@ -244,6 +280,12 @@
     public void Dispose()
     {
         Navigation.LocationChanged -= OnLocationChanged;
+        AppState.OnChange -= OnAppStateChanged;
+    }
+
+    private void OnAppStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
     }
 
     // Context detection
@@ -303,6 +345,24 @@
     private void ToggleUserMenu()
     {
         showUserMenu = !showUserMenu;
+    }
+
+    private void HandleLeagueChange(ChangeEventArgs args)
+    {
+        var leagueKey = args.Value?.ToString();
+        if (string.IsNullOrWhiteSpace(leagueKey))
+        {
+            return;
+        }
+
+        AppState.SetCurrentLeague(leagueKey);
+        Navigation.NavigateTo($"/league/{leagueKey}");
+    }
+
+    private void HandleLeagueChangeAndCloseMenu(ChangeEventArgs args)
+    {
+        HandleLeagueChange(args);
+        collapseNavMenu = true;
     }
 
     private async Task HandleLogout()

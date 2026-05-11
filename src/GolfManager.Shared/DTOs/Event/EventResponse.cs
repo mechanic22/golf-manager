@@ -8,6 +8,21 @@ namespace GolfManager.Shared.DTOs.Event;
 public class EventResponse
 {
     /// <summary>
+
+    /// <summary>
+    /// Optional game-of-the-day title for this event.
+    /// </summary>
+    public string? GameOfDayTitle { get; set; }
+
+    /// <summary>
+    /// Optional season golfer winner id for game-of-the-day.
+    /// </summary>
+    public string? GameOfDayWinnerSeasonGolferId { get; set; }
+
+    /// <summary>
+    /// Optional winner display name for game-of-the-day.
+    /// </summary>
+    public string? GameOfDayWinnerDisplayName { get; set; }
     /// Event ID
     /// </summary>
     public string Id { get; set; } = string.Empty;

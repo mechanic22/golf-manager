@@ -72,7 +72,31 @@ public class PlayerService : IPlayerService
         }
     }
 
-    public async Task<ApiResponse<PlayerResponse>?> UpdatePlayerAsync(string leagueId, string playerId, UpdatePlayerRequest request)
+    public async Task<ApiResponse<PlayerResponse>?> AddPlayerToSeasonAsync(string leagueId, string seasonId, CreatePlayerRequest request)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync(
+                $"api/v1/seasons/{seasonId}/players",
+                request);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                _logger.LogWarning("Failed to add player to season {SeasonId} in league {LeagueId}: {Error}", seasonId, leagueId, errorContent);
+                return ApiResponse<PlayerResponse>.ErrorResponse("Failed to add player to season", errorContent);
+            }
+
+            return await response.Content.ReadFromJsonAsync<ApiResponse<PlayerResponse>>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding player to season {SeasonId} in league {LeagueId}", seasonId, leagueId);
+            return ApiResponse<PlayerResponse>.ErrorResponse("Failed to add player to season", ex.Message);
+        }
+    }
+
+    public async Task<ApiResponse<PlayerResponse>?> UpdatePlayerAsync(string leagueId, string playerId, GolfManager.Shared.DTOs.Player.UpdatePlayerRequest request)
     {
         try
         {

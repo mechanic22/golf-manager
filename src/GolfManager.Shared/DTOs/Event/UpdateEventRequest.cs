@@ -51,6 +51,24 @@ public class UpdateEventRequest
     public string? Description { get; set; }
 
     /// <summary>
+    /// Optional game-of-the-day title.
+    /// </summary>
+    [StringLength(150)]
+    public string? GameOfDayTitle { get; set; }
+
+    /// <summary>
+    /// Optional season golfer id selected as game-of-the-day winner.
+    /// </summary>
+    [StringLength(50)]
+    public string? GameOfDayWinnerSeasonGolferId { get; set; }
+
+    /// <summary>
+    /// Optional winner display name fallback for non-rostered winners.
+    /// </summary>
+    [StringLength(120)]
+    public string? GameOfDayWinnerDisplayName { get; set; }
+
+    /// <summary>
     /// Is the event locked?
     /// </summary>
     public bool? IsLocked { get; set; }

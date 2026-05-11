@@ -129,6 +129,43 @@ GolfManager/
 
 ## 🚀 Getting Started
 
+## ✅ Current Task Readiness (May 2026)
+
+This status reflects the latest implementation and smoke validation in local development.
+
+### Completed
+- 2026 DigiKey seed data is generated from baseline seed flow (`DbSeeder`) with:
+   - 18 scheduled weeks/events
+   - 28 teams
+   - 84 roster players and 13 unassigned subs
+- Team names are auto-seeded as `LastName / LastName / LastName`.
+- Season team management is implemented end-to-end:
+   - Create team
+   - Edit team name
+   - Delete team
+   - Assign player to team
+   - Unassign player from team
+- Season players page includes team column and season player add/remove flows.
+- Season navigation includes a Teams tab across season pages.
+
+### Validated In Smoke Testing
+- Authentication recovery after DB reset (logout/login with seeded admin).
+- 2026 Events page loads and shows all 18 weeks.
+- 2026 Players page shows team assignments and unassigned subs.
+- 2026 Teams page loads and supports create/edit/assign/unassign/delete workflows.
+
+### Important Runtime Notes
+- After DB reset/reseed, existing auth cookies can reference stale user IDs.
+   - Fix: sign out and sign back in.
+- Run Web with build at least once after code changes.
+   - `--no-build` only can serve stale client artifacts.
+
+### Seed Behavior
+- Default behavior: baseline seed data (migration parity testing path).
+- Holy Grail import is opt-in with environment variable:
+   - `ENABLE_HOLY_GRAIL_IMPORT=true`
+- Baseline seed currently creates DigiKey season `2026` (not `2025`).
+
 ### Prerequisites
 - **.NET 10 SDK** or later
 - **Node.js and npm** (for Tailwind CSS compilation)

@@ -40,6 +40,7 @@ public class UserLeagueConfiguration : IEntityTypeConfiguration<UserLeague>
             .HasConversion<string>()
             .IsRequired()
             .HasMaxLength(20)
+            .HasSentinel(LeagueMemberRole.Member)
             .HasDefaultValue(LeagueMemberRole.Member);
 
         builder.Property(x => x.IsActive)

@@ -1,5 +1,6 @@
 using GolfManager.Core.Entities;
 using GolfManager.Data;
+using GolfManager.Core.Enums;
 using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;
 
@@ -21,8 +22,11 @@ public class LeagueContextMiddleware
 
     public async Task InvokeAsync(HttpContext context, GolfManagerDbContext dbContext)
     {
+        var requestPath = context.Request.Path.Value ?? string.Empty;
+        var isAuthEndpoint = requestPath.StartsWith("/api/v1/auth", StringComparison.OrdinalIgnoreCase);
+
         // Read league context from header (sent by frontend)
-        var leagueKey = context.Request.Headers["X-League-Context"].FirstOrDefault();
+        var leagueKey = context.Request.Headers["X-League-Context"].FirstOrDefault()?.Trim();
         var userId = context.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var leagueContextHeaderProvided = context.Request.Headers.ContainsKey("X-League-Context");
 
@@ -58,48 +62,58 @@ public class LeagueContextMiddleware
 
         if (!string.IsNullOrEmpty(leagueKey))
         {
-            var membership = await dbContext.UserLeagues
-                .Include(ul => ul.League)
-                .FirstOrDefaultAsync(ul =>
-                    ul.UserId == userId &&
-                    ul.League.Key == leagueKey &&
-                    ul.IsActive &&
-                    !ul.League.IsDeleted);
-
-            if (membership != null)
+            // For authenticated users, validate membership against the explicit league header.
+            if (!string.IsNullOrEmpty(userId))
             {
-                context.Items["LeagueId"] = membership.LeagueId;
-                context.Items["LeagueKey"] = membership.League.Key;
-                context.Items["IsLeagueAdmin"] = membership.IsLeagueAdmin;
+                var normalizedLeagueKey = leagueKey.ToLowerInvariant();
+                var membership = await dbContext.UserLeagues
+                    .IgnoreQueryFilters()
+                    .Include(ul => ul.League)
+                    .FirstOrDefaultAsync(ul =>
+                        ul.UserId == userId &&
+                        !ul.IsDeleted &&
+                        ul.League.IsActive &&
+                        ul.League.Key.ToLower() == normalizedLeagueKey &&
+                        ul.IsActive &&
+                        !ul.League.IsDeleted);
 
-                _logger.LogInformation(
-                    "League context validated: User {UserId} accessing league {LeagueKey}",
-                    userId, leagueKey);
-            }
-            else if (leagueContextHeaderProvided)
-            {
-                _logger.LogWarning(
-                    "Forbidden: User {UserId} attempted to access league {LeagueKey} without membership",
-                    userId, leagueKey);
-
-                context.Response.StatusCode = 403;
-                await context.Response.WriteAsJsonAsync(new
+                if (membership != null)
                 {
-                    error = "Forbidden",
-                    message = "You are not a member of this league"
-                });
-                return;
+                    context.Items["LeagueId"] = membership.LeagueId;
+                    context.Items["LeagueKey"] = membership.League.Key;
+                    context.Items["IsLeagueAdmin"] = membership.Role == LeagueMemberRole.Owner || membership.Role == LeagueMemberRole.Admin;
+
+                    _logger.LogInformation(
+                        "League context validated: User {UserId} accessing league {LeagueKey}",
+                        userId, leagueKey);
+                }
+                else if (leagueContextHeaderProvided && !isAuthEndpoint)
+                {
+                    _logger.LogWarning(
+                        "Forbidden: User {UserId} attempted to access league {LeagueKey} without membership",
+                        userId, leagueKey);
+
+                    context.Response.StatusCode = 403;
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        error = "Forbidden",
+                        message = "You are not a member of this league"
+                    });
+                    return;
+                }
+                else if (hostResolvedLeague != null)
+                {
+                    context.Items["LeagueId"] = hostResolvedLeague.Id;
+                    context.Items["LeagueKey"] = hostResolvedLeague.Key;
+                    _logger.LogDebug("Host-based league context set for league {LeagueKey}", hostResolvedLeague.Key);
+                }
             }
-            else if (hostResolvedLeague != null)
+            else
             {
-                context.Items["LeagueId"] = hostResolvedLeague.Id;
-                context.Items["LeagueKey"] = hostResolvedLeague.Key;
-                _logger.LogDebug("Host-based league context set for league {LeagueKey}", hostResolvedLeague.Key);
+                // Anonymous/public endpoints (e.g., /api/v1/leagues/by-key/{key})
+                // must not be blocked just because a league header is present.
+                _logger.LogDebug("League context provided but user not authenticated: {LeagueKey}", leagueKey);
             }
-        }
-        else if (!string.IsNullOrEmpty(leagueKey) && string.IsNullOrEmpty(userId))
-        {
-            _logger.LogDebug("League context provided but user not authenticated: {LeagueKey}", leagueKey);
         }
 
         await _next(context);

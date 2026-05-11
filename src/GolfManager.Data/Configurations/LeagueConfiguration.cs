@@ -43,6 +43,31 @@ public class LeagueConfiguration : IEntityTypeConfiguration<League>
         builder.Property(x => x.LogoUrl)
             .HasMaxLength(500);
 
+        builder.Property(x => x.WelcomeHeadline)
+            .HasMaxLength(200);
+
+        builder.Property(x => x.WelcomeSubhead)
+            .HasMaxLength(500);
+
+        builder.Property(x => x.EmptyStateMessage)
+            .HasMaxLength(500);
+
+        builder.Property(x => x.CommissionerName)
+            .HasMaxLength(100);
+
+        builder.Property(x => x.AnnouncementTitle)
+            .HasMaxLength(150);
+
+        builder.Property(x => x.AnnouncementBody)
+            .HasMaxLength(1000);
+
+        builder.Property(x => x.RequireAnonymousPassword)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(x => x.AnonymousPasswordHash)
+            .HasMaxLength(256);
+
         builder.Property(x => x.IsActive)
             .IsRequired()
             .HasDefaultValue(true);

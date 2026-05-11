@@ -22,8 +22,15 @@ public class SeasonSettingsService : ISeasonSettingsService
     {
         try
         {
-            var response = await _httpClient.GetFromJsonAsync<ApiResponse<SeasonSettingsResponse>>(
-                $"api/v1/seasons/{seasonId}/settings");
+            var responseMessage = await _httpClient.GetAsync($"api/v1/seasons/{seasonId}/settings");
+            if (responseMessage.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+
+            responseMessage.EnsureSuccessStatusCode();
+
+            var response = await responseMessage.Content.ReadFromJsonAsync<ApiResponse<SeasonSettingsResponse>>();
 
             return response?.Data;
         }

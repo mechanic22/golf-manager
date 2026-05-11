@@ -2,11 +2,6 @@
 @layout AppLayout
 @using GolfManager.Shared.DTOs.League
 @using GolfManager.Web.Services
-@inject IAuthService AuthService
-@inject IAuthorizationService AuthorizationService
-@inject ILeagueService LeagueService
-@inject NavigationManager Navigation
-@inject ILogger<Leagues> Logger
 
 <PageTitle>Leagues - Pinzo</PageTitle>
 
@@ -25,12 +20,12 @@ else
     <div class="mb-8">
         <div class="flex items-center justify-between mb-2">
             <h1 class="text-3xl font-bold text-gray-900">Leagues</h1>
-            @if (AuthorizationService.IsGlobalAdmin() || canCreateLeague)
+            @if (canCreateLeague)
             {
                 <MaterialButton Style="MaterialButtonStyle.Filled"
                               Text="Create League"
                               LeadingIcon="@CreateIcon()"
-                              OnClick="@(() => Navigation.NavigateTo("/dashboard"))" />
+                              OnClick="@(() => Navigation.NavigateTo("/leagues/create"))" />
             }
         </div>
         <p class="text-gray-600">Browse and manage your golf leagues</p>
@@ -47,9 +42,17 @@ else
                     <MaterialIcon Path="@MaterialIcons.Person" Size="MaterialComponents.Icons.IconSize.XL" />
                 </div>
                 <p class="text-gray-600 mb-4">You're not a member of any leagues yet.</p>
-                <MaterialButton Style="MaterialButtonStyle.Outlined"
-                              Text="Discover Leagues"
-                              OnClick="@(() => scrollToDiscover = true)" />
+                <div class="flex items-center justify-center gap-3">
+                    @if (canCreateLeague)
+                    {
+                        <MaterialButton Style="MaterialButtonStyle.Filled"
+                                      Text="Create League"
+                                      OnClick="@(() => Navigation.NavigateTo("/leagues/create"))" />
+                    }
+                    <MaterialButton Style="MaterialButtonStyle.Outlined"
+                                  Text="Discover Leagues"
+                                  OnClick="@(() => scrollToDiscover = true)" />
+                </div>
             </div>
         }
         else
@@ -213,75 +216,5 @@ else
             </div>
         }
     </div>
-}
-
-@code {
-    private List<LeagueResponse>? myLeagues;
-    private List<LeagueResponse>? publicLeagues;
-    private bool isLoading = true;
-    private bool canCreateLeague = false;
-    private bool scrollToDiscover = false;
-    private string searchQuery = string.Empty;
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (!AuthService.IsAuthenticated)
-        {
-            Navigation.NavigateTo("/login");
-            return;
-        }
-
-        await AuthorizationService.InitializeAsync();
-        await LoadData();
-    }
-
-    private async Task LoadData()
-    {
-        isLoading = true;
-        try
-        {
-            // Load all leagues from API
-            var response = await LeagueService.GetUserLeaguesAsync();
-            if (response != null && response.Success && response.Data != null)
-            {
-                // All returned leagues are user's leagues (API filters by user)
-                myLeagues = response.Data;
-                publicLeagues = new List<LeagueResponse>(); // TODO: Implement public leagues endpoint
-            }
-
-            // Check if user can create leagues
-            canCreateLeague = AuthorizationService.IsGlobalAdmin();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error loading leagues");
-        }
-        finally
-        {
-            isLoading = false;
-        }
-    }
-
-    private int GetActiveSeasonCount(LeagueResponse league)
-    {
-        // TODO: Get actual season count from API
-        return 0;
-    }
-
-    private async Task SearchLeagues()
-    {
-        // TODO: Implement search when API endpoint exists
-        Logger.LogInformation("Searching for: {SearchQuery}", searchQuery);
-    }
-
-    private async Task RequestToJoin(LeagueResponse league)
-    {
-        // TODO: Implement join request when API endpoint exists
-        Logger.LogInformation("Requesting to join league: {LeagueKey}", league.Key);
-    }
-
-    // Icon helpers
-    private RenderFragment CreateIcon() => @<MaterialIcon Path="@MaterialIcons.Add" Size="MaterialComponents.Icons.IconSize.SM" />;
-    private RenderFragment SearchIcon() => @<MaterialIcon Path="@MaterialIcons.Search" Size="MaterialComponents.Icons.IconSize.SM" />;
 }
 

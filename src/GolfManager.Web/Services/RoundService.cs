@@ -39,7 +39,7 @@ public class RoundService : IRoundService
         try
         {
             var response = await _httpClient.GetFromJsonAsync<ApiResponse<List<RoundResponse>>>(
-                $"api/v1/rounds?golferId={golferId}");
+                $"api/v1/rounds/golfer/{golferId}");
 
             return response?.Data ?? new List<RoundResponse>();
         }

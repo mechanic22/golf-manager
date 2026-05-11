@@ -1,0 +1,128 @@
+@page "/access-denied"
+@inject NavigationManager Navigation
+@inject IAuthService AuthService
+@inject ILeagueService LeagueService
+@using GolfManager.Shared.DTOs.League
+@using Microsoft.AspNetCore.Components
+
+<PageTitle>Access Denied - Pinzo</PageTitle>
+
+<div class="max-w-3xl mx-auto px-4 py-16">
+    <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-8 text-center">
+        <div class="mx-auto mb-4 h-16 w-16 rounded-full bg-amber-100 flex items-center justify-center">
+            <span class="text-2xl">!</span>
+        </div>
+
+        <h1 class="text-2xl font-bold text-gray-900 mb-3">This League Space Is Private</h1>
+        <p class="text-gray-600 mb-2">@GetMessage()</p>
+        <p class="text-sm text-gray-500 mb-6">@GetGuidance()</p>
+
+        @if (!string.IsNullOrWhiteSpace(LeagueKey))
+        {
+            <div class="mb-6 text-sm text-gray-500">
+                <span class="font-medium text-gray-700">League:</span> @LeagueKey
+                @if (!string.IsNullOrWhiteSpace(SeasonKey))
+                {
+                    <span> · </span>
+                    <span class="font-medium text-gray-700">Season:</span> @SeasonKey
+                }
+            </div>
+        }
+
+        <div class="flex flex-col sm:flex-row gap-3 justify-center">
+            <button class="px-4 py-2 rounded-lg bg-primary-600 text-white hover:bg-primary-700 transition-colors" @onclick="GoDashboard">
+                Go To Dashboard
+            </button>
+            <button class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors" @onclick="GoLeagues">
+                Browse My Leagues
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "scope")]
+    public string? Scope { get; set; }
+
+    [SupplyParameterFromQuery(Name = "leagueKey")]
+    public string? LeagueKey { get; set; }
+
+    [SupplyParameterFromQuery(Name = "seasonKey")]
+    public string? SeasonKey { get; set; }
+
+    private LeagueResponse? league;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await AuthService.InitializeAsync();
+
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadLeagueContext();
+    }
+
+    private async Task LoadLeagueContext()
+    {
+        if (string.IsNullOrWhiteSpace(LeagueKey))
+        {
+            return;
+        }
+
+        try
+        {
+            var response = await LeagueService.GetLeagueByKeyAsync(LeagueKey);
+            if (response is { Success: true, Data: not null })
+            {
+                league = response.Data;
+            }
+        }
+        catch
+        {
+            // Best-effort personalization only; keep deny flow resilient.
+        }
+    }
+
+    private string GetMessage()
+    {
+        if (!string.IsNullOrWhiteSpace(league?.WelcomeSubhead))
+        {
+            return league.WelcomeSubhead!;
+        }
+
+        return Scope?.ToLowerInvariant() switch
+        {
+            "season" => "You are signed in, but this season belongs to a league you are not part of.",
+            "league" => "You are signed in, but this league is not in your memberships.",
+            _ => "You are signed in, but this page requires membership in a specific tenant."
+        };
+    }
+
+    private string GetGuidance()
+    {
+        if (!string.IsNullOrWhiteSpace(league?.CommissionerName))
+        {
+            return $"If you expected access, contact {league.CommissionerName} to request a league invitation for this account.";
+        }
+
+        if (!string.IsNullOrWhiteSpace(LeagueKey))
+        {
+            return $"If you expected access, ask the league admin of '{LeagueKey}' to invite this account.";
+        }
+
+        return "If you expected access, confirm you are signed in with the correct account or ask your league admin for an invite.";
+    }
+
+    private void GoDashboard()
+    {
+        Navigation.NavigateTo("/dashboard");
+    }
+
+    private void GoLeagues()
+    {
+        Navigation.NavigateTo("/leagues");
+    }
+}

@@ -1,0 +1,138 @@
+@page "/league/{LeagueKey}/season/{SeasonKey}/event/{EventKey}/scores"
+@layout AppLayout
+@using GolfManager.Shared.DTOs.Season
+@using GolfManager.Shared.DTOs.Player
+@using GolfManager.Shared.DTOs.Round
+@using GolfManager.Shared.DTOs.Event
+@using GolfManager.Core.Enums
+@using GolfManager.Web.Components
+@using GolfManager.Web.Services
+
+<PageTitle>Score Entry - @(seasonEvent?.Name ?? "Event") - Pinzo</PageTitle>
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center min-h-screen">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-600">Loading event...</p>
+        </div>
+    </div>
+}
+else if (accessDenied)
+{
+    <div class="max-w-2xl mx-auto mt-12">
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content text-center py-12">
+                <MaterialIcon Icon="MaterialIcons.Lock" Class="text-red-500 text-5xl mb-4" />
+                <h2 class="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+                <p class="text-gray-600 mb-6">Only league or season admins can enter scores for events.</p>
+                <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}"))">
+                    <MaterialIcon Icon="MaterialIcons.ArrowBack" Class="mr-1" />
+                    Back to Season
+                </MaterialButton>
+            </div>
+        </MaterialCard>
+    </div>
+}
+else if (league == null || season == null || seasonEvent == null)
+{
+    <div class="max-w-2xl mx-auto mt-12">
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content text-center py-12">
+                <MaterialIcon Icon="MaterialIcons.Error" Class="text-red-500 text-5xl mb-4" />
+                <h2 class="text-xl font-semibold text-gray-900 mb-2">Event Not Found</h2>
+                <p class="text-gray-600 mb-6">The event you're looking for doesn't exist or you don't have access to it.</p>
+                <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}"))">
+                    <MaterialIcon Icon="MaterialIcons.ArrowBack" Class="mr-1" />
+                    Back to Season
+                </MaterialButton>
+            </div>
+        </MaterialCard>
+    </div>
+}
+else
+{
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Header -->
+        <div class="mb-6">
+            <div class="flex items-center gap-2 text-sm text-gray-600 mb-2">
+                <a href="/dashboard" class="hover:text-primary-600">Dashboard</a>
+                <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+                <a href="/league/@LeagueKey" class="hover:text-primary-600">@league.Name</a>
+                <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+                <a href="/league/@LeagueKey/season/@SeasonKey" class="hover:text-primary-600">@season.Name</a>
+                <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+                <span>Score Entry</span>
+            </div>
+            <h1 class="text-3xl font-bold text-gray-900">@seasonEvent.Name</h1>
+            <div class="mt-2 flex flex-wrap gap-4 text-sm text-gray-600">
+                <div class="flex items-center gap-1">
+                    <MaterialIcon Icon="MaterialIcons.CalendarToday" Class="text-sm" />
+                    <span>@seasonEvent.EventDate.ToString("MMMM d, yyyy")</span>
+                </div>
+                @if (!string.IsNullOrEmpty(seasonEvent.CourseId))
+                {
+                    <div class="flex items-center gap-1">
+                        <MaterialIcon Icon="MaterialIcons.GolfCourse" Class="text-sm" />
+                        <span>Course: @seasonEvent.CourseId</span>
+                    </div>
+                }
+                <div class="flex items-center gap-1">
+                    <MaterialIcon Icon="MaterialIcons.Flag" Class="text-sm" />
+                    <span>@seasonEvent.HolesPlayed Holes</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Score Entry Grid -->
+        @if (golfers.Count == 0)
+        {
+            <MaterialCard Variant="MaterialCardVariant.Outlined">
+                <div class="md-card__content text-center py-12">
+                    <MaterialIcon Icon="MaterialIcons.People" Class="text-gray-400 text-5xl mb-4" />
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">No Golfers Found</h3>
+                    <p class="text-gray-600">Add golfers to the season to start entering scores.</p>
+                </div>
+            </MaterialCard>
+        }
+        else
+        {
+            <MaterialCard Variant="MaterialCardVariant.Outlined">
+                <div class="md-card__content p-0">
+                    <div class="overflow-x-auto">
+                        <table class="w-full min-w-max">
+                            <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider sticky left-0 bg-gray-50 z-10">
+                                        Player
+                                    </th>
+                                    @for (int i = 1; i <= (seasonEvent.HolesPlayed == HolesPlayed.Eighteen ? 18 : 9); i++)
+                                    {
+                                        <th class="px-2 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[60px]">
+                                            @i
+                                        </th>
+                                    }
+                                    <th class="px-4 py-3 text-center text-xs font-semibold text-gray-700 uppercase tracking-wider min-w-[80px] bg-gray-100">
+                                        Total
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                @foreach (var golfer in golfers.OrderBy(g => g.DisplayName))
+                                {
+                                    <ScoreEntryRow
+                                        Golfer="@golfer"
+                                        SeasonEvent="@seasonEvent"
+                                        LeagueId="@league.Id"
+                                        OnScoreChanged="@HandleScoreChanged" />
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </MaterialCard>
+        }
+    </div>
+}
+

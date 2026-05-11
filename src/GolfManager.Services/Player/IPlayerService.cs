@@ -23,6 +23,11 @@ public interface IPlayerService
     Task<PlayerResponse> AddPlayerToLeagueAsync(string leagueId, CreatePlayerRequest request);
 
     /// <summary>
+    /// Add a player to a season (and league membership if needed)
+    /// </summary>
+    Task<PlayerResponse> AddPlayerToSeasonAsync(string seasonId, string leagueId, CreatePlayerRequest request, string userId);
+
+    /// <summary>
     /// Update a player's league profile
     /// </summary>
     Task<PlayerResponse> UpdatePlayerAsync(string leagueId, string playerId, UpdatePlayerRequest request);

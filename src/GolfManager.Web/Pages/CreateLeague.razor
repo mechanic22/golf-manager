@@ -1,10 +1,7 @@
 @page "/leagues/create"
 @layout AppLayout
 @using GolfManager.Web.Components.Icons
-@inject IAuthService AuthService
-@inject IAuthorizationService AuthorizationService
-@inject NavigationManager Navigation
-@inject ILogger<CreateLeague> Logger
+@using GolfManager.Shared.DTOs.League
 
 <PageTitle>Create League - Pinzo</PageTitle>
 
@@ -13,7 +10,7 @@
     <div class="text-center py-16">
         <MaterialIcon Path="@MaterialIcons.LockClosed" Size="MaterialComponents.Icons.IconSize.XL" Class="text-gray-400 mb-4" />
         <h2 class="text-2xl font-semibold text-gray-900 mb-2">Access Denied</h2>
-        <p class="text-gray-600 mb-4">You must be a Global Admin or League Admin to create leagues.</p>
+        <p class="text-gray-600 mb-4">You must be signed in to create a league.</p>
         <MaterialButton Style="MaterialButtonStyle.Outlined" 
                       Text="Back to Leagues"
                       OnClick="@(() => Navigation.NavigateTo("/leagues"))" />
@@ -36,57 +33,78 @@ else
     <!-- Create Form -->
     <div class="max-w-2xl">
         <div class="bg-white rounded-lg border border-gray-200 p-6">
-            <form @onsubmit="HandleSubmit">
-                <!-- League Name -->
+            <EditForm Model="@request" OnValidSubmit="HandleSubmit">
+                <DataAnnotationsValidator />
+
                 <div class="mb-6">
                     <label class="block text-sm font-medium text-gray-700 mb-2">League Name *</label>
-                    <input type="text" 
-                           @bind="leagueName" 
-                           required
+                    <input type="text"
+                           value="@request.Name"
+                           @oninput="HandleNameInput"
                            placeholder="e.g., Sunset Golf League"
                            class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+                    <ValidationMessage For="@(() => request.Name)" />
                 </div>
 
-                <!-- Description -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">League Key *</label>
+                    <input type="text"
+                           value="@request.Key"
+                           @oninput="HandleKeyInput"
+                           placeholder="sunset-golf-league"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg font-mono focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+                    <p class="mt-1 text-xs text-gray-500">Used in the league URL. Lowercase letters, numbers, and hyphens only.</p>
+                    <ValidationMessage For="@(() => request.Key)" />
+                </div>
+
                 <div class="mb-6">
                     <label class="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                    <textarea @bind="description" 
+                    <textarea @bind="request.Description"
                               rows="4"
                               placeholder="Describe your league..."
                               class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"></textarea>
+                    <ValidationMessage For="@(() => request.Description)" />
                 </div>
 
-                <!-- League Type -->
                 <div class="mb-6">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">League Type *</label>
-                    <select @bind="leagueType" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                        <option value="public">Public - Anyone can request to join</option>
-                        <option value="private">Private - Invite only</option>
-                    </select>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Logo URL</label>
+                    <input type="url"
+                           @bind="request.LogoUrl"
+                           placeholder="https://example.com/logo.png"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent" />
+                    <ValidationMessage For="@(() => request.LogoUrl)" />
                 </div>
 
-                <!-- Scoring Format -->
-                <div class="mb-6">
-                    <label class="block text-sm font-medium text-gray-700 mb-2">Scoring Format *</label>
-                    <select @bind="scoringFormat" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500">
-                        <option value="stroke">Stroke Play</option>
-                        <option value="stableford">Stableford</option>
-                        <option value="match">Match Play</option>
-                    </select>
-                </div>
+                <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <div class="mb-4 flex items-center gap-3">
+                        <input id="use-custom-domain"
+                               type="checkbox"
+                               @bind="request.UseCustomDomain"
+                               class="h-4 w-4 rounded border-gray-300 text-primary-600 focus:ring-primary-500" />
+                        <label for="use-custom-domain" class="text-sm font-medium text-gray-700">Enable custom domain</label>
+                    </div>
 
-                <!-- Handicap System -->
-                <div class="mb-6">
-                    <label class="flex items-center gap-2">
-                        <input type="checkbox" @bind="useHandicaps" class="w-4 h-4 text-primary-600 border-gray-300 rounded focus:ring-primary-500" />
-                        <span class="text-sm font-medium text-gray-700">Use handicap system</span>
-                    </label>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Custom Domain</label>
+                    <input type="text"
+                           @bind="request.CustomDomain"
+                           placeholder="golf.example.com"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                           disabled="@(!request.UseCustomDomain)" />
+                    <p class="mt-1 text-xs text-gray-500">You can verify DNS later from league settings after the league is created.</p>
+                    <ValidationMessage For="@(() => request.CustomDomain)" />
                 </div>
 
                 @if (!string.IsNullOrEmpty(errorMessage))
                 {
                     <div class="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
                         <p class="text-sm text-red-700">@errorMessage</p>
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(successMessage))
+                {
+                    <div class="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <p class="text-sm text-green-700">@successMessage</p>
                     </div>
                 }
 
@@ -100,7 +118,7 @@ else
                                   Text="Cancel"
                                   OnClick="@(() => Navigation.NavigateTo("/leagues"))" />
                 </div>
-            </form>
+            </EditForm>
         </div>
 
         <!-- Info Box -->
@@ -109,65 +127,10 @@ else
                 <MaterialIcon Path="@GolfIcons.Info" Class="text-blue-600 flex-shrink-0" />
                 <div class="text-sm text-blue-900">
                     <p class="font-semibold mb-1">What happens next?</p>
-                    <p>After creating your league, you'll be able to add seasons, invite members, and schedule events.</p>
+                    <p>After creating your league, you'll land on the league dashboard as the owner and can immediately manage settings, seasons, and members.</p>
                 </div>
             </div>
         </div>
     </div>
-}
-
-@code {
-    private bool canCreate = false;
-    private bool isSubmitting = false;
-    private string? errorMessage;
-
-    private string leagueName = string.Empty;
-    private string description = string.Empty;
-    private string leagueType = "public";
-    private string scoringFormat = "stroke";
-    private bool useHandicaps = true;
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (!AuthService.IsAuthenticated)
-        {
-            Navigation.NavigateTo("/login");
-            return;
-        }
-
-        // Check if user can create leagues (Global Admin or League Admin)
-        canCreate = AuthorizationService.IsGlobalAdmin();
-        // TODO: Add check for League Admin role when implemented
-
-        await Task.CompletedTask;
-    }
-
-    private async Task HandleSubmit()
-    {
-        if (isSubmitting) return;
-
-        try
-        {
-            isSubmitting = true;
-            errorMessage = null;
-
-            // TODO: Call API to create league
-            Logger.LogInformation("Creating league: {Name}", leagueName);
-
-            await Task.Delay(1000); // Simulate API call
-
-            // Navigate to the new league (mock key)
-            Navigation.NavigateTo($"/league/sunset-golf-league");
-        }
-        catch (Exception ex)
-        {
-            errorMessage = $"Failed to create league: {ex.Message}";
-            Logger.LogError(ex, "Error creating league");
-        }
-        finally
-        {
-            isSubmitting = false;
-        }
-    }
 }
 

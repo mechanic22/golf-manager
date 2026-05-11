@@ -52,6 +52,15 @@ public class SeasonEventConfiguration : IEntityTypeConfiguration<SeasonEvent>
         builder.Property(x => x.Description)
             .HasMaxLength(1000);
 
+        builder.Property(x => x.GameOfDayTitle)
+            .HasMaxLength(150);
+
+        builder.Property(x => x.GameOfDayWinnerSeasonGolferId)
+            .HasMaxLength(50);
+
+        builder.Property(x => x.GameOfDayWinnerDisplayName)
+            .HasMaxLength(120);
+
         builder.Property(x => x.IsLocked)
             .IsRequired()
             .HasDefaultValue(false);

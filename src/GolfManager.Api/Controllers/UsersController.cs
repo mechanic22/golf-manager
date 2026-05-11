@@ -1,4 +1,5 @@
 using GolfManager.Api.Authorization;
+using GolfManager.Core.Enums;
 using GolfManager.Data;
 using GolfManager.Shared.DTOs.Admin;
 using GolfManager.Shared.DTOs.Auth;
@@ -91,7 +92,7 @@ public class UsersController : ControllerBase
                 LeagueKey = ul.League.Key,
                 LeagueName = ul.League.Name,
                 CustomDomain = ul.League.CustomDomain,
-                IsLeagueAdmin = ul.IsLeagueAdmin,
+                IsLeagueAdmin = ul.Role == LeagueMemberRole.Owner || ul.Role == LeagueMemberRole.Admin,
                 Role = ul.Role
             })
             .ToListAsync();

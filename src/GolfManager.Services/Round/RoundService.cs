@@ -1,4 +1,5 @@
 using GolfManager.Data;
+using GolfManager.Core.Services;
 using GolfManager.Shared.DTOs.Round;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -10,13 +11,28 @@ namespace GolfManager.Services.Round;
 /// </summary>
 public class RoundService : IRoundService
 {
+    private sealed record SeasonEventLookup(string Id, DateTime EventDate, string? CourseId, string? TeeId);
+
     private readonly GolfManagerDbContext _context;
     private readonly ILogger<RoundService> _logger;
+    private readonly IHandicapRecalculationQueue? _handicapQueue;
+    private readonly ISeasonPointsRecalculationQueue? _seasonPointsQueue;
 
     public RoundService(GolfManagerDbContext context, ILogger<RoundService> logger)
+        : this(context, logger, null, null)
+    {
+    }
+
+    public RoundService(
+        GolfManagerDbContext context,
+        ILogger<RoundService> logger,
+        IHandicapRecalculationQueue? handicapQueue,
+        ISeasonPointsRecalculationQueue? seasonPointsQueue)
     {
         _context = context;
         _logger = logger;
+        _handicapQueue = handicapQueue;
+        _seasonPointsQueue = seasonPointsQueue;
     }
 
     public async Task<List<RoundResponse>> GetLeagueGolferRoundsAsync(string leagueGolferId, string leagueId)
@@ -30,7 +46,15 @@ public class RoundService : IRoundService
             .OrderByDescending(r => r.RoundDate)
             .ToListAsync();
 
-        return rounds.Select(MapToResponse).ToList();
+        var seasonEvents = await _context.SeasonEvents
+            .IgnoreQueryFilters()
+            .Where(e => e.LeagueId == leagueId)
+            .Select(e => new SeasonEventLookup(e.Id, e.EventDate, e.CourseId, e.TeeId))
+            .ToListAsync();
+
+        return rounds
+            .Select(r => MapToResponse(r, ResolveSeasonEventId(r, seasonEvents)))
+            .ToList();
     }
 
     public async Task<RoundResponse?> GetRoundByIdAsync(string roundId, string leagueId)
@@ -43,34 +67,51 @@ public class RoundService : IRoundService
             .Where(r => r.Id == roundId && r.LeagueId == leagueId)
             .FirstOrDefaultAsync();
 
-        return round == null ? null : MapToResponse(round);
+        if (round == null)
+        {
+            return null;
+        }
+
+        var seasonEvent = await _context.SeasonEvents
+            .IgnoreQueryFilters()
+            .Where(e => e.LeagueId == leagueId &&
+                        e.EventDate.Date == round.RoundDate.Date &&
+                        e.CourseId == round.CourseId &&
+                        e.TeeId == round.TeeId)
+            .Select(e => e.Id)
+            .FirstOrDefaultAsync();
+
+        return MapToResponse(round, seasonEvent);
     }
 
     public async Task<List<RoundResponse>> GetEventRoundsAsync(string seasonEventId, string leagueId)
     {
         // First, verify the event exists and belongs to the league
-        var eventExists = await _context.SeasonEvents
+        var seasonEvent = await _context.SeasonEvents
             .IgnoreQueryFilters()
-            .AnyAsync(e => e.Id == seasonEventId && e.LeagueId == leagueId);
+            .Where(e => e.Id == seasonEventId && e.LeagueId == leagueId)
+            .FirstOrDefaultAsync();
 
-        if (!eventExists)
+        if (seasonEvent == null)
         {
             throw new InvalidOperationException($"Event {seasonEventId} not found in league {leagueId}");
         }
 
-        // Get all rounds for this event
+        // Filter rounds by event date/course/tee.
         var rounds = await _context.Rounds
             .IgnoreQueryFilters()
             .Include(r => r.Course)
             .Include(r => r.Tee)
             .Include(r => r.Holes.OrderBy(h => h.HoleNumber))
             .Include(r => r.LeagueGolfer)
-            .Where(r => r.LeagueId == leagueId)
+            .Where(r => r.LeagueId == leagueId &&
+                        r.RoundDate.Date == seasonEvent.EventDate.Date &&
+                        r.CourseId == seasonEvent.CourseId &&
+                        r.TeeId == seasonEvent.TeeId)
+            .OrderByDescending(r => r.RoundDate)
             .ToListAsync();
 
-        // Filter by SeasonEventId (this would require a link table in production)
-        // For now, we'll return all rounds for the league
-        return rounds.Select(MapToResponse).ToList();
+        return rounds.Select(r => MapToResponse(r, seasonEventId)).ToList();
     }
 
     public async Task<RoundResponse> CreateRoundAsync(CreateRoundRequest request, string leagueId, string userId)
@@ -238,7 +279,31 @@ public class RoundService : IRoundService
             request.HoleNumber, roundId, userId);
 
         // Recalculate round totals
-        return await CalculateRoundTotalsAsync(roundId, leagueId);
+        var updatedRound = await CalculateRoundTotalsAsync(roundId, leagueId);
+
+        if (!string.IsNullOrWhiteSpace(updatedRound.SeasonEventId))
+        {
+            var seasonEvent = await _context.SeasonEvents
+                .IgnoreQueryFilters()
+                .Where(e => e.Id == updatedRound.SeasonEventId && e.LeagueId == leagueId)
+                .Select(e => new { e.SeasonId, e.Id })
+                .FirstOrDefaultAsync();
+
+            if (seasonEvent != null)
+            {
+                if (_handicapQueue != null)
+                {
+                    await _handicapQueue.QueueGolferAsync(leagueId, seasonEvent.SeasonId, seasonEvent.Id, round.GolferId, userId);
+                }
+
+                if (_seasonPointsQueue != null)
+                {
+                    await _seasonPointsQueue.QueueSeasonAsync(leagueId, seasonEvent.SeasonId, userId);
+                }
+            }
+        }
+
+        return updatedRound;
     }
 
     public async Task<RoundResponse> CalculateRoundTotalsAsync(string roundId, string leagueId)
@@ -283,7 +348,19 @@ public class RoundService : IRoundService
         return (await GetRoundByIdAsync(roundId, leagueId))!;
     }
 
-    private RoundResponse MapToResponse(Core.Entities.Round round)
+    private static string? ResolveSeasonEventId(
+        Core.Entities.Round round,
+        IEnumerable<SeasonEventLookup> seasonEvents)
+    {
+        return seasonEvents
+            .FirstOrDefault(e =>
+                e.EventDate.Date == round.RoundDate.Date &&
+                e.CourseId == round.CourseId &&
+                e.TeeId == round.TeeId)
+            ?.Id;
+    }
+
+    private RoundResponse MapToResponse(Core.Entities.Round round, string? seasonEventId = null)
     {
         return new RoundResponse
         {
@@ -291,6 +368,7 @@ public class RoundService : IRoundService
             GolferId = round.GolferId,
             LeagueGolferId = round.LeagueGolferId,
             LeagueId = round.LeagueId,
+            SeasonEventId = seasonEventId,
             CourseId = round.CourseId,
             CourseName = round.Course?.Name ?? string.Empty,
             TeeId = round.TeeId,

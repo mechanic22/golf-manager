@@ -80,7 +80,7 @@ public class AuthService : IAuthService
     {
         try
         {
-            await _httpClient.PostAsJsonAsync("api/v1/auth/logout", new RefreshTokenRequest());
+            await _httpClient.PostAsync("api/v1/auth/logout", null);
         }
         catch (Exception ex)
         {

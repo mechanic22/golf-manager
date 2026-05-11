@@ -1,0 +1,171 @@
+@page "/league/{LeagueKey}/season/{SeasonKey}/standings"
+@layout AppLayout
+@using GolfManager.Shared.DTOs.Season
+@using GolfManager.Web.Services
+@using MaterialComponents.Models
+
+<PageTitle>Standings - @(season?.Name ?? "Season") - Pinzo</PageTitle>
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-16">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-600">Loading...</p>
+        </div>
+    </div>
+}
+else if (season == null || league == null)
+{
+    <div class="max-w-2xl mx-auto my-8">
+        <MaterialCard Variant="MaterialCardVariant.Elevated">
+            <div class="md-card__content text-center py-16">
+                <MaterialIcon Icon="MaterialIcons.Error" Class="text-red-600 text-5xl mb-4" />
+                <h2 class="text-2xl font-semibold text-gray-900 mb-3">Season Not Found</h2>
+                <p class="text-gray-600 mb-8">The season you're looking for doesn't exist or you don't have access to it.</p>
+                <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/seasons"))">
+                    Back to Seasons
+                </MaterialButton>
+            </div>
+        </MaterialCard>
+    </div>
+}
+else
+{
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8 py-6">
+        <div class="flex items-center justify-between flex-wrap gap-4">
+            <div>
+                <div class="flex items-center gap-2 text-sm text-gray-600 mb-3">
+                    <a href="/dashboard" class="hover:text-primary-600">Dashboard</a>
+                    <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+                    <a href="@($"/league/{LeagueKey}")" class="hover:text-primary-600">@league.Name</a>
+                    <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+                    <a href="@($"/league/{LeagueKey}/season/{SeasonKey}")" class="hover:text-primary-600">@season.Name</a>
+                    <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+                    <span class="text-gray-900">Standings</span>
+                </div>
+                <div class="flex items-center gap-3 mb-2">
+                    <h1 class="text-3xl font-bold text-gray-900">@season.Name</h1>
+                    @if (season.IsLocked)
+                    {
+                        <MaterialChip Text="Locked" Color="MaterialChipColor.Secondary" Size="MaterialChipSize.Medium" />
+                    }
+                </div>
+                <div class="flex items-center gap-4 text-sm text-gray-600">
+                    <span class="font-mono">@season.Key</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8">
+        <MaterialTabs @bind-ActiveTab="activeTab" 
+                      Tabs="@GetNavigationTabs()" 
+                      ShowContent="false"
+                      OnTabChange="HandleTabChange" />
+    </div>
+
+    <div class="mt-8"></div>
+
+    <!-- Standings Summary -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content py-5">
+                <p class="text-xs uppercase tracking-wide text-gray-500 mb-1">Leader</p>
+                @if (!string.IsNullOrEmpty(LeaderName))
+                {
+                    <p class="text-lg font-semibold text-gray-900">@LeaderName</p>
+                }
+                else
+                {
+                    <p class="text-lg font-semibold text-gray-400">No scored rounds yet</p>
+                }
+            </div>
+        </MaterialCard>
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content py-5">
+                <p class="text-xs uppercase tracking-wide text-gray-500 mb-1">Players</p>
+                <p class="text-2xl font-bold text-gray-900">@golfers.Count</p>
+            </div>
+        </MaterialCard>
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content py-5">
+                <p class="text-xs uppercase tracking-wide text-gray-500 mb-1">Rounds Logged</p>
+                <p class="text-2xl font-bold text-gray-900">@TotalRoundsPlayed</p>
+            </div>
+        </MaterialCard>
+    </div>
+
+    <!-- Player Standings -->
+    @if (RankedStandings.Count == 0)
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content text-center py-16">
+                <MaterialIcon Icon="MaterialIcons.People" Class="text-gray-400 text-5xl mb-4" />
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">No Players In This Season</h3>
+                <p class="text-gray-600">Add players to start tracking standings.</p>
+            </div>
+        </MaterialCard>
+    }
+    else
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content p-0">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rank</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Points</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Handicap</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rounds</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Net</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Best Raw</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            @foreach (var row in RankedStandings)
+                            {
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        @if (row.Rank.HasValue)
+                                        {
+                                            <span class="text-sm font-semibold text-gray-900">#@row.Rank.Value</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-xs text-gray-400">N/A</span>
+                                        }
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center gap-3">
+                                            <div class="w-9 h-9 bg-primary-100 rounded-full flex items-center justify-center text-primary-700 font-semibold text-sm">
+                                                @GetInitials(row.Aggregate.Player.DisplayName)
+                                            </div>
+                                            <div>
+                                                <div class="text-sm font-medium text-gray-900">@row.Aggregate.Player.DisplayName</div>
+                                                @if (!string.IsNullOrEmpty(row.Aggregate.Player.Nickname))
+                                                {
+                                                    <div class="text-xs text-gray-500">"@row.Aggregate.Player.Nickname"</div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900">@(row.Aggregate.Points?.ToString("F1") ?? "-")</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">@(row.Aggregate.Player.LeagueHandicap?.ToString("F1") ?? "-")</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">@row.Aggregate.RoundCount</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">@(row.Aggregate.AverageNetScore?.ToString("F1") ?? "-")</td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">@(row.Aggregate.BestRawScore?.ToString() ?? "-")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </MaterialCard>
+    }
+}
+

@@ -79,5 +79,25 @@ public class PlayerResponse
     /// When the record was last updated
     /// </summary>
     public DateTime? UpdatedAt { get; set; }
+
+    /// <summary>
+    /// The SeasonGolfer ID when this response is for a season context. Null when listing league players.
+    /// </summary>
+    public string? SeasonGolferId { get; set; }
+
+    /// <summary>
+    /// The team ID the player is assigned to in the season context. Null if not on a team.
+    /// </summary>
+    public string? TeamId { get; set; }
+
+    /// <summary>
+    /// Whether this player is marked paid for the season in season context.
+    /// </summary>
+    public bool? IsPaidForSeason { get; set; }
+
+    /// <summary>
+    /// When season payment was marked in season context.
+    /// </summary>
+    public DateTime? PaidAt { get; set; }
 }
 

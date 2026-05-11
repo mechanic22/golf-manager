@@ -1,4 +1,5 @@
 using GolfManager.Core.Entities;
+using GolfManager.Core.Enums;
 using GolfManager.Core.Services;
 using GolfManager.Data;
 using GolfManager.Shared.DTOs.Auth;
@@ -125,7 +126,7 @@ public class AuthService : IAuthService
                 LeagueKey = ul.League.Key,
                 LeagueName = ul.League.Name,
                 CustomDomain = ul.League.CustomDomain,
-                IsLeagueAdmin = ul.IsLeagueAdmin,
+                IsLeagueAdmin = ul.Role == LeagueMemberRole.Owner || ul.Role == LeagueMemberRole.Admin,
                 Role = ul.Role
             })
             .ToListAsync(cancellationToken);
@@ -169,7 +170,7 @@ public class AuthService : IAuthService
                 LeagueKey = ul.League.Key,
                 LeagueName = ul.League.Name,
                 CustomDomain = ul.League.CustomDomain,
-                IsLeagueAdmin = ul.IsLeagueAdmin,
+                IsLeagueAdmin = ul.Role == LeagueMemberRole.Owner || ul.Role == LeagueMemberRole.Admin,
                 Role = ul.Role
             })
             .ToListAsync(cancellationToken);

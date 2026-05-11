@@ -1,11 +1,6 @@
 @page "/league/{LeagueKey}/player/{PlayerId}"
 @layout AppLayout
 @using GolfManager.Shared.DTOs.Player
-@inject IAuthService AuthService
-@inject ILeagueService LeagueService
-@inject IPlayerService PlayerService
-@inject NavigationManager Navigation
-@inject ILogger<PlayerDetail> Logger
 
 @if (isLoading)
 {
@@ -173,69 +168,5 @@ else
             </div>
         </MaterialCard>
     </div>
-}
-
-@code {
-    [Parameter]
-    public string LeagueKey { get; set; } = string.Empty;
-
-    [Parameter]
-    public string PlayerId { get; set; } = string.Empty;
-
-    private LeagueResponse? league;
-    private PlayerResponse? player;
-    private bool isLoading = true;
-
-    protected override async Task OnInitializedAsync()
-    {
-        if (!AuthService.IsAuthenticated)
-        {
-            Navigation.NavigateTo("/login");
-            return;
-        }
-
-        await LoadData();
-    }
-
-    private async Task LoadData()
-    {
-        isLoading = true;
-        try
-        {
-            // Load league first to get the ID
-            var leagueResponse = await LeagueService.GetLeagueByKeyAsync(LeagueKey);
-            if (leagueResponse?.Success == true && leagueResponse.Data != null)
-            {
-                league = leagueResponse.Data;
-
-                // Load player
-                var playerResponse = await PlayerService.GetPlayerAsync(league.Id, PlayerId);
-                if (playerResponse?.Success == true && playerResponse.Data != null)
-                {
-                    player = playerResponse.Data;
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error loading player data");
-        }
-        finally
-        {
-            isLoading = false;
-        }
-    }
-
-    private string GetInitials(string displayName)
-    {
-        if (string.IsNullOrWhiteSpace(displayName))
-            return "?";
-
-        var parts = displayName.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        if (parts.Length == 1)
-            return parts[0].Substring(0, Math.Min(2, parts[0].Length)).ToUpper();
-
-        return $"{parts[0][0]}{parts[^1][0]}".ToUpper();
-    }
 }
 

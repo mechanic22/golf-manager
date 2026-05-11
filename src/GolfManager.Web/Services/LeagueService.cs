@@ -96,15 +96,27 @@ public class LeagueService : ILeagueService
         }
     }
 
-    public async Task<ApiResponse<LeagueResponse>?> GetLeagueByKeyAsync(string key)
+    public async Task<ApiResponse<LeagueResponse>?> GetLeagueByKeyAsync(string key, string? anonymousAccessPassword = null)
     {
         try
         {
-            var response = await _httpClient.GetAsync($"api/v1/leagues/by-key/{key}");
+            var requestUri = $"api/v1/leagues/by-key/{key}";
+            if (!string.IsNullOrWhiteSpace(anonymousAccessPassword))
+            {
+                requestUri = $"{requestUri}?anonymousAccessPassword={Uri.EscapeDataString(anonymousAccessPassword)}";
+            }
+
+            var response = await _httpClient.GetAsync(requestUri);
 
             if (response.IsSuccessStatusCode)
             {
                 return await response.Content.ReadFromJsonAsync<ApiResponse<LeagueResponse>>();
+            }
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Forbidden)
+            {
+                var errorContent = await response.Content.ReadAsStringAsync();
+                return ApiResponse<LeagueResponse>.ErrorResponse("Forbidden", errorContent);
             }
 
             return null;
@@ -112,6 +124,41 @@ public class LeagueService : ILeagueService
         catch
         {
             return null;
+        }
+    }
+
+    public async Task<ApiResponse<bool>?> VerifyAnonymousAccessAsync(string key, string password)
+    {
+        try
+        {
+            var response = await _httpClient.PostAsJsonAsync(
+                $"api/v1/leagues/by-key/{key}/anonymous-access",
+                new VerifyAnonymousAccessRequest { Password = password });
+
+            if (response.IsSuccessStatusCode)
+            {
+                return await response.Content.ReadFromJsonAsync<ApiResponse<bool>>();
+            }
+
+            var errorContent = await response.Content.ReadAsStringAsync();
+            try
+            {
+                var errorResponse = await response.Content.ReadFromJsonAsync<ApiResponse<bool>>();
+                if (errorResponse != null)
+                {
+                    return errorResponse;
+                }
+            }
+            catch
+            {
+            }
+
+            return ApiResponse<bool>.ErrorResponse($"Request failed with status {response.StatusCode}", errorContent);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error verifying anonymous access");
+            return ApiResponse<bool>.ErrorResponse("Request failed", ex.Message);
         }
     }
 

@@ -42,6 +42,10 @@ public class HoleTeeConfiguration : IEntityTypeConfiguration<HoleTee>
         builder.Property(x => x.IsActive)
             .IsRequired()
             .HasDefaultValue(true);
+
+        // See HoleConfiguration: do not create a direct EF relationship from HoleTee to Hole
+        // by HoleNumber alone.
+        builder.Ignore(x => x.Hole);
     }
 }
 

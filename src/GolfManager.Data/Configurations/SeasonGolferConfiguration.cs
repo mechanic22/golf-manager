@@ -45,6 +45,10 @@ public class SeasonGolferConfiguration : IEntityTypeConfiguration<SeasonGolfer>
         builder.Property(x => x.JoinedAt)
             .IsRequired();
 
+        builder.Property(x => x.IsPaidForSeason)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         builder.Property(x => x.IsActive)
             .IsRequired()
             .HasDefaultValue(true);

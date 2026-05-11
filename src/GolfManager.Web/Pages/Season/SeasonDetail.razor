@@ -1,0 +1,685 @@
+@page "/league/{LeagueKey}/season/{SeasonKey}"
+@page "/league/{LeagueKey}/season/{SeasonKey}/overview"
+@layout AppLayout
+@using GolfManager.Shared.DTOs.Season
+@using GolfManager.Shared.DTOs.Player
+@using GolfManager.Shared.DTOs.User
+@using GolfManager.Shared.DTOs.Event
+@using GolfManager.Shared.DTOs.Common
+@using GolfManager.Shared.DTOs.Simulation
+@using GolfManager.Core.Enums
+@using GolfManager.Web.Services
+@using System.Text.Json
+@using MaterialComponents.Models
+
+<PageTitle>@(season?.Name ?? "Season") - @(league?.Name ?? "League") - Pinzo</PageTitle>
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-16">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-600">Loading season...</p>
+        </div>
+    </div>
+}
+else if (season == null || league == null)
+{
+    <div class="max-w-2xl mx-auto my-8">
+        <MaterialCard Variant="MaterialCardVariant.Elevated">
+            <div class="md-card__content text-center py-16">
+                <MaterialIcon Icon="MaterialIcons.Error" Class="text-red-600 text-5xl mb-4" />
+                <h2 class="text-2xl font-semibold text-gray-900 mb-3">Season Not Found</h2>
+                <p class="text-gray-600 mb-8">The season you're looking for doesn't exist or you don't have access to it.</p>
+                <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}"))">
+                    Back to League
+                </MaterialButton>
+            </div>
+        </MaterialCard>
+    </div>
+}
+else
+{
+    <!-- Header -->
+    <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8 py-6">
+        <div class="flex items-center justify-between flex-wrap gap-4">
+            <div>
+                <div class="flex items-center gap-2 text-sm text-gray-600 mb-3">
+                    <a href="/dashboard" class="hover:text-primary-600">Dashboard</a>
+                    <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+                    <a href="@($"/league/{LeagueKey}")" class="hover:text-primary-600">@league.Name</a>
+                    <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+                    <span class="text-gray-900">@season.Name</span>
+                </div>
+                <div class="flex items-center gap-3 mb-2">
+                    <h1 class="text-3xl font-bold text-gray-900">@season.Name</h1>
+                    @if (season.IsLocked)
+                    {
+                        <MaterialChip Text="Locked" Color="MaterialChipColor.Secondary" Size="MaterialChipSize.Medium" />
+                    }
+                </div>
+                <div class="flex items-center gap-4 text-sm text-gray-600">
+                    <span class="font-mono">@season.Key</span>
+                    <span>•</span>
+                    <div class="flex items-center gap-1">
+                        <MaterialIcon Icon="MaterialIcons.CalendarToday" Size="IconSize.SM" />
+                        <span>@season.StartDate.ToString("MMM d, yyyy")</span>
+                        @if (season.EndDate.HasValue)
+                        {
+                            <span>- @season.EndDate.Value.ToString("MMM d, yyyy")</span>
+                        }
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-3">
+                <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/seasons"))">
+                    <MaterialIcon Icon="MaterialIcons.ArrowBack" Class="mr-1" />
+                    Back to Seasons
+                </MaterialButton>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8">
+        <MaterialTabs @bind-ActiveTab="activeTab"
+                      Tabs="@GetNavigationTabs()"
+                      ShowContent="false"
+                      OnTabChange="HandleTabChange" />
+    </div>
+
+    <div class="mt-8"></div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content text-center py-6">
+                <MaterialIcon Icon="MaterialIcons.Event" Class="text-primary-600 text-4xl mb-2" />
+                <div class="text-3xl font-bold text-gray-900">@season.EventCount</div>
+                <div class="text-sm text-gray-600">Events</div>
+            </div>
+        </MaterialCard>
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content text-center py-6">
+                <MaterialIcon Icon="MaterialIcons.People" Class="text-primary-600 text-4xl mb-2" />
+                <div class="text-3xl font-bold text-gray-900">@season.GolferCount</div>
+                <div class="text-sm text-gray-600">Golfers</div>
+            </div>
+        </MaterialCard>
+    </div>
+
+    <!-- Events Section -->
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h2 class="text-xl font-semibold text-gray-900">Events</h2>
+            <p class="text-gray-600 text-sm">Season events and competitions</p>
+        </div>
+        @if (CanManageSeason)
+        {
+            <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/events"))">
+                <MaterialIcon Icon="MaterialIcons.Event" Class="mr-1" />
+                Manage Events
+            </MaterialButton>
+        }
+    </div>
+
+    @if (isLoadingEvents)
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content text-center py-12">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mb-3"></div>
+                <p class="text-gray-600">Loading events...</p>
+            </div>
+        </MaterialCard>
+    }
+    else if (events.Count == 0)
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content text-center py-12">
+                <MaterialIcon Icon="MaterialIcons.Event" Class="text-gray-400 text-5xl mb-4" />
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">No Events Yet</h3>
+                <p class="text-gray-600">Create your first event to get started</p>
+            </div>
+        </MaterialCard>
+    }
+    else
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content">
+                <div class="divide-y divide-gray-200">
+                    @foreach (var evt in events)
+                    {
+                                <div class="py-4 px-2 hover:bg-gray-50 transition-colors @(CanManageCurrentSeason() ? "cursor-pointer" : "cursor-default")"
+                                    @onclick="@(() => OpenScoreEntry(evt))">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-3">
+                                        <div class="text-center min-w-[60px]">
+                                            <div class="text-2xl font-bold text-primary-600">@evt.EventDate.Day</div>
+                                            <div class="text-xs text-gray-600 uppercase">@evt.EventDate.ToString("MMM")</div>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-base font-semibold text-gray-900">@(evt.Name ?? $"Week {events.IndexOf(evt) + 1}")</h3>
+                                            <div class="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                                                <span class="flex items-center gap-1">
+                                                    <MaterialIcon Icon="MaterialIcons.Event" Class="text-xs" />
+                                                    @evt.EventDate.ToString("dddd, MMMM d, yyyy")
+                                                </span>
+                                                <span class="flex items-center gap-1">
+                                                    <MaterialIcon Icon="MaterialIcons.Flag" Class="text-xs" />
+                                                    @evt.HolesPlayed.ToString()
+                                                </span>
+                                                <span class="flex items-center gap-1">
+                                                    <MaterialIcon Icon="MaterialIcons.Score" Class="text-xs" />
+                                                    @evt.ScoringFormat.ToString()
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="px-2 py-1 text-xs rounded-full @(evt.EventType == Core.Enums.SeasonEventType.Regular ? "bg-blue-100 text-blue-800" : "bg-purple-100 text-purple-800")">
+                                        @evt.EventType.ToString()
+                                    </span>
+                                    @if (evt.IsLocked)
+                                    {
+                                        <MaterialIcon Icon="MaterialIcons.Lock" Class="text-gray-400 text-sm" />
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        </MaterialCard>
+    }
+
+    <!-- Golfers Section -->
+    <div class="mt-12 mb-6 flex items-center justify-between">
+        <div>
+            <h2 class="text-xl font-semibold text-gray-900">Season Players</h2>
+            <p class="text-gray-600 text-sm">Players participating in this season</p>
+        </div>
+        @if (CanManageSeason)
+        {
+            <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="@(() => showAddGolferModal = true)">
+                <MaterialIcon Icon="MaterialIcons.PersonAdd" Class="mr-1" />
+                Add Player
+            </MaterialButton>
+        }
+    </div>
+
+    @if (isLoadingGolfers)
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content text-center py-12">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mb-4"></div>
+                <p class="text-gray-600">Loading golfers...</p>
+            </div>
+        </MaterialCard>
+    }
+    else if (golfers == null || golfers.Count == 0)
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content text-center py-12">
+                <MaterialIcon Icon="MaterialIcons.GolfCourse" Class="text-gray-400 text-5xl mb-4" />
+                <p class="text-gray-600 mb-4">No golfers in this season yet</p>
+                @if (CanManageSeason)
+                {
+                    <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="@(() => showAddGolferModal = true)">
+                        <MaterialIcon Icon="MaterialIcons.PersonAdd" Class="mr-1" />
+                        Add First Player
+                    </MaterialButton>
+                }
+            </div>
+        </MaterialCard>
+    }
+    else
+    {
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content p-0">
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="bg-gray-50 border-b border-gray-200">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Player</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Handicap</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rounds</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Score</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Best Score</th>
+                                @if (CanManageSeason)
+                                {
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                }
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            @foreach (var golfer in golfers)
+                            {
+                                <tr class="hover:bg-gray-50 transition-colors cursor-pointer" @onclick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/player/{golfer.Id}"))">
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <div class="flex-shrink-0 h-10 w-10 bg-primary-100 rounded-full flex items-center justify-center">
+                                                <span class="text-primary-700 font-semibold">@GetInitials(golfer.DisplayName)</span>
+                                            </div>
+                                            <div class="ml-4">
+                                                <div class="text-sm font-medium text-gray-900">@golfer.DisplayName</div>
+                                                @if (!string.IsNullOrEmpty(golfer.Nickname))
+                                                {
+                                                    <div class="text-sm text-gray-500">"@golfer.Nickname"</div>
+                                                }
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm text-gray-900">@(golfer.LeagueHandicap?.ToString("F1") ?? "-")</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm text-gray-900">@golfer.TotalRounds</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm text-gray-900">@(golfer.AverageScore?.ToString("F1") ?? "-")</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sm text-gray-900">@(golfer.BestScore?.ToString() ?? "-")</span>
+                                    </td>
+                                    @if (CanManageSeason)
+                                    {
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <MaterialButton Style="MaterialButtonStyle.Text">
+                                                <MaterialIcon Icon="MaterialIcons.MoreVert" />
+                                            </MaterialButton>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </MaterialCard>
+    }
+
+<!-- Add Player Modal -->
+@if (showAddGolferModal)
+{
+    <MaterialDialog @bind-IsOpen="showAddGolferModal" Title="Add Player to League">
+        <ChildContent>
+            <div class="space-y-6">
+                <p class="text-gray-600 text-sm">
+                    Add a new player to the league. You can add an existing user or create a new one.
+                </p>
+
+                <!-- User Search -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Search by Email (Optional)
+                    </label>
+                    <div class="flex gap-2">
+                        <MaterialInput @bind-Value="newPlayerEmail"
+                                     Type="email"
+                                     Placeholder="user@example.com"
+                                     Class="flex-1" />
+                        <MaterialButton Style="MaterialButtonStyle.Outlined"
+                                      OnClick="SearchUser"
+                                      Disabled="@(string.IsNullOrWhiteSpace(newPlayerEmail) || isSearchingUser)">
+                            @if (isSearchingUser)
+                            {
+                                <span>Searching...</span>
+                            }
+                            else
+                            {
+                                <MaterialIcon Icon="MaterialIcons.Search" Class="mr-1" />
+                                <span>Search</span>
+                            }
+                        </MaterialButton>
+                    </div>
+                    @if (!string.IsNullOrEmpty(userSearchMessage))
+                    {
+                        <p class="text-sm mt-2 @(userSearchSuccess ? "text-green-600" : "text-gray-600")">
+                            @userSearchMessage
+                        </p>
+                    }
+                </div>
+
+                <!-- Player Details -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            First Name @(foundUserId == null ? "(Required)" : "(Optional)")
+                        </label>
+                        <MaterialInput @bind-Value="newPlayerFirstName"
+                                     Placeholder="John" />
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">
+                            Last Name @(foundUserId == null ? "(Required)" : "(Optional)")
+                        </label>
+                        <MaterialInput @bind-Value="newPlayerLastName"
+                                     Placeholder="Doe" />
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Display Name (Required)
+                    </label>
+                    <MaterialInput @bind-Value="newPlayerDisplayName"
+                                 Placeholder="John Doe"
+                                 Required="true" />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Nickname (Optional)
+                    </label>
+                    <MaterialInput @bind-Value="newPlayerNickname"
+                                 Placeholder="Johnny" />
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        League Handicap (Optional)
+                    </label>
+                    <MaterialInput @bind-Value="newPlayerHandicap"
+                                 Type="number"
+                                 Placeholder="15.5"
+                                 Min="0"
+                                 Max="54"
+                                 Step="0.1" />
+                </div>
+
+                @if (!string.IsNullOrEmpty(addPlayerError))
+                {
+                    <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <p class="text-sm text-red-800">@addPlayerError</p>
+                    </div>
+                }
+            </div>
+        </ChildContent>
+        <Actions>
+            <MaterialButton Style="MaterialButtonStyle.Text"
+                          OnClick="@(() => { showAddGolferModal = false; ResetAddPlayerForm(); })">
+                Cancel
+            </MaterialButton>
+            <MaterialButton Style="MaterialButtonStyle.Filled"
+                          OnClick="HandleAddPlayer"
+                          Disabled="@(isAddingPlayer || string.IsNullOrWhiteSpace(newPlayerDisplayName))">
+                @if (isAddingPlayer)
+                {
+                    <span>Adding...</span>
+                }
+                else
+                {
+                    <span>Add Player</span>
+                }
+            </MaterialButton>
+        </Actions>
+    </MaterialDialog>
+}
+
+    <!-- Settings Section -->
+    @if (CanManageSeason)
+    {
+        <div class="mt-12 mb-6 flex items-center justify-between">
+            <div>
+                <h2 class="text-xl font-semibold text-gray-900">Season Settings</h2>
+                <p class="text-gray-600 text-sm">Configure scoring formats, handicap settings, and defaults</p>
+            </div>
+        </div>
+
+        @if (isLoadingSettings)
+        {
+            <MaterialCard Variant="MaterialCardVariant.Outlined">
+                <div class="md-card__content text-center py-12">
+                    <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600 mb-3"></div>
+                    <p class="text-gray-600">Loading settings...</p>
+                </div>
+            </MaterialCard>
+        }
+        else if (settings == null)
+        {
+            <MaterialCard Variant="MaterialCardVariant.Outlined">
+                <div class="md-card__content text-center py-12">
+                    <MaterialIcon Icon="MaterialIcons.Settings" Class="text-gray-400 text-5xl mb-4" />
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">No Settings Configured</h3>
+                    <p class="text-gray-600 mb-6">Create default settings to get started</p>
+                    <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="CreateDefaultSettings" Disabled="@isCreatingSettings">
+                        @if (isCreatingSettings)
+                        {
+                            <span>Creating...</span>
+                        }
+                        else
+                        {
+                            <MaterialIcon Icon="MaterialIcons.Add" Class="mr-1" />
+                            <span>Create Default Settings</span>
+                        }
+                    </MaterialButton>
+                </div>
+            </MaterialCard>
+        }
+        else
+        {
+            <MaterialCard Variant="MaterialCardVariant.Outlined">
+                <div class="md-card__content p-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Handicap Settings -->
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-900 mb-4">Handicap Settings</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Handicap Type</label>
+                                    <p class="text-gray-900">@settings.HandicapType</p>
+                                </div>
+                                @if (settings.MaxHandicap.HasValue)
+                                {
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Max Handicap</label>
+                                        <p class="text-gray-900">@settings.MaxHandicap</p>
+                                    </div>
+                                }
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Max Score for Handicap</label>
+                                    <p class="text-gray-900">@settings.MaxScoreForHandicap</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Scoring Settings -->
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-900 mb-4">Scoring Settings</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Individual Scoring</label>
+                                    <p class="text-gray-900">@settings.IndividualScoringType</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Team Scoring</label>
+                                    <p class="text-gray-900">@settings.TeamScoringType</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Missing Player/Team Settings -->
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-900 mb-4">Missing Player/Team</h3>
+                            <div class="space-y-3">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Missing Player</label>
+                                    <p class="text-gray-900">@settings.MissingPlayerType</p>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Missing Team</label>
+                                    <p class="text-gray-900">@settings.MissingTeamType</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Defaults -->
+                        <div>
+                            <h3 class="text-sm font-semibold text-gray-900 mb-4">Defaults</h3>
+                            <div class="space-y-3">
+                                @if (!string.IsNullOrEmpty(settings.DefaultCourseName))
+                                {
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Default Course</label>
+                                        <p class="text-gray-900">@settings.DefaultCourseName</p>
+                                    </div>
+                                }
+                                @if (settings.DefaultStartTime.HasValue)
+                                {
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Default Start Time</label>
+                                        <p class="text-gray-900">@settings.DefaultStartTime.Value.ToString("h:mm tt")</p>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 pt-6 border-t border-gray-200 flex justify-end">
+                        <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="OpenEditSettingsModal">
+                            <MaterialIcon Icon="MaterialIcons.Edit" Class="mr-1" />
+                            Edit Settings
+                        </MaterialButton>
+                    </div>
+                </div>
+            </MaterialCard>
+        }
+    }
+
+
+
+    <!-- Edit Settings Modal -->
+    @if (showEditSettingsModal && settings != null)
+    {
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50" @onclick="@(() => showEditSettingsModal = false)">
+            <div class="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" @onclick:stopPropagation="true">
+                <div class="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                    <h2 class="text-xl font-semibold text-gray-900">Edit Season Settings</h2>
+                    <button @onclick="@(() => showEditSettingsModal = false)" class="text-gray-400 hover:text-gray-600">
+                        <MaterialIcon Icon="MaterialIcons.Close" />
+                    </button>
+                </div>
+
+                <div class="p-6">
+                    @if (!string.IsNullOrEmpty(editSettingsError))
+                    {
+                        <div class="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                            <p class="text-sm text-red-800">@editSettingsError</p>
+                        </div>
+                    }
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Handicap Settings -->
+                        <div class="md:col-span-2">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Handicap Settings</h3>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Handicap Type</label>
+                            <select @bind="editHandicapType" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                @foreach (var type in Enum.GetValues<HandicapType>())
+                                {
+                                    <option value="@type">@type</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Max Handicap</label>
+                            <input type="number" @bind="editMaxHandicap" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" placeholder="e.g., 18" />
+                        </div>
+
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Max Score for Handicap</label>
+                            <select @bind="editMaxScoreForHandicap" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                @foreach (var type in Enum.GetValues<MaxScoreForHandicap>())
+                                {
+                                    <option value="@type">@type</option>
+                                }
+                            </select>
+                        </div>
+
+                        <!-- Scoring Settings -->
+                        <div class="md:col-span-2 mt-4">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Scoring Settings</h3>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Individual Scoring Type</label>
+                            <select @bind="editIndividualScoringType" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                @foreach (var type in Enum.GetValues<IndividualScoringType>())
+                                {
+                                    <option value="@type">@type</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Team Scoring Type</label>
+                            <select @bind="editTeamScoringType" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                @foreach (var type in Enum.GetValues<TeamScoringType>())
+                                {
+                                    <option value="@type">@type</option>
+                                }
+                            </select>
+                        </div>
+
+                        <!-- Missing Player/Team Settings -->
+                        <div class="md:col-span-2 mt-4">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Missing Player/Team Handling</h3>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Missing Player Type</label>
+                            <select @bind="editMissingPlayerType" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                @foreach (var type in Enum.GetValues<MissingPlayerType>())
+                                {
+                                    <option value="@type">@type</option>
+                                }
+                            </select>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Missing Team Type</label>
+                            <select @bind="editMissingTeamType" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                @foreach (var type in Enum.GetValues<MissingTeamType>())
+                                {
+                                    <option value="@type">@type</option>
+                                }
+                            </select>
+                        </div>
+
+                        <!-- Default Settings -->
+                        <div class="md:col-span-2 mt-4">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Default Settings</h3>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Default Start Time</label>
+                            <input type="time" value="@editDefaultStartTime" @onchange="@((e) => editDefaultStartTime = e.Value?.ToString())" class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="sticky bottom-0 bg-gray-50 border-t border-gray-200 px-6 py-4 flex justify-end gap-3">
+                    <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="@(() => showEditSettingsModal = false)" Disabled="@isSavingSettings">
+                        Cancel
+                    </MaterialButton>
+                    <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="SaveSettings" Disabled="@isSavingSettings">
+                        @if (isSavingSettings)
+                        {
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <MaterialIcon Icon="MaterialIcons.Save" Class="mr-1" />
+                            <span>Save Settings</span>
+                        }
+                    </MaterialButton>
+                </div>
+            </div>
+        </div>
+    }
+}

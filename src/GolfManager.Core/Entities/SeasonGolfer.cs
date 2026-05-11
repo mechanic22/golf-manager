@@ -53,6 +53,16 @@ public class SeasonGolfer : BaseEntity, ITenantEntity
     public double? TotalPoints { get; set; }
 
     /// <summary>
+    /// Indicates whether season dues/fees have been paid.
+    /// </summary>
+    public bool IsPaidForSeason { get; set; }
+
+    /// <summary>
+    /// Timestamp when season payment was marked.
+    /// </summary>
+    public DateTime? PaidAt { get; set; }
+
+    /// <summary>
     /// When the golfer joined this season
     /// </summary>
     public DateTime JoinedAt { get; set; } = DateTime.UtcNow;

@@ -17,15 +17,21 @@ namespace GolfManager.Api.Controllers;
 public class EventsController : ControllerBase
 {
     private readonly IEventService _eventService;
+    private readonly IHandicapRecalculationQueue _handicapQueue;
+    private readonly ISeasonPointsRecalculationQueue _seasonPointsQueue;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<EventsController> _logger;
 
     public EventsController(
         IEventService eventService,
+        IHandicapRecalculationQueue handicapQueue,
+        ISeasonPointsRecalculationQueue seasonPointsQueue,
         ICurrentUserService currentUserService,
         ILogger<EventsController> logger)
     {
         _eventService = eventService;
+        _handicapQueue = handicapQueue;
+        _seasonPointsQueue = seasonPointsQueue;
         _currentUserService = currentUserService;
         _logger = logger;
     }
@@ -68,6 +74,23 @@ public class EventsController : ControllerBase
         }
 
         return Ok(ApiResponse<EventResponse>.SuccessResponse(seasonEvent));
+    }
+
+    /// <summary>
+    /// Get calculated team and individual scoreboard for an event.
+    /// </summary>
+    [HttpGet("{eventId}/scoreboard")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    public async Task<ActionResult<ApiResponse<EventScoreboardResponse>>> GetEventScoreboard(string seasonId, string eventId)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<EventScoreboardResponse>.ErrorResponse("League context required"));
+        }
+
+        var scoreboard = await _eventService.GetEventScoreboardAsync(seasonId, eventId, leagueId);
+        return Ok(ApiResponse<EventScoreboardResponse>.SuccessResponse(scoreboard));
     }
 
     /// <summary>
@@ -120,6 +143,143 @@ public class EventsController : ControllerBase
             eventId, userId);
 
         return Ok(ApiResponse<EventResponse>.SuccessResponse(seasonEvent));
+    }
+
+    /// <summary>
+    /// Get event matchups
+    /// </summary>
+    [HttpGet("{eventId}/matchups")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    public async Task<ActionResult<ApiResponse<List<EventMatchupResponse>>>> GetEventMatchups(string seasonId, string eventId)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<List<EventMatchupResponse>>.ErrorResponse("League context required"));
+        }
+
+        var matchups = await _eventService.GetEventMatchupsAsync(seasonId, eventId, leagueId);
+        return Ok(ApiResponse<List<EventMatchupResponse>>.SuccessResponse(matchups));
+    }
+
+    /// <summary>
+    /// Auto setup matchups from current standings
+    /// </summary>
+    [HttpPost("{eventId}/matchups/auto-setup")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<List<EventMatchupResponse>>>> AutoSetupMatchups(string seasonId, string eventId)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<List<EventMatchupResponse>>.ErrorResponse("League context required"));
+        }
+
+        var userId = _currentUserService.UserId!;
+        var matchups = await _eventService.AutoSetupEventMatchupsFromStandingsAsync(seasonId, eventId, leagueId, userId);
+
+        return Ok(ApiResponse<List<EventMatchupResponse>>.SuccessResponse(matchups));
+    }
+
+    /// <summary>
+    /// Schedule the next week's event from this event and auto-setup matchups from standings.
+    /// </summary>
+    [HttpPost("{eventId}/schedule-next-week")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<EventResponse>>> ScheduleNextWeek(string seasonId, string eventId)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<EventResponse>.ErrorResponse("League context required"));
+        }
+
+        var userId = _currentUserService.UserId!;
+        var nextEvent = await _eventService.ScheduleNextWeekFromEventAsync(seasonId, eventId, leagueId, userId);
+
+        return Ok(ApiResponse<EventResponse>.SuccessResponse(nextEvent, "Next week scheduled and matchups generated."));
+    }
+
+    /// <summary>
+    /// Update one event matchup
+    /// </summary>
+    [HttpPut("{eventId}/matchups/{matchupId}")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<EventMatchupResponse>>> UpdateEventMatchup(
+        string seasonId,
+        string eventId,
+        string matchupId,
+        [FromBody] UpdateEventMatchupRequest request)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<EventMatchupResponse>.ErrorResponse("League context required"));
+        }
+
+        var userId = _currentUserService.UserId!;
+        var matchup = await _eventService.UpdateEventMatchupAsync(seasonId, eventId, matchupId, request, leagueId, userId);
+
+        return Ok(ApiResponse<EventMatchupResponse>.SuccessResponse(matchup));
+    }
+
+    /// <summary>
+    /// Recalculate handicaps for all golfers with rounds in this event.
+    /// </summary>
+    [HttpPost("{eventId}/handicaps/recalculate")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<int>>> RecalculateEventHandicaps(string seasonId, string eventId)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<int>.ErrorResponse("League context required"));
+        }
+
+        var userId = _currentUserService.UserId!;
+        await _handicapQueue.QueueEventAsync(leagueId, seasonId, eventId, userId);
+        await _seasonPointsQueue.QueueSeasonAsync(leagueId, seasonId, userId);
+
+        return Ok(ApiResponse<int>.SuccessResponse(0, "Handicap recalculation queued in background."));
+    }
+
+    /// <summary>
+    /// Recalculate handicap for one golfer in the context of this event.
+    /// </summary>
+    [HttpPost("{eventId}/handicaps/recalculate/{golferId}")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<bool>>> RecalculateEventGolferHandicap(string seasonId, string eventId, string golferId)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<bool>.ErrorResponse("League context required"));
+        }
+
+        var userId = _currentUserService.UserId!;
+        await _handicapQueue.QueueGolferAsync(leagueId, seasonId, eventId, golferId, userId);
+        await _seasonPointsQueue.QueueSeasonAsync(leagueId, seasonId, userId);
+
+        return Ok(ApiResponse<bool>.SuccessResponse(true, "Handicap recalculation queued in background."));
+    }
+
+    /// <summary>
+    /// Recalculate overall season standings (wins/losses/points) from event results.
+    /// </summary>
+    [HttpPost("{eventId}/overall/recalculate")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
+    public async Task<ActionResult<ApiResponse<int>>> RecalculateOverallStandings(string seasonId, string eventId)
+    {
+        var leagueId = HttpContext.Items["LeagueId"] as string;
+        if (string.IsNullOrEmpty(leagueId))
+        {
+            return BadRequest(ApiResponse<int>.ErrorResponse("League context required"));
+        }
+
+        var userId = _currentUserService.UserId!;
+        var updated = await _eventService.RecalculateSeasonTeamStandingsAsync(seasonId, leagueId, userId);
+
+        return Ok(ApiResponse<int>.SuccessResponse(updated, "Overall standings recalculated."));
     }
 
     /// <summary>

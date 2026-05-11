@@ -37,5 +37,21 @@ public interface ISeasonService
     /// Delete a season
     /// </summary>
     Task<bool> DeleteSeasonAsync(string leagueId, string seasonId);
+
+    /// <summary>
+    /// Bulk configure a season from pasted calendar and team roster text.
+    /// </summary>
+    Task<ApiResponse<SeasonSetupResponse>?> SetupSeasonAsync(string leagueId, string seasonId, SeasonSetupRequest request);
+
+    // ── Teams ────────────────────────────────────────────────────────────────
+    Task<ApiResponse<List<SeasonTeamResponse>>?> GetSeasonTeamsAsync(string leagueId, string seasonId);
+    Task<ApiResponse<SeasonTeamResponse>?> CreateSeasonTeamAsync(string leagueId, string seasonId, CreateSeasonTeamRequest request);
+    Task<ApiResponse<SeasonTeamResponse>?> UpdateSeasonTeamAsync(string leagueId, string seasonId, string teamId, UpdateSeasonTeamRequest request);
+    Task<bool> DeleteSeasonTeamAsync(string leagueId, string seasonId, string teamId);
+    Task<bool> AssignPlayerToTeamAsync(string leagueId, string seasonId, string seasonGolferId, AssignPlayerToTeamRequest request);
+
+    // ── Players ──────────────────────────────────────────────────────────────
+    Task<bool> RemovePlayerFromSeasonAsync(string leagueId, string seasonId, string seasonGolferId);
+    Task<bool> UpdateSeasonPlayerPaymentAsync(string leagueId, string seasonId, string seasonGolferId, UpdateSeasonPlayerPaymentRequest request);
 }
 

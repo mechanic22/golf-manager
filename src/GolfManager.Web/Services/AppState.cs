@@ -87,14 +87,19 @@ public class AppState
     /// </summary>
     public void SetCurrentLeague(string? leagueKey)
     {
-        if (leagueKey == CurrentLeagueKey)
+        var normalizedInput = string.IsNullOrWhiteSpace(leagueKey)
+            ? null
+            : leagueKey.Trim().ToLowerInvariant();
+
+        if (normalizedInput == CurrentLeagueKey)
             return;
             
-        CurrentLeagueKey = leagueKey;
+        CurrentLeagueKey = normalizedInput;
         
-        if (!string.IsNullOrEmpty(leagueKey))
+        if (!string.IsNullOrEmpty(normalizedInput))
         {
-            var league = UserLeagues.FirstOrDefault(l => l.LeagueKey == leagueKey);
+                var league = UserLeagues.FirstOrDefault(l => 
+                l.LeagueKey.ToLowerInvariant() == normalizedInput);
             if (league != null)
             {
                 CurrentLeagueId = league.LeagueId;

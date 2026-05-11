@@ -33,6 +33,16 @@ public class SeasonEventMatch : BaseEntity, ITenantEntity
     public string? AwayTeamId { get; set; }
 
     /// <summary>
+    /// Season golfer ID acting as home team substitute for this weekly match
+    /// </summary>
+    public string? HomeSubSeasonGolferId { get; set; }
+
+    /// <summary>
+    /// Season golfer ID acting as away team substitute for this weekly match
+    /// </summary>
+    public string? AwaySubSeasonGolferId { get; set; }
+
+    /// <summary>
     /// Points earned by home team
     /// </summary>
     public double? HomePoints { get; set; }

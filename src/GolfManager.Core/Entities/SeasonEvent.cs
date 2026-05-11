@@ -59,6 +59,21 @@ public class SeasonEvent : BaseEntity, ITenantEntity
     public string? Description { get; set; }
 
     /// <summary>
+    /// Optional title for game-of-the-day configured for this event.
+    /// </summary>
+    public string? GameOfDayTitle { get; set; }
+
+    /// <summary>
+    /// Optional season golfer winner ID for game-of-the-day.
+    /// </summary>
+    public string? GameOfDayWinnerSeasonGolferId { get; set; }
+
+    /// <summary>
+    /// Cached winner display name for quick rendering.
+    /// </summary>
+    public string? GameOfDayWinnerDisplayName { get; set; }
+
+    /// <summary>
     /// Is the event locked (scores finalized)?
     /// </summary>
     public bool IsLocked { get; set; }

@@ -98,4 +98,26 @@ public class HandicapController : ControllerBase
         return Ok(ApiResponse<double?>.SuccessResponse(handicap, 
             handicap.HasValue ? $"Current handicap: {handicap.Value:F1}" : "No handicap set"));
     }
+
+    /// <summary>
+    /// Calculate a golfer's handicap index from their recorded rounds.
+    /// Supports World Handicap System (WHS), Bob's League, and Scratch methods.
+    /// Set persist=false for a preview without saving.
+    /// </summary>
+    [HttpPost("calculate")]
+    public async Task<ActionResult<ApiResponse<HandicapCalculationResponse>>> CalculateHandicap(
+        string golferId,
+        [FromBody] CalculateHandicapRequest request)
+    {
+        var currentUserId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(currentUserId))
+            return Unauthorized(ApiResponse<HandicapCalculationResponse>.ErrorResponse("User not authenticated"));
+
+        var response = await _handicapService.CalculateHandicapAsync(golferId, request, currentUserId);
+
+        if (!response.Success)
+            return BadRequest(response);
+
+        return Ok(response);
+    }
 }

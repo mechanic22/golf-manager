@@ -74,12 +74,26 @@ public class LeagueService : ILeagueService
         return await MapToResponseAsync(league, userId);
     }
 
-    public async Task<LeagueResponse?> GetLeagueByKeyAsync(string leagueKey, string? userId = null)
+    public async Task<LeagueResponse?> GetLeagueByKeyAsync(string leagueKey, string? userId = null, string? anonymousAccessPassword = null)
     {
+        if (string.IsNullOrWhiteSpace(leagueKey))
+        {
+            return null;
+        }
+
+        var normalizedKey = leagueKey.Trim().ToLowerInvariant();
+
         var league = await _context.Leagues
-            .FirstOrDefaultAsync(l => l.Key == leagueKey && l.IsActive);
+            .FirstOrDefaultAsync(l => l.Key.ToLower() == normalizedKey && l.IsActive);
 
         if (league == null)
+        {
+            return null;
+        }
+
+        if (string.IsNullOrEmpty(userId)
+            && league.RequireAnonymousPassword
+            && !IsAnonymousAccessAllowed(league, anonymousAccessPassword))
         {
             return null;
         }
@@ -87,29 +101,69 @@ public class LeagueService : ILeagueService
         return await MapToResponseAsync(league, userId);
     }
 
+    public async Task<bool> VerifyAnonymousAccessAsync(string leagueKey, string password)
+    {
+        if (string.IsNullOrWhiteSpace(leagueKey))
+        {
+            return false;
+        }
+
+        var normalizedKey = leagueKey.Trim().ToLowerInvariant();
+
+        var league = await _context.Leagues
+            .FirstOrDefaultAsync(l => l.Key.ToLower() == normalizedKey && l.IsActive);
+
+        if (league == null)
+        {
+            return false;
+        }
+
+        return IsAnonymousAccessAllowed(league, password);
+    }
+
     public async Task<LeagueResponse> CreateLeagueAsync(CreateLeagueRequest request, string userId)
     {
+        var normalizedKey = NormalizeLeagueKey(request.Key);
+        if (string.IsNullOrWhiteSpace(normalizedKey))
+        {
+            throw new InvalidOperationException("League key is required.");
+        }
+
+        var normalizedName = request.Name?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedName))
+        {
+            throw new InvalidOperationException("League name is required.");
+        }
+
         // Check if league key already exists
         var existingLeague = await _context.Leagues
-            .FirstOrDefaultAsync(l => l.Key == request.Key);
+            .FirstOrDefaultAsync(l => l.Key.ToLower() == normalizedKey);
 
         if (existingLeague != null)
         {
-            throw new InvalidOperationException($"League with key '{request.Key}' already exists");
+            throw new InvalidOperationException($"League with key '{normalizedKey}' already exists");
         }
 
-        var normalizedDomain = request.CustomDomain?.Trim();
+        var normalizedDomain = NormalizeCustomDomain(request.CustomDomain);
+        await EnsureCustomDomainAvailableAsync(normalizedDomain);
+        var useCustomDomain = request.UseCustomDomain && !string.IsNullOrWhiteSpace(normalizedDomain);
 
         // Create the league
         var league = new Core.Entities.League
         {
             Id = _shortIdService.GenerateId(),
-            Key = request.Key,
-            Name = request.Name,
-            Description = request.Description,
-            LogoUrl = request.LogoUrl,
+            Key = normalizedKey,
+            Name = normalizedName,
+            Description = request.Description?.Trim(),
+            LogoUrl = string.IsNullOrWhiteSpace(request.LogoUrl) ? null : request.LogoUrl.Trim(),
+            WelcomeHeadline = string.IsNullOrWhiteSpace(request.WelcomeHeadline) ? null : request.WelcomeHeadline.Trim(),
+            WelcomeSubhead = string.IsNullOrWhiteSpace(request.WelcomeSubhead) ? null : request.WelcomeSubhead.Trim(),
+            EmptyStateMessage = string.IsNullOrWhiteSpace(request.EmptyStateMessage) ? null : request.EmptyStateMessage.Trim(),
+            CommissionerName = string.IsNullOrWhiteSpace(request.CommissionerName) ? null : request.CommissionerName.Trim(),
+            AnnouncementTitle = string.IsNullOrWhiteSpace(request.AnnouncementTitle) ? null : request.AnnouncementTitle.Trim(),
+            AnnouncementBody = string.IsNullOrWhiteSpace(request.AnnouncementBody) ? null : request.AnnouncementBody.Trim(),
             CustomDomain = !string.IsNullOrWhiteSpace(normalizedDomain) ? normalizedDomain : null,
-            UseCustomDomain = request.UseCustomDomain,
+            UseCustomDomain = useCustomDomain,
             CustomDomainVerificationToken = !string.IsNullOrWhiteSpace(normalizedDomain)
                 ? GenerateDomainVerificationToken()
                 : null,
@@ -157,24 +211,71 @@ public class LeagueService : ILeagueService
         // Update fields if provided
         if (!string.IsNullOrEmpty(request.Name))
         {
-            league.Name = request.Name;
+            league.Name = request.Name.Trim();
         }
 
         if (request.Description != null)
         {
-            league.Description = request.Description;
+            league.Description = string.IsNullOrWhiteSpace(request.Description)
+                ? null
+                : request.Description.Trim();
         }
 
         if (request.LogoUrl != null)
         {
-            league.LogoUrl = request.LogoUrl;
+            league.LogoUrl = string.IsNullOrWhiteSpace(request.LogoUrl)
+                ? null
+                : request.LogoUrl.Trim();
+        }
+
+        if (request.WelcomeHeadline != null)
+        {
+            league.WelcomeHeadline = string.IsNullOrWhiteSpace(request.WelcomeHeadline)
+                ? null
+                : request.WelcomeHeadline.Trim();
+        }
+
+        if (request.WelcomeSubhead != null)
+        {
+            league.WelcomeSubhead = string.IsNullOrWhiteSpace(request.WelcomeSubhead)
+                ? null
+                : request.WelcomeSubhead.Trim();
+        }
+
+        if (request.EmptyStateMessage != null)
+        {
+            league.EmptyStateMessage = string.IsNullOrWhiteSpace(request.EmptyStateMessage)
+                ? null
+                : request.EmptyStateMessage.Trim();
+        }
+
+        if (request.CommissionerName != null)
+        {
+            league.CommissionerName = string.IsNullOrWhiteSpace(request.CommissionerName)
+                ? null
+                : request.CommissionerName.Trim();
+        }
+
+        if (request.AnnouncementTitle != null)
+        {
+            league.AnnouncementTitle = string.IsNullOrWhiteSpace(request.AnnouncementTitle)
+                ? null
+                : request.AnnouncementTitle.Trim();
+        }
+
+        if (request.AnnouncementBody != null)
+        {
+            league.AnnouncementBody = string.IsNullOrWhiteSpace(request.AnnouncementBody)
+                ? null
+                : request.AnnouncementBody.Trim();
         }
 
         if (request.CustomDomain != null)
         {
-            var normalizedDomain = request.CustomDomain.Trim();
+            var normalizedDomain = NormalizeCustomDomain(request.CustomDomain);
             if (!string.Equals(normalizedDomain, league.CustomDomain, StringComparison.OrdinalIgnoreCase))
             {
+                await EnsureCustomDomainAvailableAsync(normalizedDomain, league.Id);
                 league.CustomDomain = !string.IsNullOrWhiteSpace(normalizedDomain) ? normalizedDomain : null;
                 league.CustomDomainVerificationToken = !string.IsNullOrWhiteSpace(normalizedDomain)
                     ? GenerateDomainVerificationToken()
@@ -185,7 +286,38 @@ public class LeagueService : ILeagueService
 
         if (request.UseCustomDomain.HasValue)
         {
-            league.UseCustomDomain = request.UseCustomDomain.Value;
+            league.UseCustomDomain = request.UseCustomDomain.Value && !string.IsNullOrWhiteSpace(league.CustomDomain);
+        }
+
+        if (request.ClearAnonymousAccessPassword == true)
+        {
+            league.AnonymousPasswordHash = null;
+            league.AnonymousPasswordUpdatedAt = DateTime.UtcNow;
+        }
+
+        if (request.AnonymousAccessPassword != null)
+        {
+            var trimmedPassword = request.AnonymousAccessPassword.Trim();
+            if (trimmedPassword.Length == 0)
+            {
+                league.AnonymousPasswordHash = null;
+            }
+            else
+            {
+                league.AnonymousPasswordHash = _passwordHasher.HashPassword(trimmedPassword);
+            }
+
+            league.AnonymousPasswordUpdatedAt = DateTime.UtcNow;
+        }
+
+        if (request.RequireAnonymousPassword.HasValue)
+        {
+            if (request.RequireAnonymousPassword.Value && string.IsNullOrEmpty(league.AnonymousPasswordHash))
+            {
+                throw new InvalidOperationException("Set an anonymous access password before enabling anonymous password protection.");
+            }
+
+            league.RequireAnonymousPassword = request.RequireAnonymousPassword.Value;
         }
 
         league.UpdatedAt = DateTime.UtcNow;
@@ -572,7 +704,11 @@ public class LeagueService : ILeagueService
         {
             isCurrentUserAdmin = await _context.UserLeagues
                 .IgnoreQueryFilters()
-                .AnyAsync(ul => ul.UserId == userId && ul.LeagueId == league.Id && ul.IsLeagueAdmin && ul.IsActive);
+                .AnyAsync(ul =>
+                    ul.UserId == userId
+                    && ul.LeagueId == league.Id
+                    && ul.IsActive
+                    && (ul.Role == LeagueMemberRole.Owner || ul.Role == LeagueMemberRole.Admin));
         }
 
         return new LeagueResponse
@@ -582,6 +718,12 @@ public class LeagueService : ILeagueService
             Name = league.Name,
             Description = league.Description,
             LogoUrl = league.LogoUrl,
+            WelcomeHeadline = league.WelcomeHeadline,
+            WelcomeSubhead = league.WelcomeSubhead,
+            EmptyStateMessage = league.EmptyStateMessage,
+            CommissionerName = league.CommissionerName,
+            AnnouncementTitle = league.AnnouncementTitle,
+            AnnouncementBody = league.AnnouncementBody,
             ActiveSeasonId = league.ActiveSeasonId,
             MemberCount = memberCount,
             PlayerCount = playerCount,
@@ -591,14 +733,72 @@ public class LeagueService : ILeagueService
             UseCustomDomain = league.UseCustomDomain,
             CustomDomainVerificationToken = isCurrentUserAdmin ? league.CustomDomainVerificationToken : null,
             CustomDomainVerifiedAt = league.CustomDomainVerifiedAt,
+            RequireAnonymousPassword = league.RequireAnonymousPassword,
+            HasAnonymousPassword = !string.IsNullOrEmpty(league.AnonymousPasswordHash),
+            AnonymousPasswordUpdatedAt = league.AnonymousPasswordUpdatedAt,
             CreatedAt = league.CreatedAt,
             UpdatedAt = league.UpdatedAt
         };
     }
 
+    private bool IsAnonymousAccessAllowed(Core.Entities.League league, string? password)
+    {
+        if (!league.RequireAnonymousPassword)
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(league.AnonymousPasswordHash))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(password))
+        {
+            return false;
+        }
+
+        return _passwordHasher.VerifyPassword(password.Trim(), league.AnonymousPasswordHash);
+    }
+
     private static string GenerateDomainVerificationToken()
     {
         return Guid.NewGuid().ToString("N");
+    }
+
+    private static string NormalizeLeagueKey(string? key)
+    {
+        return key?.Trim().ToLowerInvariant() ?? string.Empty;
+    }
+
+    private static string? NormalizeCustomDomain(string? domain)
+    {
+        if (string.IsNullOrWhiteSpace(domain))
+        {
+            return null;
+        }
+
+        return domain.Trim().TrimEnd('.').ToLowerInvariant();
+    }
+
+    private async Task EnsureCustomDomainAvailableAsync(string? customDomain, string? leagueIdToExclude = null)
+    {
+        if (string.IsNullOrWhiteSpace(customDomain))
+        {
+            return;
+        }
+
+        var customDomainInUse = await _context.Leagues
+            .AnyAsync(l =>
+                l.IsActive
+                && l.CustomDomain != null
+                && l.CustomDomain.ToLower() == customDomain
+                && (leagueIdToExclude == null || l.Id != leagueIdToExclude));
+
+        if (customDomainInUse)
+        {
+            throw new InvalidOperationException($"Custom domain '{customDomain}' is already in use by another league.");
+        }
     }
 
     private static LeagueMemberRole NormalizeRequestedRole(LeagueMemberRole role, bool isLeagueAdmin)
