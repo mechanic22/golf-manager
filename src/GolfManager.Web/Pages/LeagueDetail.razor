@@ -1,0 +1,544 @@
+@page "/league/{LeagueKey}"
+@page "/league/{LeagueKey}/dashboard"
+@layout AppLayout
+@using GolfManager.Shared.DTOs.League
+@using GolfManager.Shared.DTOs.Season
+@using GolfManager.Core.Enums
+@using GolfManager.Web.Components.League
+@using GolfManager.Web.Services
+@using MaterialComponents.Models
+@inject IAuthService AuthService
+@inject IAuthorizationService AuthorizationService
+@inject ILeagueService LeagueService
+@inject ISeasonService SeasonService
+@inject AppState AppState
+@inject NavigationManager Navigation
+@inject ILogger<LeagueDetail> Logger
+
+<PageTitle>@(league?.Name ?? "League") - Pinzo</PageTitle>
+
+<LeaguePageShell League="@league"
+                 LeagueKey="@LeagueKey"
+                 CurrentLeagueName="@AppState.CurrentLeagueName"
+                 ActiveTab="@activeTab"
+                 ShowSettingsTab="@(league != null && AuthorizationService.CanManageLeague(league.Id))"
+                 ShowLeagueIcon="true"
+                 IsLoading="@isLoading"
+                 LoadingMessage="Loading league...">
+    <HeaderActions>
+        <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="@(() => Navigation.NavigateTo("/dashboard"))">
+            <MaterialIcon Icon="MaterialIcons.ArrowBack" Class="mr-1" />
+            Back
+        </MaterialButton>
+    </HeaderActions>
+    <ChildContent>
+        <div style="display: @(activeTab == "dashboard" ? "block" : "none")">
+            @if (hasLoadedDashboard && league != null)
+            {
+                <DashboardTab League="@league"
+                             LeagueKey="@LeagueKey"
+                             OnAddMember="ShowAddMemberModal" />
+            }
+        </div>
+
+        <div style="display: @(activeTab == "seasons" ? "block" : "none")">
+            @if (hasLoadedSeasons && league != null)
+            {
+                <SeasonsTab @key="seasonsTabVersion"
+                           League="@league"
+                           LeagueKey="@LeagueKey"
+                           OnCreateSeason="ShowAddSeasonModal" />
+            }
+        </div>
+
+        <div style="display: @(activeTab == "members" ? "block" : "none")">
+            @if (hasLoadedMembers && league != null)
+            {
+                <MembersTab League="@league"
+                           OnAddMember="ShowAddMemberModal"
+                           OnPromoteToAdmin="PromoteToAdmin"
+                           OnDemoteFromAdmin="DemoteFromAdmin"
+                           OnRemoveMember="ShowRemoveMemberConfirm" />
+            }
+        </div>
+
+        <div style="display: @(activeTab == "settings" ? "block" : "none")">
+            @if (hasLoadedSettings && league != null)
+            {
+                <SettingsTab League="@league"
+                            LeagueKey="@LeagueKey"
+                            OnLeagueUpdated="ReloadLeague" />
+            }
+        </div>
+    </ChildContent>
+</LeaguePageShell>
+
+
+
+<!-- Add Member Modal -->
+<MaterialDialog @bind-IsOpen="showAddMemberModal" Title="Add League Member" MaxWidth="MaterialDialogMaxWidth.Small">
+    <ChildContent>
+        @if (!string.IsNullOrEmpty(addMemberError))
+        {
+            <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-4">
+                @addMemberError
+            </div>
+        }
+
+        <div class="space-y-6">
+            <MaterialInput @bind-Value="addMemberRequest.Email"
+                          Label="Email Address"
+                          Type="email"
+                          Variant="MaterialInputVariant.Outlined"
+                          SupportingText="Enter the email address of the user to add"
+                          Required="true" />
+
+            <div class="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded text-sm">
+                <strong>Note:</strong> If the user doesn't exist, they will be created automatically. Please provide their first and last name below.
+            </div>
+
+            <MaterialInput @bind-Value="addMemberRequest.FirstName"
+                          Label="First Name"
+                          Variant="MaterialInputVariant.Outlined"
+                          SupportingText="Required if creating a new user" />
+
+            <MaterialInput @bind-Value="addMemberRequest.LastName"
+                          Label="Last Name"
+                          Variant="MaterialInputVariant.Outlined"
+                          SupportingText="Required if creating a new user" />
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">League Role</label>
+                <select @bind="addMemberRequest.Role"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    @foreach (var role in LeagueRoles)
+                    {
+                        <option value="@role">@role</option>
+                    }
+                </select>
+            </div>
+
+            <MaterialInput @bind-Value="addMemberRequest.InvitationMessage"
+                          Label="Invitation Message (Optional)"
+                          Variant="MaterialInputVariant.Outlined"
+                          Multiline="true"
+                          Rows="3"
+                          SupportingText="Optional welcome message for the new member" />
+        </div>
+    </ChildContent>
+    <Actions>
+        <MaterialButton Style="MaterialButtonStyle.Text" OnClick="() => showAddMemberModal = false" Disabled="isAddingMember">
+            Cancel
+        </MaterialButton>
+        <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="HandleAddMember" Disabled="isAddingMember">
+            @if (isAddingMember)
+            {
+                <span>Adding...</span>
+            }
+            else
+            {
+                <span>Add Member</span>
+            }
+        </MaterialButton>
+    </Actions>
+</MaterialDialog>
+
+<!-- Remove Member Confirmation -->
+<MaterialDialog @bind-IsOpen="showRemoveConfirm" Title="Remove Member" MaxWidth="MaterialDialogMaxWidth.Small">
+    <ChildContent>
+        @if (memberToRemove != null)
+        {
+            <p class="text-gray-700">
+                Are you sure you want to remove <strong>@memberToRemove.FullName</strong> from this league?
+            </p>
+        }
+    </ChildContent>
+    <Actions>
+        <MaterialButton Style="MaterialButtonStyle.Text" OnClick="() => showRemoveConfirm = false" Disabled="isRemovingMember">
+            Cancel
+        </MaterialButton>
+        <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="HandleRemoveMember" Disabled="isRemovingMember">
+            @if (isRemovingMember)
+            {
+                <span>Removing...</span>
+            }
+            else
+            {
+                <span>Remove</span>
+            }
+        </MaterialButton>
+    </Actions>
+</MaterialDialog>
+
+<!-- Add Season Modal -->
+<MaterialDialog @bind-IsOpen="showAddSeasonModal" Title="Create New Season" MaxWidth="MaterialDialogMaxWidth.Small">
+    <ChildContent>
+        @if (!string.IsNullOrEmpty(addSeasonError))
+        {
+            <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-4">
+                @addSeasonError
+            </div>
+        }
+
+        <div class="space-y-6">
+            <MaterialInput @bind-Value="addSeasonRequest.Name"
+                          Label="Season Name"
+                          Variant="MaterialInputVariant.Outlined"
+                          SupportingText="Display name for the season (e.g., '2024 Season', 'Spring 2024'). A URL-friendly key will be auto-generated."
+                          Required="true" />
+
+            <MaterialInput @bind-Value="addSeasonRequest.StartDate"
+                          Label="Start Date"
+                          Type="date"
+                          Variant="MaterialInputVariant.Outlined"
+                          SupportingText="When does this season begin?"
+                          Required="true" />
+
+            <MaterialInput @bind-Value="addSeasonRequest.EndDate"
+                          Label="End Date (Optional)"
+                          Type="date"
+                          Variant="MaterialInputVariant.Outlined"
+                          SupportingText="When does this season end? Leave blank if ongoing." />
+        </div>
+    </ChildContent>
+    <Actions>
+        <MaterialButton Style="MaterialButtonStyle.Text" OnClick="() => showAddSeasonModal = false" Disabled="isAddingSeason">
+            Cancel
+        </MaterialButton>
+        <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="HandleAddSeason" Disabled="isAddingSeason">
+            @if (isAddingSeason)
+            {
+                <span>Creating...</span>
+            }
+            else
+            {
+                <span>Create Season</span>
+            }
+        </MaterialButton>
+    </Actions>
+</MaterialDialog>
+
+@code {
+    [Parameter]
+    public string LeagueKey { get; set; } = string.Empty;
+
+    private LeagueResponse? league;
+    private bool isLoading = true;
+
+    // Tab lazy loading flags
+    private bool hasLoadedDashboard = false;
+    private bool hasLoadedSeasons = false;
+    private bool hasLoadedMembers = false;
+    private bool hasLoadedSettings = false;
+    private int seasonsTabVersion = 0;
+
+    // Add member modal
+    private bool showAddMemberModal = false;
+    private bool isAddingMember = false;
+    private AddLeagueMemberRequest addMemberRequest = new();
+    private string? addMemberError;
+
+    // Remove member confirmation
+    private bool showRemoveConfirm = false;
+    private bool isRemovingMember = false;
+    private LeagueMemberResponse? memberToRemove;
+
+    // Add season modal
+    private bool showAddSeasonModal = false;
+    private bool isAddingSeason = false;
+    private CreateSeasonRequest addSeasonRequest = new();
+    private string? addSeasonError;
+
+    // Tab navigation
+    private string activeTab = "dashboard";
+    private static readonly LeagueMemberRole[] LeagueRoles =
+    [
+        LeagueMemberRole.Owner,
+        LeagueMemberRole.Admin,
+        LeagueMemberRole.Member,
+        LeagueMemberRole.Viewer
+    ];
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        // Initialize authorization service
+        await AuthorizationService.InitializeAsync();
+
+        AppState.SetCurrentLeague(LeagueKey);
+
+        await LoadLeague();
+
+        // Load all tabs immediately (lazy loading via MaterialTabs @bind doesn't work well)
+        hasLoadedDashboard = true;
+        hasLoadedSeasons = true;
+        hasLoadedMembers = true;
+        hasLoadedSettings = true;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Trigger lazy loading when active tab changes
+        await LoadActiveTab();
+    }
+
+    private async Task LoadActiveTab()
+    {
+        switch (activeTab)
+        {
+            case "dashboard":
+                if (!hasLoadedDashboard)
+                {
+                    hasLoadedDashboard = true;
+                    StateHasChanged();
+                }
+                break;
+
+            case "seasons":
+                if (!hasLoadedSeasons)
+                {
+                    hasLoadedSeasons = true;
+                    StateHasChanged();
+                }
+                break;
+
+            case "members":
+                if (!hasLoadedMembers)
+                {
+                    hasLoadedMembers = true;
+                    StateHasChanged();
+                }
+                break;
+
+            case "settings":
+                if (!hasLoadedSettings)
+                {
+                    hasLoadedSettings = true;
+                    StateHasChanged();
+                }
+                break;
+        }
+
+        await Task.CompletedTask;
+    }
+
+    private async Task LoadLeague()
+    {
+        isLoading = true;
+        try
+        {
+            // Load league from API
+            var response = await LeagueService.GetLeagueByKeyAsync(LeagueKey);
+            if (response != null && response.Success && response.Data != null)
+            {
+                league = response.Data;
+                Logger.LogInformation("Loaded league: {LeagueName}", league.Name);
+            }
+            else
+            {
+                Logger.LogWarning("League not found: {LeagueKey}", LeagueKey);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading league");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ReloadLeague()
+    {
+        await LoadLeague();
+        StateHasChanged();
+    }
+
+    // Note: Members and Seasons loading moved to tab components
+    // These methods trigger a reload by forcing the tab to reload
+    private async Task LoadMembers()
+    {
+        // Force members tab to reload
+        hasLoadedMembers = false;
+        hasLoadedMembers = true;
+        StateHasChanged();
+        await Task.CompletedTask;
+    }
+
+    private async Task LoadSeasons()
+    {
+        seasonsTabVersion++;
+        hasLoadedSeasons = true;
+        StateHasChanged();
+        await Task.CompletedTask;
+    }
+
+    private void ShowAddMemberModal()
+    {
+        addMemberRequest = new AddLeagueMemberRequest();
+        addMemberError = null;
+        showAddMemberModal = true;
+    }
+
+    private void ShowAddSeasonModal()
+    {
+        addSeasonRequest = new CreateSeasonRequest
+        {
+            StartDate = DateOnly.FromDateTime(DateTime.Today)
+        };
+        addSeasonError = null;
+        showAddSeasonModal = true;
+    }
+
+    private async Task HandleAddSeason()
+    {
+        if (league == null) return;
+
+        addSeasonError = null;
+        isAddingSeason = true;
+
+        try
+        {
+            var response = await SeasonService.CreateSeasonAsync(league.Id, addSeasonRequest);
+            if (response?.Success == true && response.Data != null)
+            {
+                showAddSeasonModal = false;
+                await LoadSeasons(); // Reload the seasons list
+            }
+            else
+            {
+                addSeasonError = response?.Message ?? "Failed to create season. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error creating season");
+            addSeasonError = "An error occurred while creating the season. Please try again.";
+        }
+        finally
+        {
+            isAddingSeason = false;
+        }
+    }
+
+    private async Task HandleAddMember()
+    {
+        if (league == null) return;
+
+        addMemberError = null;
+        isAddingMember = true;
+
+        try
+        {
+            var response = await LeagueService.AddLeagueMemberAsync(league.Id, addMemberRequest);
+
+            if (response?.Success == true)
+            {
+                showAddMemberModal = false;
+                await LoadMembers();
+                await LoadLeague(); // Refresh member count
+            }
+            else
+            {
+                addMemberError = response?.Message ?? "Failed to add member";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error adding member");
+            addMemberError = "An error occurred while adding the member";
+        }
+        finally
+        {
+            isAddingMember = false;
+        }
+    }
+
+    private async Task PromoteToAdmin(LeagueMemberResponse member)
+    {
+        if (league == null) return;
+
+        try
+        {
+            var request = new UpdateLeagueMemberRequest { Role = LeagueMemberRole.Admin };
+            var response = await LeagueService.UpdateLeagueMemberAsync(league.Id, member.UserId, request);
+
+            if (response?.Success == true)
+            {
+                await LoadMembers();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error promoting member");
+        }
+    }
+
+    private async Task DemoteFromAdmin(LeagueMemberResponse member)
+    {
+        if (league == null) return;
+
+        try
+        {
+            var request = new UpdateLeagueMemberRequest { Role = LeagueMemberRole.Member };
+            var response = await LeagueService.UpdateLeagueMemberAsync(league.Id, member.UserId, request);
+
+            if (response?.Success == true)
+            {
+                await LoadMembers();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error demoting member");
+        }
+    }
+
+    private void ShowRemoveMemberConfirm(LeagueMemberResponse member)
+    {
+        memberToRemove = member;
+        showRemoveConfirm = true;
+    }
+
+    private async Task HandleRemoveMember()
+    {
+        if (league == null || memberToRemove == null) return;
+
+        isRemovingMember = true;
+
+        try
+        {
+            var response = await LeagueService.RemoveLeagueMemberAsync(league.Id, memberToRemove.UserId);
+
+            if (response?.Success == true)
+            {
+                showRemoveConfirm = false;
+                memberToRemove = null;
+                await LoadMembers();
+                await LoadLeague(); // Refresh member count
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error removing member");
+        }
+        finally
+        {
+            isRemovingMember = false;
+        }
+    }
+
+    private string GetInitials(string firstName, string lastName)
+    {
+        var first = !string.IsNullOrEmpty(firstName) ? firstName[0].ToString() : "";
+        var last = !string.IsNullOrEmpty(lastName) ? lastName[0].ToString() : "";
+        return (first + last).ToUpper();
+    }
+
+}

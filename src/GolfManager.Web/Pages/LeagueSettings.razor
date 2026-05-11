@@ -1,0 +1,364 @@
+@page "/league/{LeagueKey}/settings"
+@layout AppLayout
+@using GolfManager.Shared.DTOs.League
+@using GolfManager.Web.Components.League
+@using GolfManager.Web.Services
+@using MaterialComponents.Models
+@inject IAuthService AuthService
+@inject IAuthorizationService AuthorizationService
+@inject ILeagueService LeagueService
+@inject NavigationManager Navigation
+@inject ILogger<LeagueSettings> Logger
+
+<PageTitle>Settings - @(league?.Name ?? "League") - Pinzo</PageTitle>
+
+<LeaguePageShell League="@league"
+                 LeagueKey="@LeagueKey"
+                 CurrentLeagueName="@AppState.CurrentLeagueName"
+                 ActiveTab="@activeTab"
+                 ShowSettingsTab="@(league?.IsCurrentUserAdmin == true)"
+                 IsLoading="@isLoading"
+                 LoadingMessage="Loading settings...">
+    <ChildContent>
+        @if (league != null && !league.IsCurrentUserAdmin)
+        {
+            <div class="max-w-2xl mx-auto my-8">
+                <MaterialCard Variant="MaterialCardVariant.Elevated">
+                    <div class="md-card__content text-center py-16">
+                        <MaterialIcon Icon="MaterialIcons.Lock" Class="text-yellow-600 text-5xl mb-4" />
+                        <h2 class="text-2xl font-semibold text-gray-900 mb-3">Admin Access Required</h2>
+                        <p class="text-gray-600 mb-8">Only league administrators can access settings.</p>
+                        <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}"))">
+                            Back to League
+                        </MaterialButton>
+                    </div>
+                </MaterialCard>
+            </div>
+        }
+        else if (league != null)
+        {
+            <div class="max-w-3xl">
+                <MaterialCard Variant="MaterialCardVariant.Outlined">
+                    <div class="md-card__content">
+                @if (!string.IsNullOrEmpty(saveError))
+                {
+                    <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-6">
+                        @saveError
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(saveSuccess))
+                {
+                    <div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded mb-6">
+                        @saveSuccess
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(verifyError))
+                {
+                    <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-6">
+                        @verifyError
+                    </div>
+                }
+
+                @if (!string.IsNullOrEmpty(verifySuccess))
+                {
+                    <div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded mb-6">
+                        @verifySuccess
+                    </div>
+                }
+
+                <MaterialInput @bind-Value="updateRequest.Name"
+                              Label="League Name"
+                              Variant="MaterialInputVariant.Outlined"
+                              SupportingText="Display name for your league"
+                              Required="true" />
+
+                <MaterialInput @bind-Value="updateRequest.Description"
+                              Label="Description"
+                              Variant="MaterialInputVariant.Outlined"
+                              Multiline="true"
+                              Rows="3"
+                              SupportingText="Brief description of your league" />
+
+                <MaterialInput @bind-Value="updateRequest.LogoUrl"
+                              Label="Logo URL"
+                              Type="url"
+                              Variant="MaterialInputVariant.Outlined"
+                              SupportingText="URL to your league logo image" />
+
+                <div class="pt-6 border-t border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Custom Domain</h3>
+                    <div class="space-y-4">
+                        <MaterialInput @bind-Value="updateRequest.CustomDomain"
+                                      Label="Custom Domain"
+                                      Variant="MaterialInputVariant.Outlined"
+                                      SupportingText="Example: golf.example.com"
+                                      Placeholder="Enter your custom domain" />
+
+                                <MaterialCheckbox @bind-Value="UpdateRequestUseCustomDomain"
+                                              Label="Enable custom domain"
+                                              SupportingText="Use this custom domain for the league once it is verified." />
+
+                        @if (!string.IsNullOrEmpty(league?.CustomDomain))
+                        {
+                            <div class="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                                <p class="text-sm font-semibold text-gray-900">Current domain</p>
+                                <p class="text-sm font-mono text-gray-700 mb-2">@league.CustomDomain</p>
+
+                                <p class="text-sm text-gray-600 mb-2">
+                                    Status:
+                                    @if (league.CustomDomainVerifiedAt.HasValue)
+                                    {
+                                        <span class="text-green-700 font-semibold">Verified on @league.CustomDomainVerifiedAt.Value.ToLocalTime().ToString("MMM d, yyyy")</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-yellow-600 font-semibold">Not verified</span>
+                                    }
+                                </p>
+
+                                @if (!string.IsNullOrEmpty(league.CustomDomainVerificationToken))
+                                {
+                                    <div class="rounded-md bg-white border border-gray-200 p-3 mb-3">
+                                        <p class="text-sm text-gray-700 mb-1">Verification token</p>
+                                        <div class="font-mono text-sm text-gray-900 break-words">@league.CustomDomainVerificationToken</div>
+                                    </div>
+                                }
+
+                                <p class="text-sm text-gray-500 mb-4">After updating your domain, add the token above as a TXT record on your DNS provider.</p>
+
+                                @if (!league.CustomDomainVerifiedAt.HasValue)
+                                {
+                                    <div class="flex flex-wrap gap-3">
+                                        <MaterialButton Style="MaterialButtonStyle.Filled"
+                                                        OnClick="HandleVerifyDomain"
+                                                        Disabled="isVerifying">
+                                            @if (isVerifying)
+                                            {
+                                                <span>Verifying...</span>
+                                            }
+                                            else
+                                            {
+                                                <span>Verify DNS Record</span>
+                                            }
+                                        </MaterialButton>
+                                        <span class="text-sm text-gray-500 self-center">You can verify after your custom domain record is published.</span>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                @if (!string.IsNullOrEmpty(updateRequest.LogoUrl))
+                {
+                        </div>
+                    </MaterialCard>
+                </div>
+            }
+        </ChildContent>
+    </LeaguePageShell>
+    }
+
+                <div class="flex justify-end gap-3 mt-8 pt-6 border-t border-gray-200">
+                    <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="ResetForm" Disabled="isSaving">
+                        Reset
+                    </MaterialButton>
+                    <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="HandleSave" Disabled="isSaving">
+                        @if (isSaving)
+                        {
+                            <span>Saving...</span>
+                        }
+                        else
+                        {
+                            <span>Save Changes</span>
+                        }
+                    </MaterialButton>
+                </div>
+            </div>
+        </MaterialCard>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public string LeagueKey { get; set; } = string.Empty;
+
+    private LeagueResponse? league;
+    private UpdateLeagueRequest updateRequest = new();
+    private bool isLoading = true;
+    private bool isSaving = false;
+    private bool isVerifying = false;
+    private string? saveError;
+    private string? saveSuccess;
+    private string? verifyError;
+    private string? verifySuccess;
+
+    private bool UpdateRequestUseCustomDomain
+    {
+        get => updateRequest.UseCustomDomain ?? false;
+        set => updateRequest.UseCustomDomain = value;
+    }
+
+    // Tab navigation
+    private string activeTab = "settings";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        // Initialize authorization service
+        await AuthorizationService.InitializeAsync();
+
+        await LoadLeague();
+    }
+
+    private async Task LoadLeague()
+    {
+        try
+        {
+            isLoading = true;
+
+            // Load league from API
+            var response = await LeagueService.GetLeagueByKeyAsync(LeagueKey);
+            if (response != null && response.Success && response.Data != null)
+            {
+                league = response.Data;
+                Logger.LogInformation("Loaded league: {LeagueName}", league.Name);
+            }
+            else
+            {
+                Logger.LogWarning("League not found: {LeagueKey}", LeagueKey);
+                return;
+            }
+
+            // Populate the form with current values
+            updateRequest = new UpdateLeagueRequest
+            {
+                Name = league.Name,
+                Description = league.Description,
+                LogoUrl = league.LogoUrl,
+                CustomDomain = league.CustomDomain,
+                UseCustomDomain = league.UseCustomDomain
+            };
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading league");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ResetForm()
+    {
+        if (league != null)
+        {
+            updateRequest = new UpdateLeagueRequest
+            {
+                Name = league.Name,
+                Description = league.Description,
+                LogoUrl = league.LogoUrl,
+                CustomDomain = league.CustomDomain,
+                UseCustomDomain = league.UseCustomDomain
+            };
+            saveError = null;
+            saveSuccess = null;
+            verifyError = null;
+            verifySuccess = null;
+        }
+    }
+
+    private async Task HandleSave()
+    {
+        if (league == null) return;
+
+        saveError = null;
+        saveSuccess = null;
+        isSaving = true;
+
+        try
+        {
+            var response = await LeagueService.UpdateLeagueAsync(league.Id, updateRequest);
+
+            if (response?.Success == true && response.Data != null)
+            {
+                league = response.Data;
+                updateRequest.CustomDomain = league.CustomDomain;
+                updateRequest.UseCustomDomain = league.UseCustomDomain;
+                saveSuccess = "League settings saved successfully!";
+
+                _ = Task.Delay(3000).ContinueWith(_ =>
+                {
+                    saveSuccess = null;
+                    InvokeAsync(StateHasChanged);
+                });
+            }
+            else
+            {
+                saveError = response?.Message ?? "Failed to save settings. Please try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving league settings");
+            saveError = "An error occurred while saving settings. Please try again.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task HandleVerifyDomain()
+    {
+        if (league == null)
+        {
+            return;
+        }
+
+        verifyError = null;
+        verifySuccess = null;
+        isVerifying = true;
+
+        try
+        {
+            var response = await LeagueService.VerifyLeagueCustomDomainAsync(league.Id);
+            if (response?.Success == true && response.Data != null)
+            {
+                league = response.Data;
+                updateRequest.CustomDomain = league.CustomDomain;
+                updateRequest.UseCustomDomain = league.UseCustomDomain;
+                verifySuccess = "Custom domain verified successfully.";
+
+                _ = Task.Delay(3000).ContinueWith(_ =>
+                {
+                    verifySuccess = null;
+                    InvokeAsync(StateHasChanged);
+                });
+            }
+            else
+            {
+                verifyError = response?.Message ?? "Failed to verify custom domain. Please check your DNS settings and try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error verifying custom domain");
+            verifyError = "An error occurred while verifying the custom domain. Please try again.";
+        }
+        finally
+        {
+            isVerifying = false;
+        }
+    }
+
+}
+
