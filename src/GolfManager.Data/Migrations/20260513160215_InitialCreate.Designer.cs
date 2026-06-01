@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GolfManager.Data.Migrations
 {
     [DbContext(typeof(GolfManagerDbContext))]
-    [Migration("20260427194300_AddHandicapHistory")]
-    partial class AddHandicapHistory
+    [Migration("20260513160215_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -477,8 +477,6 @@ namespace GolfManager.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("HoleNumber");
-
                     b.HasIndex("TeeId", "HoleNumber")
                         .IsUnique();
 
@@ -492,6 +490,25 @@ namespace GolfManager.Data.Migrations
                         .HasColumnType("TEXT");
 
                     b.Property<string>("ActiveSeasonId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AnnouncementBody")
+                        .HasMaxLength(1000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AnnouncementTitle")
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AnonymousPasswordHash")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("AnonymousPasswordUpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CommissionerName")
+                        .HasMaxLength(100)
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("CreatedAt")
@@ -521,6 +538,10 @@ namespace GolfManager.Data.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("EmptyStateMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER")
@@ -543,6 +564,11 @@ namespace GolfManager.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("RequireAnonymousPassword")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("TEXT");
 
@@ -551,6 +577,14 @@ namespace GolfManager.Data.Migrations
 
                     b.Property<bool>("UseCustomDomain")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("WelcomeHeadline")
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("WelcomeSubhead")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
@@ -1411,6 +1445,18 @@ namespace GolfManager.Data.Migrations
                     b.Property<int>("EventType")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("GameOfDayTitle")
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GameOfDayWinnerDisplayName")
+                        .HasMaxLength(120)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("GameOfDayWinnerSeasonGolferId")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("HolesPlayed")
                         .HasColumnType("INTEGER");
 
@@ -1489,6 +1535,10 @@ namespace GolfManager.Data.Migrations
                     b.Property<double?>("AwayPoints")
                         .HasColumnType("REAL");
 
+                    b.Property<string>("AwaySubSeasonGolferId")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("AwayTeamId")
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
@@ -1508,6 +1558,10 @@ namespace GolfManager.Data.Migrations
 
                     b.Property<double?>("HomePoints")
                         .HasColumnType("REAL");
+
+                    b.Property<string>("HomeSubSeasonGolferId")
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("HomeTeamId")
                         .HasMaxLength(50)
@@ -1600,6 +1654,11 @@ namespace GolfManager.Data.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsPaidForSeason")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
                     b.Property<DateTime>("JoinedAt")
                         .HasColumnType("TEXT");
 
@@ -1611,6 +1670,9 @@ namespace GolfManager.Data.Migrations
                     b.Property<string>("LeagueId")
                         .IsRequired()
                         .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PaidAt")
                         .HasColumnType("TEXT");
 
                     b.Property<double?>("SeasonHandicap")
@@ -2015,6 +2077,13 @@ namespace GolfManager.Data.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Member");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("TEXT");
 
@@ -2098,20 +2167,11 @@ namespace GolfManager.Data.Migrations
 
             modelBuilder.Entity("GolfManager.Core.Entities.HoleTee", b =>
                 {
-                    b.HasOne("GolfManager.Core.Entities.Hole", "Hole")
-                        .WithMany("HoleTees")
-                        .HasForeignKey("HoleNumber")
-                        .HasPrincipalKey("HoleNumber")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("GolfManager.Core.Entities.Tee", "Tee")
                         .WithMany("HoleTees")
                         .HasForeignKey("TeeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("Hole");
 
                     b.Navigation("Tee");
                 });
@@ -2468,11 +2528,6 @@ namespace GolfManager.Data.Migrations
                     b.Navigation("LeagueGolfers");
 
                     b.Navigation("Rounds");
-                });
-
-            modelBuilder.Entity("GolfManager.Core.Entities.Hole", b =>
-                {
-                    b.Navigation("HoleTees");
                 });
 
             modelBuilder.Entity("GolfManager.Core.Entities.League", b =>

@@ -20,6 +20,13 @@ Based on a thorough analysis of the golf-manager project (including code, docume
    - ✅ Tenant access-denied UX — dedicated `/access-denied` page added; league and season pages route forbidden (`403`) responses to explicit tenant-denied messaging
    - ✅ Season-scoped deny routing — season paths now prefer `scope=season` with `leagueKey` + `seasonKey` in access-denied redirects for accurate user context
    - ✅ Live verification rerun — authenticated/anonymous redirects and cross-tenant deny flows revalidated in browser
+   - ✅ Role-flow hardening (May 13, 2026): global admins can access league settings UI; owner role assignment/removal now restricted to league owner or global admin; owner membership actions are protected in both API service logic and member-management UI
+
+## Role Visibility Matrix (Current)
+- **Global Admin**: Can view/manage all leagues, settings, members, custom domains, and owner-level member role actions across leagues.
+- **League Owner**: Can manage league settings, members, and owner role assignments within their league.
+- **League Admin**: Can manage league settings and members, but cannot assign/remove/modify owner memberships.
+- **Member / Viewer / Player**: Can view league/member content permitted by membership and tenant context; cannot access management actions.
 
 ## Immediate Tasks (Next 1-2 Weeks)
 These are critical fixes and completions to stabilize the current foundation:
@@ -40,6 +47,7 @@ These are critical fixes and completions to stabilize the current foundation:
    - Add unit tests for service layers (e.g., HandicapService, EventService).
    - Expand integration tests for handicap calculations and multi-tenant isolation.
    - Add regression tests for tenant-forbidden routing behavior (league scope vs season scope) and auth endpoint tenant-context bypass.
+   - Add regression tests for owner-role restrictions (only owner/global admin can assign/remove owner role).
 
 4. **Documentation Updates**:
    - Complete OpenAPI/Swagger docs with response examples.
@@ -105,5 +113,10 @@ Future enhancements for full platform maturity:
 - **Dependencies**: No blockers, but payment integration requires external APIs.
 - **Team Size**: This roadmap assumes 1-2 developers; adjust timelines accordingly.
 - **Next Steps**: Start with immediate tasks, then tackle Phase 3. Reassess progress after each phase.
+
+## Next Priority Slice (Suggested)
+1. Add integration tests for league member role transitions and owner-protection rules.
+2. Add season management regression tests for admin/member visibility and forbidden routing.
+3. Begin Hangfire/background-job spike for async handicap recalculation.
 
 This plan aligns with the project's 7-phase roadmap in the planning docs.

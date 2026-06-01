@@ -38,6 +38,9 @@ public partial class LeagueMembers : ComponentBase
     ];
 
     private bool CanManageLeague => league?.IsCurrentUserAdmin == true || AuthService.IsGlobalAdmin;
+    private LeagueMemberRole CurrentUserRole => members?
+        .FirstOrDefault(m => m.UserId == AuthService.UserId)?.Role ?? LeagueMemberRole.Member;
+    private bool CanManageOwnerRole => AuthService.IsGlobalAdmin || CurrentUserRole == LeagueMemberRole.Owner;
 
     protected override async Task OnInitializedAsync()
     {
@@ -128,6 +131,12 @@ public partial class LeagueMembers : ComponentBase
             return;
         }
 
+        if (addMemberRequest.Role == LeagueMemberRole.Owner && !CanManageOwnerRole)
+        {
+            addMemberError = "Only the league owner or a global admin can assign owner role.";
+            return;
+        }
+
         addMemberError = null;
         isAddingMember = true;
 
@@ -165,6 +174,11 @@ public partial class LeagueMembers : ComponentBase
         }
 
         if (args.Value == null || !Enum.TryParse<LeagueMemberRole>(args.Value.ToString(), out var role))
+        {
+            return;
+        }
+
+        if (!CanEditMember(member) || !CanAssignRole(role))
         {
             return;
         }
@@ -233,6 +247,11 @@ public partial class LeagueMembers : ComponentBase
 
     private void ShowRemoveMemberConfirm(LeagueMemberResponse member)
     {
+        if (!CanRemoveMember(member))
+        {
+            return;
+        }
+
         memberToRemove = member;
         showRemoveConfirm = true;
     }
@@ -284,5 +303,47 @@ public partial class LeagueMembers : ComponentBase
             LeagueMemberRole.Viewer => MaterialChipColor.Secondary,
             _ => MaterialChipColor.Default
         };
+    }
+
+    private bool CanEditMember(LeagueMemberResponse member)
+    {
+        if (!CanManageLeague)
+        {
+            return false;
+        }
+
+        if (member.Role == LeagueMemberRole.Owner && !CanManageOwnerRole)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool CanRemoveMember(LeagueMemberResponse member)
+    {
+        return CanEditMember(member);
+    }
+
+    private bool CanAssignRole(LeagueMemberRole role)
+    {
+        return role != LeagueMemberRole.Owner || CanManageOwnerRole;
+    }
+
+    private IEnumerable<LeagueMemberRole> GetAssignableRoles()
+    {
+        return CanManageOwnerRole
+            ? LeagueRoles
+            : LeagueRoles.Where(role => role != LeagueMemberRole.Owner);
+    }
+
+    private IEnumerable<LeagueMemberRole> GetAssignableRolesForMember(LeagueMemberResponse member)
+    {
+        if (!CanEditMember(member))
+        {
+            return new[] { member.Role };
+        }
+
+        return GetAssignableRoles();
     }
 }

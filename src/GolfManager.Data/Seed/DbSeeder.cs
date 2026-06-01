@@ -470,8 +470,11 @@ public class DbSeeder
             return;
         }
 
-        // Optional import path: disabled by default so reset/migrate behavior uses baseline seed data.
-        var enableHolyGrailImport = Environment.GetEnvironmentVariable("ENABLE_HOLY_GRAIL_IMPORT")
+        // Holy Grail import is the default path for empty databases.
+        // Set ENABLE_HOLY_GRAIL_IMPORT=false only when explicitly troubleshooting.
+        var enableHolyGrailImport = !Environment.GetEnvironmentVariable("ENABLE_HOLY_GRAIL_IMPORT")
+            ?.Equals("false", StringComparison.OrdinalIgnoreCase) == true;
+        var enableBaselineDemoSeed = Environment.GetEnvironmentVariable("ENABLE_BASELINE_DEMO_SEED")
             ?.Equals("true", StringComparison.OrdinalIgnoreCase) == true;
 
         if (enableHolyGrailImport)
@@ -511,19 +514,34 @@ public class DbSeeder
                     return;
                 }
 
-                _logger.LogWarning("⚠️ Holy Grail import failed. Falling back to baseline seed data.");
+                _logger.LogError("Holy Grail import failed.");
+                if (!enableBaselineDemoSeed)
+                {
+                    _logger.LogError("Baseline demo seed is disabled. Set ENABLE_BASELINE_DEMO_SEED=true to allow fallback data.");
+                    return;
+                }
             }
             else
             {
-                _logger.LogWarning("ENABLE_HOLY_GRAIL_IMPORT=true but backup file was not found. Using baseline seed data.");
+                _logger.LogError("Holy Grail import is enabled but backup file was not found.");
+                if (!enableBaselineDemoSeed)
+                {
+                    _logger.LogError("Baseline demo seed is disabled. Set ENABLE_BASELINE_DEMO_SEED=true to allow fallback data.");
+                    return;
+                }
             }
         }
         else
         {
-            _logger.LogInformation("Holy Grail import disabled. Using baseline seed data.");
+            _logger.LogWarning("Holy Grail import explicitly disabled via ENABLE_HOLY_GRAIL_IMPORT=false.");
+            if (!enableBaselineDemoSeed)
+            {
+                _logger.LogWarning("Baseline demo seed is disabled. Set ENABLE_BASELINE_DEMO_SEED=true to allow fallback data.");
+                return;
+            }
         }
 
-        // Fallback to demo data if no backup or import failed
+        // Optional fallback: baseline demo seed data (disabled by default).
         _logger.LogInformation("Seeding database with demo data...");
 
         // Create Global Admin

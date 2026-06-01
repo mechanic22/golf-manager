@@ -11,11 +11,11 @@
                  LeagueKey="@LeagueKey"
                  CurrentLeagueName="@AppState.CurrentLeagueName"
                  ActiveTab="@activeTab"
-                 ShowSettingsTab="@(league?.IsCurrentUserAdmin == true)"
+                 ShowSettingsTab="@(league?.IsCurrentUserAdmin == true || AuthService.IsGlobalAdmin)"
                  IsLoading="@isLoading"
                  LoadingMessage="Loading settings...">
     <ChildContent>
-        @if (league != null && !league.IsCurrentUserAdmin)
+        @if (league != null && !(league.IsCurrentUserAdmin || AuthService.IsGlobalAdmin))
         {
             <div class="max-w-2xl mx-auto my-8">
                 <MaterialCard Variant="MaterialCardVariant.Elevated">

@@ -13,18 +13,17 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger)
 {
     private readonly GolfManagerDbContext _context = context;
     private readonly ILogger _logger = logger;
-    
+
     // Mapping dictionaries (old keys → new IDs)
     private readonly Dictionary<string, string> _leagueMap = new();
     private readonly Dictionary<string, string> _golferMap = new();  // Old GolferId → New LeagueGolferId
     private readonly Dictionary<string, string> _golferToGolferIdMap = new();  // Old GolferId → New GolferId (global)
     private readonly Dictionary<string, string> _courseMap = new();
     private readonly Dictionary<string, string> _teeMap = new();
-    private readonly Dictionary<string, string> _teeIdMap = new(); // Old TeeId -> New TeeId
     private readonly Dictionary<string, string> _seasonMap = new();
     private readonly Dictionary<string, string> _seasonEventMap = new(); // Old SeasonEventId → New ID
     private readonly Dictionary<string, string> _teamMap = new(); // Old TeamId → New ID
-    private readonly Dictionary<string, string> _roundMap = new(); // Old RoundId -> New RoundId
+    private readonly Dictionary<string, string> _roundMap = new(); // Old RoundId → New ID
 
     public async Task<bool> ImportFromBackupAsync(string backupFilePath)
     {
@@ -56,15 +55,13 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger)
             await ImportSeasonGolfersAsync(sqlContent);
             await ImportSeasonEventsAsync(sqlContent);
             await ImportSeasonEventMatchesAsync(sqlContent);
-            await ImportRoundsAndRoundHolesAsync(sqlContent);
-            await EnsureImportedLeagueHas2026SeasonAsync();
-
-            LogImportSummary();
+            await ImportRoundsAsync(sqlContent);
+            await ImportRoundHolesAsync(sqlContent);
 
             _logger.LogInformation("===========================================");
             _logger.LogInformation("Holy Grail Data Import Completed Successfully!");
             _logger.LogInformation("===========================================");
-            
+
             return true;
         }
         catch (Exception ex)
@@ -108,7 +105,7 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger)
                 Id = leagueId,
                 Key = key,
                 Name = name,
-                Description = $"Imported from Holy Grail on {DateTime.Now:yyyy-MM-dd}",
+                Description = string.Empty,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -265,70 +262,51 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger)
     {
         _logger.LogInformation("Importing Tees...");
 
-        // Current backup format:
-        // (Id, CourseKey, Name, HtmlColorCode, RatingOut, SlopeOut, RatingIn, SlopeIn, YardsOut, YardsIn, ParOut, ParIn)
-        var pattern = @"INSERT INTO \[dbo\]\.\[GolfTees\] VALUES \(([^)]+)\);";
+        // Pattern: INSERT INTO [dbo].[GolfTees] VALUES ('courseKey', 'TeeName', '#COLOR', rating, slope, yards, par, ...);
+        var pattern = @"INSERT INTO \[dbo\]\.\[GolfTees\] VALUES \('([^']+)',\s*'([^']+)',\s*'([^']*)',\s*([0-9.]+),\s*([0-9.]+),\s*(\d+),\s*(\d+),\s*(\d+),\s*([0-9.]+),\s*([0-9.]+),\s*(\d+),\s*(\d+),\s*(\d+),\s*'([^']*)'\);";
         var matches = Regex.Matches(sqlContent, pattern);
 
         foreach (Match match in matches)
         {
-            try
+            var courseKey = match.Groups[1].Value;
+            var teeName = match.Groups[2].Value;
+            var color = match.Groups[3].Value;
+            var ratingOut = double.Parse(match.Groups[4].Value);
+            var ratingIn = double.Parse(match.Groups[5].Value);
+            var slopeOut = int.Parse(match.Groups[6].Value);
+            var slopeIn = int.Parse(match.Groups[7].Value);
+            var yardsOut = int.Parse(match.Groups[8].Value);
+            var yardsIn = int.Parse(match.Groups[10].Value);
+            var parOut = int.Parse(match.Groups[11].Value);
+            var parIn = int.Parse(match.Groups[12].Value);
+
+            if (!_courseMap.TryGetValue(courseKey, out var courseId))
             {
-                var values = ParseSqlValues(match.Groups[1].Value);
-                if (values.Count < 12)
-                {
-                    _logger.LogWarning("Skipping tee row with unexpected value count: {Count}", values.Count);
-                    continue;
-                }
-
-                var oldTeeId = values[0];
-                var courseKey = values[1];
-                var teeName = values[2];
-                var color = values[3];
-                var ratingOut = double.Parse(values[4]);
-                var slopeOut = int.Parse(values[5]);
-                var ratingIn = double.Parse(values[6]);
-                var slopeIn = int.Parse(values[7]);
-                var yardsOut = int.Parse(values[8]);
-                var yardsIn = int.Parse(values[9]);
-                var parOut = int.Parse(values[10]);
-                var parIn = int.Parse(values[11]);
-
-                if (!_courseMap.TryGetValue(courseKey, out var courseId))
-                {
-                    _logger.LogWarning("Course not found for tee: {CourseKey}", courseKey);
-                    continue;
-                }
-
-                var teeId = Guid.NewGuid().ToString();
-                _teeMap[$"{courseKey}_{teeName}"] = teeId;
-                _teeIdMap[oldTeeId] = teeId;
-
-                var tee = new Tee
-                {
-                    Id = teeId,
-                    CourseId = courseId,
-                    Name = teeName,
-                    HtmlColorCode = color,
-                    RatingOut = ratingOut,
-                    RatingIn = ratingIn,
-                    SlopeOut = slopeOut,
-                    SlopeIn = slopeIn,
-                    YardsOut = yardsOut,
-                    YardsIn = yardsIn,
-                    ParOut = parOut,
-                    ParIn = parIn,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                    CreatedBy = "system"
-                };
-
-                _context.Tees.Add(tee);
+                _logger.LogWarning("Course not found for tee: {CourseKey}", courseKey);
+                continue;
             }
-            catch (Exception ex)
+
+            var teeId = Guid.NewGuid().ToString();
+            _teeMap[$"{courseKey}_{teeName}"] = teeId;
+
+            var tee = new Tee
             {
-                _logger.LogWarning(ex, "Failed to parse tee row: {Row}", match.Value.Substring(0, Math.Min(200, match.Value.Length)));
-            }
+                Id = teeId,
+                CourseId = courseId,
+                Name = teeName,
+                HtmlColorCode = color,
+                RatingOut = ratingOut,
+                RatingIn = ratingIn,
+                SlopeOut = slopeOut,
+                SlopeIn = slopeIn,
+                YardsOut = yardsOut,
+                YardsIn = yardsIn,
+                ParOut = parOut,
+                ParIn = parIn,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _context.Tees.Add(tee);
         }
 
         await _context.SaveChangesAsync();
@@ -340,129 +318,63 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger)
         _logger.LogInformation("Importing Holes and HoleTees...");
 
         // First import Holes
-        // Holes are uniquely constrained by (CourseId, HoleNumber).
-        // Keep batch persistence to limit change tracker growth on large imports.
-        var holePattern = @"INSERT INTO \[dbo\]\.\[GolfHoles\] VALUES \(([^)]+)\);";
+        var holePattern = @"INSERT INTO \[dbo\]\.\[GolfHoles\] VALUES \('([^']+)',\s*(\d+),\s*'([^']*)',\s*'([^']*)'\);";
         var holeMatches = Regex.Matches(sqlContent, holePattern);
-
-        string? currentCourseKey = null;
-        int holeImportCount = 0;
+        var holeMap = new Dictionary<string, string>(); // courseKey_holeNumber → holeId
 
         foreach (Match match in holeMatches)
         {
-            try
+            var courseKey = match.Groups[1].Value;
+            var holeNumber = int.Parse(match.Groups[2].Value);
+            var holeName = match.Groups[3].Value;
+
+            if (!_courseMap.TryGetValue(courseKey, out var courseId)) continue;
+
+            var holeId = Guid.NewGuid().ToString();
+            holeMap[$"{courseKey}_{holeNumber}"] = holeId;
+
+            var hole = new Hole
             {
-                var values = ParseSqlValues(match.Groups[1].Value);
-                if (values.Count < 3)
-                {
-                    _logger.LogWarning("Skipping hole row with unexpected value count: {Count}", values.Count);
-                    continue;
-                }
+                Id = holeId,
+                CourseId = courseId,
+                HoleNumber = holeNumber,
+                Name = holeName,
+                CreatedAt = DateTime.UtcNow
+            };
 
-                var courseKey = values[0];
-                var holeNumber = int.Parse(values[1]);
-                var holeName = values[2];
-
-                if (!_courseMap.TryGetValue(courseKey, out var courseId))
-                {
-                    continue;
-                }
-
-                // Save + clear whenever the course changes to avoid alternate-key conflicts
-                if (currentCourseKey != null && currentCourseKey != courseKey)
-                {
-                    await _context.SaveChangesAsync();
-                    _context.ChangeTracker.Clear();
-                }
-                currentCourseKey = courseKey;
-
-                var hole = new Hole
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    CourseId = courseId,
-                    HoleNumber = holeNumber,
-                    Name = holeName,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                    CreatedBy = "system"
-                };
-
-                _context.Holes.Add(hole);
-                holeImportCount++;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to parse hole row: {Row}", match.Value.Substring(0, Math.Min(200, match.Value.Length)));
-            }
+            _context.Holes.Add(hole);
         }
 
         await _context.SaveChangesAsync();
-        _context.ChangeTracker.Clear();
-        _logger.LogInformation("✓ Imported {Count} holes", holeImportCount);
+        _logger.LogInformation("✓ Imported {Count} holes", holeMatches.Count);
 
         // Then import HoleTees
-        var holeTeePattern = @"INSERT INTO \[dbo\]\.\[GolfHoleTees\] VALUES \(([^)]+)\);";
+        var holeTeePattern = @"INSERT INTO \[dbo\]\.\[GolfHoleTees\] VALUES \('([^']+)',\s*'([^']+)',\s*(\d+),\s*(\d+),\s*(\d+),\s*(\d+),\s*'([^']*)'\);";
         var holeTeeMatches = Regex.Matches(sqlContent, holeTeePattern);
 
         foreach (Match match in holeTeeMatches)
         {
-            try
+            var courseKey = match.Groups[1].Value;
+            var teeName = match.Groups[2].Value;
+            var holeNumber = int.Parse(match.Groups[3].Value);
+            var par = int.Parse(match.Groups[4].Value);
+            var yardage = int.Parse(match.Groups[5].Value);
+            var handicap = int.Parse(match.Groups[6].Value);
+
+            if (!_teeMap.TryGetValue($"{courseKey}_{teeName}", out var teeId)) continue;
+
+            var holeTee = new HoleTee
             {
-                var values = ParseSqlValues(match.Groups[1].Value);
-                if (values.Count < 5)
-                {
-                    _logger.LogWarning("Skipping hole tee row with unexpected value count: {Count}", values.Count);
-                    continue;
-                }
+                Id = Guid.NewGuid().ToString(),
+                TeeId = teeId,
+                HoleNumber = holeNumber,
+                Par = par,
+                Yardage = yardage,
+                Handicap = handicap,
+                CreatedAt = DateTime.UtcNow
+            };
 
-                string? teeId = null;
-                int holeNumber;
-                int par;
-                int yardage;
-                int handicap;
-
-                // Current format: (TeeId, HoleNumber, Par, Yardage, Handicap)
-                if (_teeIdMap.TryGetValue(values[0], out var mappedByOldId))
-                {
-                    teeId = mappedByOldId;
-                    holeNumber = int.Parse(values[1]);
-                    par = int.Parse(values[2]);
-                    yardage = int.Parse(values[3]);
-                    handicap = int.Parse(values[4]);
-                }
-                // Legacy fallback: (CourseKey, TeeName, HoleNumber, Par, Yardage, Handicap, ...)
-                else if (values.Count >= 6 && _teeMap.TryGetValue($"{values[0]}_{values[1]}", out var mappedByName))
-                {
-                    teeId = mappedByName;
-                    holeNumber = int.Parse(values[2]);
-                    par = int.Parse(values[3]);
-                    yardage = int.Parse(values[4]);
-                    handicap = int.Parse(values[5]);
-                }
-                else
-                {
-                    continue;
-                }
-
-                var holeTee = new HoleTee
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    TeeId = teeId,
-                    HoleNumber = holeNumber,
-                    Par = par,
-                    Yardage = yardage,
-                    Handicap = handicap,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                    CreatedBy = "system"
-                };
-
-                _context.HoleTees.Add(holeTee);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to parse hole tee row: {Row}", match.Value.Substring(0, Math.Min(200, match.Value.Length)));
-            }
+            _context.HoleTees.Add(holeTee);
         }
 
         await _context.SaveChangesAsync();
@@ -521,35 +433,6 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger)
             };
 
             _context.Seasons.Add(season);
-        }
-
-        await _context.SaveChangesAsync();
-
-        // Set each league's active season after all seasons are imported.
-        // Prefer the most recent unlocked season; fall back to most recent by start date.
-        foreach (var leagueId in _leagueMap.Values.Distinct())
-        {
-            var activeSeason = await _context.Seasons
-                .IgnoreQueryFilters()
-                .Where(s => s.LeagueId == leagueId && s.IsActive && !s.IsDeleted)
-                .OrderBy(s => s.IsLocked)
-                .ThenByDescending(s => s.StartDate)
-                .FirstOrDefaultAsync();
-
-            if (activeSeason == null)
-            {
-                continue;
-            }
-
-            var league = await _context.Leagues
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(l => l.Id == leagueId);
-
-            if (league != null)
-            {
-                league.ActiveSeasonId = activeSeason.Id;
-                league.UpdatedAt = DateTime.UtcNow;
-            }
         }
 
         await _context.SaveChangesAsync();
@@ -626,63 +509,49 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger)
     {
         _logger.LogInformation("Importing SeasonTeams...");
 
-        // Pattern example: INSERT INTO [dbo].[GolfSeasonTeams] VALUES ('TEAMID', 'dkgl', '2024', 'Team Name', '', '145', '2024-05-06 07:59:32');
-        // Note: season points are quoted in the backup.
-        var pattern = @"INSERT INTO \[dbo\]\.\[GolfSeasonTeams\] VALUES \(([^)]+)\);";
+        // Pattern: INSERT INTO [dbo].[GolfSeasonTeams] VALUES ('TEAMID', 'dkgl', '2024', 'Team Name', NULL, 150.5, '2024-05-01 00:00:00');
+        var pattern = @"INSERT INTO \[dbo\]\.\[GolfSeasonTeams\] VALUES \('([^']+)',\s*'([^']+)',\s*'([^']+)',\s*'([^']+)',\s*(?:'([^']*)'|NULL),\s*(?:([0-9.]+)|NULL),\s*'([^']+)'\);";
         var matches = Regex.Matches(sqlContent, pattern);
 
         foreach (Match match in matches)
         {
-            try
+            var teamId = match.Groups[1].Value;
+            var leagueKey = match.Groups[2].Value;
+            var seasonKey = match.Groups[3].Value;
+            var teamName = match.Groups[4].Value;
+            var avatar = match.Groups[5].Success ? match.Groups[5].Value : null;
+            var seasonPoints = match.Groups[6].Success ? double.Parse(match.Groups[6].Value) : (double?)null;
+
+            if (!_seasonMap.TryGetValue(seasonKey, out var seasonId))
             {
-                var values = ParseSqlValues(match.Groups[1].Value);
-                if (values.Count < 4)
-                {
-                    _logger.LogWarning("Skipping season team row with unexpected value count: {Count}", values.Count);
-                    continue;
-                }
-
-                var teamId = values[0];
-                var leagueKey = values[1];
-                var seasonKey = values[2];
-                var teamName = values[3];
-
-                if (!_seasonMap.TryGetValue(seasonKey, out var seasonId))
-                {
-                    _logger.LogWarning("Season not found for team: {SeasonKey}", seasonKey);
-                    continue;
-                }
-
-                if (!_leagueMap.TryGetValue(leagueKey, out var leagueId))
-                {
-                    _logger.LogWarning("League not found for team: {LeagueKey}", leagueKey);
-                    continue;
-                }
-
-                var newTeamId = Guid.NewGuid().ToString();
-                _teamMap[teamId] = newTeamId; // Store in class-level map for later use
-
-                var team = new SeasonTeam
-                {
-                    Id = newTeamId,
-                    SeasonId = seasonId,
-                    LeagueId = leagueId,
-                    Name = teamName,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow
-                };
-
-                _context.SeasonTeams.Add(team);
+                _logger.LogWarning("Season not found for team: {SeasonKey}", seasonKey);
+                continue;
             }
-            catch (Exception ex)
+
+            if (!_leagueMap.TryGetValue(leagueKey, out var leagueId))
             {
-                _logger.LogWarning(ex, "Failed to parse season team");
+                _logger.LogWarning("League not found for team: {LeagueKey}", leagueKey);
+                continue;
             }
+
+            var newTeamId = Guid.NewGuid().ToString();
+            _teamMap[teamId] = newTeamId; // Store in class-level map for later use
+
+            var team = new SeasonTeam
+            {
+                Id = newTeamId,
+                SeasonId = seasonId,
+                LeagueId = leagueId,
+                Name = teamName,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+
+            _context.SeasonTeams.Add(team);
         }
 
         await _context.SaveChangesAsync();
-        var seasonTeamCount = await _context.SeasonTeams.IgnoreQueryFilters().CountAsync();
-        _logger.LogInformation("✓ Imported {Count} season teams", seasonTeamCount);
+        _logger.LogInformation("✓ Imported {Count} season teams", matches.Count);
     }
 
     private async Task ImportSeasonGolfersAsync(string sqlContent)
@@ -705,7 +574,6 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger)
                 var leagueKey = values[0];
                 var seasonKey = values[1];
                 var oldGolferId = values[2];
-                var oldTeamId = values.Count > 3 ? values[3] : null;
 
                 if (!_golferMap.TryGetValue(oldGolferId, out var leagueGolferId))
                 {
@@ -738,9 +606,6 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger)
                     LeagueId = leagueId,
                     LeagueGolferId = leagueGolferId, // Correct: LeagueGolfer ID
                     GolferId = globalGolferId, // Correct: Global Golfer ID
-                    TeamId = !string.IsNullOrWhiteSpace(oldTeamId) && _teamMap.TryGetValue(oldTeamId, out var mappedTeamId)
-                        ? mappedTeamId
-                        : null,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow
                 };
@@ -754,173 +619,7 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger)
         }
 
         await _context.SaveChangesAsync();
-        var seasonGolferCount = await _context.SeasonGolfers.IgnoreQueryFilters().CountAsync();
-        _logger.LogInformation("✓ Imported {Count} season golfers", seasonGolferCount);
-    }
-
-    private async Task EnsureImportedLeagueHas2026SeasonAsync()
-    {
-        // Holy Grail import includes seasons through 2025. Ensure 2025 is closed and 2026 exists.
-        foreach (var leagueId in _leagueMap.Values.Distinct())
-        {
-            var season2025 = await _context.Seasons
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(s => s.LeagueId == leagueId && s.Key == "2025" && s.IsActive && !s.IsDeleted);
-
-            if (season2025 != null && !season2025.IsLocked)
-            {
-                season2025.IsLocked = true;
-                season2025.UpdatedAt = DateTime.UtcNow;
-                season2025.UpdatedBy = "system";
-            }
-
-            var season2026 = await _context.Seasons
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(s => s.LeagueId == leagueId && s.Key == "2026" && s.IsActive && !s.IsDeleted);
-
-            if (season2026 == null)
-            {
-                var startDate = season2025 != null
-                    ? season2025.StartDate.AddYears(1)
-                    : DateOnly.FromDateTime(new DateTime(DateTime.UtcNow.Year, 5, 1));
-
-                season2026 = new Season
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    LeagueId = leagueId,
-                    Key = "2026",
-                    Name = "2026",
-                    StartDate = startDate,
-                    EndDate = null,
-                    IsLocked = false,
-                    IsActive = true,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                    CreatedBy = "system"
-                };
-
-                _context.Seasons.Add(season2026);
-                await _context.SaveChangesAsync();
-            }
-
-            if (season2025 != null)
-            {
-                await CloneSeasonTeamsAndPlayersAsync(leagueId, season2025.Id, season2026.Id);
-            }
-
-            var league = await _context.Leagues
-                .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(l => l.Id == leagueId);
-
-            if (league != null)
-            {
-                league.ActiveSeasonId = season2026.Id;
-                league.UpdatedAt = DateTime.UtcNow;
-                league.UpdatedBy = "system";
-            }
-        }
-
-        await _context.SaveChangesAsync();
-    }
-
-    private async Task CloneSeasonTeamsAndPlayersAsync(string leagueId, string fromSeasonId, string toSeasonId)
-    {
-        var existingTeamCount = await _context.SeasonTeams
-            .IgnoreQueryFilters()
-            .CountAsync(t => t.LeagueId == leagueId && t.SeasonId == toSeasonId && t.IsActive && !t.IsDeleted);
-
-        var targetTeamsByName = new Dictionary<string, SeasonTeam>(StringComparer.OrdinalIgnoreCase);
-
-        if (existingTeamCount == 0)
-        {
-            var sourceTeams = await _context.SeasonTeams
-                .IgnoreQueryFilters()
-                .Where(t => t.LeagueId == leagueId && t.SeasonId == fromSeasonId && t.IsActive && !t.IsDeleted)
-                .OrderBy(t => t.Name)
-                .ToListAsync();
-
-            foreach (var sourceTeam in sourceTeams)
-            {
-                var clone = new SeasonTeam
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    LeagueId = leagueId,
-                    SeasonId = toSeasonId,
-                    Name = sourceTeam.Name,
-                    AvatarUrl = sourceTeam.AvatarUrl,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                    CreatedBy = "system"
-                };
-
-                _context.SeasonTeams.Add(clone);
-                targetTeamsByName[sourceTeam.Name] = clone;
-            }
-
-            await _context.SaveChangesAsync();
-        }
-        else
-        {
-            var existingTeams = await _context.SeasonTeams
-                .IgnoreQueryFilters()
-                .Where(t => t.LeagueId == leagueId && t.SeasonId == toSeasonId && t.IsActive && !t.IsDeleted)
-                .ToListAsync();
-
-            foreach (var team in existingTeams)
-            {
-                targetTeamsByName[team.Name] = team;
-            }
-        }
-
-        var existingLeagueGolferIds = await _context.SeasonGolfers
-            .IgnoreQueryFilters()
-            .Where(sg => sg.LeagueId == leagueId && sg.SeasonId == toSeasonId && sg.IsActive && !sg.IsDeleted)
-            .Select(sg => sg.LeagueGolferId)
-            .ToListAsync();
-
-        var existingLeagueGolferSet = new HashSet<string>(existingLeagueGolferIds, StringComparer.OrdinalIgnoreCase);
-
-        var sourceGolfers = await _context.SeasonGolfers
-            .IgnoreQueryFilters()
-            .Include(sg => sg.Team)
-            .Where(sg => sg.LeagueId == leagueId && sg.SeasonId == fromSeasonId && sg.IsActive && !sg.IsDeleted)
-            .ToListAsync();
-
-        foreach (var sourceGolfer in sourceGolfers)
-        {
-            if (existingLeagueGolferSet.Contains(sourceGolfer.LeagueGolferId))
-            {
-                continue;
-            }
-
-            string? targetTeamId = null;
-            var sourceTeamName = sourceGolfer.Team?.Name;
-            if (!string.IsNullOrWhiteSpace(sourceTeamName)
-                && targetTeamsByName.TryGetValue(sourceTeamName, out var targetTeam))
-            {
-                targetTeamId = targetTeam.Id;
-            }
-
-            var clone = new SeasonGolfer
-            {
-                Id = Guid.NewGuid().ToString(),
-                LeagueId = leagueId,
-                SeasonId = toSeasonId,
-                LeagueGolferId = sourceGolfer.LeagueGolferId,
-                GolferId = sourceGolfer.GolferId,
-                TeamId = targetTeamId,
-                SeasonHandicap = sourceGolfer.SeasonHandicap,
-                JoinedAt = DateTime.UtcNow,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                CreatedBy = "system"
-            };
-
-            _context.SeasonGolfers.Add(clone);
-            existingLeagueGolferSet.Add(sourceGolfer.LeagueGolferId);
-        }
-
-        await _context.SaveChangesAsync();
+        _logger.LogInformation("✓ Imported {Count} season golfers", _context.SeasonGolfers.Count());
     }
 
     private async Task ImportSeasonEventsAsync(string sqlContent)
@@ -963,8 +662,7 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger)
             // Find the tee for this course
             var teeId = _teeMap.TryGetValue($"{courseKey}_{teeKey}", out var foundTeeId) ? foundTeeId : _teeMap.Values.FirstOrDefault();
 
-            // Preserve the legacy event key as the v2 ID so deep links remain stable across reseeds.
-            var seasonEventId = eventKey;
+            var seasonEventId = Guid.NewGuid().ToString();
             _seasonEventMap[eventKey] = seasonEventId; // Store for match import
 
             // Map scoring format
@@ -1000,34 +698,25 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger)
     {
         _logger.LogInformation("Importing SeasonEventMatches...");
 
-        // Pattern example: INSERT INTO [dbo].[GolfSeasonEventMatches] VALUES ('EVENTKEY', 'SCORECARDID', NULL, 'HOMETEAMID', 'AWAYTEAMID', '16', '6', '10', '1');
-        var pattern = @"INSERT INTO \[dbo\]\.\[GolfSeasonEventMatches\] VALUES \(([^)]+)\);";
+        // Pattern: INSERT INTO [dbo].[GolfSeasonEventMatches] VALUES ('EVENTID', 'dkgl', '2024', NULL, 'HOMETEAMID', 'AWAYTEAMID', 1.5, 1.5, 1, 1, 'True');
+        var pattern = @"INSERT INTO \[dbo\]\.\[GolfSeasonEventMatches\] VALUES \('([^']+)',\s*'([^']+)',\s*'([^']+)',\s*(?:'([^']*)'|NULL),\s*(?:'([^']*)'|NULL),\s*(?:'([^']*)'|NULL),\s*(?:([0-9.]+)|NULL),\s*(?:([0-9.]+)|NULL),\s*(?:(\d+)|NULL),\s*(?:(\d+)|NULL),\s*'([^']+)'\);";
         var matches = Regex.Matches(sqlContent, pattern);
 
         foreach (Match match in matches)
         {
             try
             {
-                var values = ParseSqlValues(match.Groups[1].Value);
-                if (values.Count < 9)
-                {
-                    _logger.LogWarning("Skipping season event match row with unexpected value count: {Count}", values.Count);
-                    continue;
-                }
-
-                // Legacy row shape:
-                // (MatchId, SeasonEventKey, ScorecardId, HomeTeamId, AwayTeamId, HomePoints, AwayPoints, StartingHole, StartingFlight)
-                var eventKey = values[1];
-                var scorecardId = string.IsNullOrWhiteSpace(values[2]) ? null : values[2];
-                var homeTeamId = string.IsNullOrWhiteSpace(values[3]) ? null : values[3];
-                var awayTeamId = string.IsNullOrWhiteSpace(values[4]) ? null : values[4];
-                var homePoints = !string.IsNullOrWhiteSpace(values[5]) ? double.Parse(values[5]) : (double?)null;
-                var awayPoints = !string.IsNullOrWhiteSpace(values[6]) ? double.Parse(values[6]) : (double?)null;
-                var startingHole = !string.IsNullOrWhiteSpace(values[7]) ? int.Parse(values[7]) : (int?)null;
-                var startingFlight = !string.IsNullOrWhiteSpace(values[8]) ? int.Parse(values[8]) : (int?)null;
-
-                // Historical imports are completed matches
-                var isComplete = true;
+                var eventKey = match.Groups[1].Value;
+                var leagueKey = match.Groups[2].Value;
+                var seasonKey = match.Groups[3].Value;
+                var scorecardId = match.Groups[4].Success ? match.Groups[4].Value : null;
+                var homeTeamId = match.Groups[5].Success ? match.Groups[5].Value : null;
+                var awayTeamId = match.Groups[6].Success ? match.Groups[6].Value : null;
+                var homePoints = match.Groups[7].Success ? double.Parse(match.Groups[7].Value) : (double?)null;
+                var awayPoints = match.Groups[8].Success ? double.Parse(match.Groups[8].Value) : (double?)null;
+                var startingHole = match.Groups[9].Success ? int.Parse(match.Groups[9].Value) : (int?)null;
+                var startingFlight = match.Groups[10].Success ? int.Parse(match.Groups[10].Value) : (int?)null;
+                var isComplete = match.Groups[11].Value.Equals("True", StringComparison.OrdinalIgnoreCase);
 
                 if (!_seasonEventMap.TryGetValue(eventKey, out var seasonEventId))
                 {
@@ -1035,10 +724,9 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger)
                     continue;
                 }
 
-                var leagueId = _leagueMap.Values.FirstOrDefault();
-                if (string.IsNullOrEmpty(leagueId))
+                if (!_leagueMap.TryGetValue(leagueKey, out var leagueId))
                 {
-                    _logger.LogWarning("League not found for season event match");
+                    _logger.LogWarning("League not found for match: {LeagueKey}", leagueKey);
                     continue;
                 }
 
@@ -1072,269 +760,166 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger)
         }
 
         await _context.SaveChangesAsync();
-        var seasonEventMatchCount = await _context.SeasonEventMatches.IgnoreQueryFilters().CountAsync();
-        _logger.LogInformation("✓ Imported {Count} season event matches", seasonEventMatchCount);
+        _logger.LogInformation("✓ Imported {Count} season event matches", _context.SeasonEventMatches.Count());
     }
 
-    private async Task ImportRoundsAndRoundHolesAsync(string sqlContent)
+    private async Task ImportRoundsAsync(string sqlContent)
     {
-        _logger.LogInformation("Importing Rounds and RoundHoles...");
+        _logger.LogInformation("Importing Rounds...");
 
-        var roundDateByOldRoundId = await BuildRoundDateMapAsync(sqlContent);
-        var roundByNewId = new Dictionary<string, Round>();
+        // Pattern: INSERT INTO [dbo].[GolfRounds] VALUES ('ROUNDID', 'GOLFERID', 'LEAGUEGOLFERID', 'LEAGUEID', 'COURSEID', 'TEEID', '2024-01-15', 18, 92, 18, 2.5, 'False', 'Notes here');
+        var pattern = @"INSERT INTO \[dbo\]\.\[GolfRounds\] VALUES \('([^']+)',\s*'([^']+)',\s*(?:'([^']*)'|NULL),\s*(?:'([^']*)'|NULL),\s*'([^']+)',\s*'([^']+)',\s*'([^']+)',\s*(\d+),\s*(?:(\d+)|NULL),\s*(?:(\d+)|NULL),\s*(?:([0-9.]+)|NULL),\s*'([^']+)',\s*'([^']*)'\);";
+        var matches = Regex.Matches(sqlContent, pattern);
 
-        var roundPattern = @"INSERT INTO \[dbo\]\.\[GolfRounds\] VALUES \(([^)]+)\);";
-        var roundMatches = Regex.Matches(sqlContent, roundPattern);
-
-        foreach (Match match in roundMatches)
-        {
-            try
-            {
-                var values = ParseSqlValues(match.Groups[1].Value);
-                if (values.Count < 6)
-                {
-                    _logger.LogWarning("Skipping round row with unexpected value count: {Count}", values.Count);
-                    continue;
-                }
-
-                var oldRoundId = values[0];
-                var oldScorecardId = values[1];
-                var oldGolferId = values[2];
-                var courseKey = values[3];
-                var oldTeeId = values[4];
-                var rawScore = string.IsNullOrWhiteSpace(values[5]) ? (int?)null : int.Parse(values[5]);
-
-                if (!_golferToGolferIdMap.TryGetValue(oldGolferId, out var golferId))
-                {
-                    _logger.LogWarning("Golfer not found for round: {GolferId}", oldGolferId);
-                    continue;
-                }
-
-                _golferMap.TryGetValue(oldGolferId, out var leagueGolferId);
-
-                if (!_courseMap.TryGetValue(courseKey, out var courseId))
-                {
-                    _logger.LogWarning("Course not found for round: {CourseKey}", courseKey);
-                    continue;
-                }
-
-                if (!_teeIdMap.TryGetValue(oldTeeId, out var teeId))
-                {
-                    _logger.LogWarning("Tee not found for round: {TeeId}", oldTeeId);
-                    continue;
-                }
-
-                var roundId = Guid.NewGuid().ToString();
-                _roundMap[oldRoundId] = roundId;
-
-                var roundDate = roundDateByOldRoundId.TryGetValue(oldRoundId, out var historicalDate)
-                    ? historicalDate
-                    : DateTime.UtcNow;
-
-                var round = new Round
-                {
-                    Id = roundId,
-                    GolferId = golferId,
-                    LeagueGolferId = leagueGolferId,
-                    LeagueId = _leagueMap.Values.FirstOrDefault(),
-                    CourseId = courseId,
-                    TeeId = teeId,
-                    RoundDate = roundDate,
-                    HolesPlayed = HolesPlayed.Eighteen,
-                    TotalScore = rawScore,
-                    IsComplete = true,
-                    Notes = "Imported from Holy Grail v1",
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                    CreatedBy = "system"
-                };
-
-                _context.Rounds.Add(round);
-                roundByNewId[roundId] = round;
-
-                if (!string.IsNullOrWhiteSpace(oldScorecardId))
-                {
-                    var scorecard = new Scorecard
-                    {
-                        Id = Guid.NewGuid().ToString(),
-                        RoundId = roundId,
-                        Notes = $"Imported from Holy Grail v1 scorecard {oldScorecardId}",
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow,
-                        CreatedBy = "system"
-                    };
-
-                    _context.Scorecards.Add(scorecard);
-                }
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to parse round row: {Row}", match.Value.Substring(0, Math.Min(200, match.Value.Length)));
-            }
-        }
-
-        await _context.SaveChangesAsync();
-        _logger.LogInformation("✓ Imported {Count} rounds", _roundMap.Count);
-
-        var roundHolePattern = @"INSERT INTO \[dbo\]\.\[GolfRoundHoles\] VALUES \(([^)]+)\);";
-        var roundHoleMatches = Regex.Matches(sqlContent, roundHolePattern);
-        var holeRangeByRound = new Dictionary<string, (bool hasFront, bool hasBack)>();
-
-        foreach (Match match in roundHoleMatches)
-        {
-            try
-            {
-                var values = ParseSqlValues(match.Groups[1].Value);
-                if (values.Count < 8)
-                {
-                    _logger.LogWarning("Skipping round hole row with unexpected value count: {Count}", values.Count);
-                    continue;
-                }
-
-                var oldRoundId = values[0];
-                if (!_roundMap.TryGetValue(oldRoundId, out var roundId))
-                {
-                    continue;
-                }
-
-                var holeNumber = int.Parse(values[1]);
-                var rawScore = string.IsNullOrWhiteSpace(values[7]) ? (int?)null : int.Parse(values[7]);
-                var putts = values.Count > 8 && !string.IsNullOrWhiteSpace(values[8]) ? int.Parse(values[8]) : (int?)null;
-                var penalties = values.Count > 10 && !string.IsNullOrWhiteSpace(values[10]) ? int.Parse(values[10]) : (int?)null;
-
-                var roundHole = new RoundHole
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    RoundId = roundId,
-                    HoleNumber = holeNumber,
-                    GrossScore = rawScore,
-                    Putts = putts,
-                    Penalties = penalties,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                    CreatedBy = "system"
-                };
-
-                _context.RoundHoles.Add(roundHole);
-
-                var (hasFront, hasBack) = holeRangeByRound.TryGetValue(roundId, out var tracked)
-                    ? tracked
-                    : (false, false);
-                if (holeNumber <= 9)
-                {
-                    hasFront = true;
-                }
-                if (holeNumber >= 10)
-                {
-                    hasBack = true;
-                }
-                holeRangeByRound[roundId] = (hasFront, hasBack);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Failed to parse round hole row: {Row}", match.Value.Substring(0, Math.Min(200, match.Value.Length)));
-            }
-        }
-
-        await _context.SaveChangesAsync();
-
-        foreach (var kvp in holeRangeByRound)
-        {
-            if (!roundByNewId.TryGetValue(kvp.Key, out var round))
-            {
-                continue;
-            }
-
-            round.HolesPlayed = kvp.Value switch
-            {
-                (true, false) => HolesPlayed.Front,
-                (false, true) => HolesPlayed.Back,
-                _ => HolesPlayed.Eighteen
-            };
-        }
-
-        await _context.SaveChangesAsync();
-        _logger.LogInformation("✓ Imported {Count} round holes", _context.RoundHoles.Count());
-
-        await RecalculateLeagueGolferStatsAsync();
-    }
-
-    private async Task RecalculateLeagueGolferStatsAsync()
-    {
-        _logger.LogInformation("Recalculating LeagueGolfer stats from imported rounds...");
-
-        var leagueGolfers = await _context.LeagueGolfers
-            .IgnoreQueryFilters()
-            .ToListAsync();
-
-        var roundStatsByLeagueGolfer = await _context.Rounds
-            .IgnoreQueryFilters()
-            .Where(r => r.LeagueGolferId != null && r.TotalScore != null)
-            .GroupBy(r => r.LeagueGolferId!)
-            .Select(g => new
-            {
-                LeagueGolferId = g.Key,
-                Count = g.Count(),
-                Average = g.Average(r => (double)r.TotalScore!.Value),
-                Best = g.Min(r => r.TotalScore!.Value)
-            })
-            .ToDictionaryAsync(x => x.LeagueGolferId);
-
-        foreach (var lg in leagueGolfers)
-        {
-            if (roundStatsByLeagueGolfer.TryGetValue(lg.Id, out var stats))
-            {
-                lg.TotalRounds = stats.Count;
-                lg.AverageScore = stats.Average;
-                lg.BestScore = stats.Best;
-            }
-        }
-
-        await _context.SaveChangesAsync();
-        _logger.LogInformation("✓ Recalculated stats for {Count} league golfers", leagueGolfers.Count);
-    }
-
-    private async Task<Dictionary<string, DateTime>> BuildRoundDateMapAsync(string sqlContent)
-    {
-        var roundDateByOldRoundId = new Dictionary<string, DateTime>();
-
-        var newEventDates = await _context.SeasonEvents
-            .AsNoTracking()
-            .ToDictionaryAsync(e => e.Id, e => e.EventDate);
-
-        var seasonEventGolferPattern = @"INSERT INTO \[dbo\]\.\[GolfSeasonEventGolfers\] VALUES \(([^)]+)\);";
-        var matches = Regex.Matches(sqlContent, seasonEventGolferPattern);
-
+        int importedCount = 0;
         foreach (Match match in matches)
         {
             try
             {
-                var values = ParseSqlValues(match.Groups[1].Value);
-                if (values.Count < 3)
+                var roundId = match.Groups[1].Value;
+                var golferId = match.Groups[2].Value;
+                var leagueGolferId = match.Groups[3].Success && !string.IsNullOrEmpty(match.Groups[3].Value) ? match.Groups[3].Value : null;
+                var leagueId = match.Groups[4].Success && !string.IsNullOrEmpty(match.Groups[4].Value) ? match.Groups[4].Value : null;
+                var courseId = match.Groups[5].Value;
+                var teeId = match.Groups[6].Value;
+                var roundDateStr = match.Groups[7].Value;
+                var holesPlayed = int.Parse(match.Groups[8].Value);
+                var totalScore = match.Groups[9].Success ? int.Parse(match.Groups[9].Value) : (int?)null;
+                var netScore = match.Groups[10].Success ? int.Parse(match.Groups[10].Value) : (int?)null;
+                var handicapUsed = match.Groups[11].Success ? double.Parse(match.Groups[11].Value) : (double?)null;
+                var isComplete = match.Groups[12].Value.Equals("True", StringComparison.OrdinalIgnoreCase);
+
+                // Map IDs
+                if (!_golferToGolferIdMap.TryGetValue(golferId, out var newGolferId))
                 {
+                    _logger.LogWarning("Golfer not found for round: {GolferId}", golferId);
                     continue;
                 }
 
-                var oldSeasonEventId = values[1];
-                var oldRoundId = values[2];
-
-                if (string.IsNullOrWhiteSpace(oldRoundId) || !_seasonEventMap.TryGetValue(oldSeasonEventId, out var newSeasonEventId))
+                if (!_courseMap.TryGetValue(courseId, out var newCourseId))
                 {
+                    _logger.LogWarning("Course not found for round: {CourseId}", courseId);
                     continue;
                 }
 
-                if (newEventDates.TryGetValue(newSeasonEventId, out var eventDate))
+                if (!_teeMap.TryGetValue(teeId, out var newTeeId))
                 {
-                    roundDateByOldRoundId[oldRoundId] = eventDate;
+                    _logger.LogWarning("Tee not found for round: {TeeId}", teeId);
+                    continue;
+                }
+
+                var mappedLeagueGolferId = !string.IsNullOrEmpty(leagueGolferId) && _golferMap.TryGetValue(leagueGolferId, out var lgId) ? lgId : null;
+                var mappedLeagueId = !string.IsNullOrEmpty(leagueId) && _leagueMap.TryGetValue(leagueId, out var lId) ? lId : null;
+
+                // Parse round date
+                if (!DateTime.TryParse(roundDateStr, out var roundDate))
+                {
+                    _logger.LogWarning("Invalid round date: {DateStr}", roundDateStr);
+                    continue;
+                }
+
+                var round = new Round
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    GolferId = newGolferId,
+                    LeagueGolferId = mappedLeagueGolferId,
+                    LeagueId = mappedLeagueId,
+                    CourseId = newCourseId,
+                    TeeId = newTeeId,
+                    RoundDate = roundDate,
+                    HolesPlayed = (HolesPlayed)holesPlayed,
+                    TotalScore = totalScore,
+                    NetScore = netScore,
+                    HandicapUsed = handicapUsed,
+                    IsComplete = isComplete,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _context.Rounds.Add(round);
+                _roundMap[roundId] = round.Id;
+                importedCount++;
+
+                if (importedCount % 100 == 0)
+                {
+                    await _context.SaveChangesAsync();
+                    _logger.LogDebug("Saved {Count} rounds so far...", importedCount);
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // Ignore malformed rows; rounds can still import with fallback dates.
+                _logger.LogWarning(ex, "Failed to parse round");
             }
         }
 
-        return roundDateByOldRoundId;
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("✓ Imported {Count} rounds", importedCount);
+    }
+
+    private async Task ImportRoundHolesAsync(string sqlContent)
+    {
+        _logger.LogInformation("Importing RoundHoles...");
+
+        // Pattern: INSERT INTO [dbo].[GolfRoundHoles] VALUES ('ROUNDHOLEID', 'ROUNDID', 1, 4, 3, 1, 'True', 'True', 0, 'Notes');
+        var pattern = @"INSERT INTO \[dbo\]\.\[GolfRoundHoles\] VALUES \('([^']+)',\s*'([^']+)',\s*(\d+),\s*(?:(\d+)|NULL),\s*(?:(\d+)|NULL),\s*(?:(\d+)|NULL),\s*(?:'([^']*)'|NULL),\s*(?:'([^']*)'|NULL),\s*(?:(\d+)|NULL),\s*'([^']*)'\);";
+        var matches = Regex.Matches(sqlContent, pattern);
+
+        int importedCount = 0;
+        foreach (Match match in matches)
+        {
+            try
+            {
+                var roundId = match.Groups[2].Value;
+                var holeNumber = int.Parse(match.Groups[3].Value);
+                var grossScore = match.Groups[4].Success ? int.Parse(match.Groups[4].Value) : (int?)null;
+                var netScore = match.Groups[5].Success ? int.Parse(match.Groups[5].Value) : (int?)null;
+                var putts = match.Groups[6].Success ? int.Parse(match.Groups[6].Value) : (int?)null;
+                var fairwayHit = match.Groups[7].Success && !string.IsNullOrEmpty(match.Groups[7].Value) 
+                    ? match.Groups[7].Value.Equals("True", StringComparison.OrdinalIgnoreCase) 
+                    : (bool?)null;
+                var gir = match.Groups[8].Success && !string.IsNullOrEmpty(match.Groups[8].Value) 
+                    ? match.Groups[8].Value.Equals("True", StringComparison.OrdinalIgnoreCase) 
+                    : (bool?)null;
+                var penalties = match.Groups[9].Success ? int.Parse(match.Groups[9].Value) : (int?)null;
+
+                if (!_roundMap.TryGetValue(roundId, out var newRoundId))
+                {
+                    _logger.LogWarning("Round not found for hole: {RoundId}", roundId);
+                    continue;
+                }
+
+                var roundHole = new RoundHole
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    RoundId = newRoundId,
+                    HoleNumber = holeNumber,
+                    GrossScore = grossScore,
+                    NetScore = netScore,
+                    Putts = putts,
+                    FairwayHit = fairwayHit,
+                    GreenInRegulation = gir,
+                    Penalties = penalties,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                _context.RoundHoles.Add(roundHole);
+                importedCount++;
+
+                if (importedCount % 500 == 0)
+                {
+                    await _context.SaveChangesAsync();
+                    _logger.LogDebug("Saved {Count} round holes so far...", importedCount);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to parse round hole");
+            }
+        }
+
+        await _context.SaveChangesAsync();
+        _logger.LogInformation("✓ Imported {Count} round holes", importedCount);
     }
 
     // Helper methods
@@ -1394,54 +979,5 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger)
 
         _logger.LogWarning("Failed to parse enum {EnumType} from value: {Value}", typeof(TEnum).Name, value);
         return defaultValue;
-    }
-
-    private void LogImportSummary()
-    {
-        _logger.LogInformation("===========================================");
-        _logger.LogInformation("Import Summary");
-        _logger.LogInformation("===========================================");
-        _logger.LogInformation("  Leagues:       {Count}", _leagueMap.Count);
-        _logger.LogInformation("  Golfers:       {Count} (global), {Count2} (league members)",
-            _golferToGolferIdMap.Count, _golferMap.Count);
-        _logger.LogInformation("  Courses:       {Count}", _courseMap.Count);
-        _logger.LogInformation("  Tees:          {Count}", _teeIdMap.Count);
-        _logger.LogInformation("  Seasons:       {Count}", _seasonMap.Count);
-        _logger.LogInformation("  Season Events: {Count}", _seasonEventMap.Count);
-        _logger.LogInformation("  Season Teams:  {Count}", _teamMap.Count);
-        _logger.LogInformation("  Rounds:        {Count}", _roundMap.Count);
-        _logger.LogInformation("===========================================");
-
-        // Spot-check DB counts for verification
-        Task.Run(async () =>
-        {
-            try
-            {
-                var leagues        = await _context.Leagues.IgnoreQueryFilters().CountAsync();
-                var golfers        = await _context.Golfers.IgnoreQueryFilters().CountAsync();
-                var leagueGolfers  = await _context.LeagueGolfers.IgnoreQueryFilters().CountAsync();
-                var courses        = await _context.Courses.IgnoreQueryFilters().CountAsync();
-                var tees           = await _context.Tees.IgnoreQueryFilters().CountAsync();
-                var seasons        = await _context.Seasons.IgnoreQueryFilters().CountAsync();
-                var events         = await _context.SeasonEvents.IgnoreQueryFilters().CountAsync();
-                var rounds         = await _context.Rounds.IgnoreQueryFilters().CountAsync();
-                var roundHoles     = await _context.RoundHoles.IgnoreQueryFilters().CountAsync();
-
-                _logger.LogInformation("=== DB Record Counts Post-Import ===");
-                _logger.LogInformation("  Leagues:       {Count}", leagues);
-                _logger.LogInformation("  Golfers:       {Golfers} global / {LG} league members", golfers, leagueGolfers);
-                _logger.LogInformation("  Courses:       {Count}", courses);
-                _logger.LogInformation("  Tees:          {Count}", tees);
-                _logger.LogInformation("  Seasons:       {Count}", seasons);
-                _logger.LogInformation("  Season Events: {Count}", events);
-                _logger.LogInformation("  Rounds:        {Count}", rounds);
-                _logger.LogInformation("  Round Holes:   {Count}", roundHoles);
-                _logger.LogInformation("=====================================");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogWarning(ex, "Could not retrieve post-import DB counts");
-            }
-        }).GetAwaiter().GetResult();
     }
 }

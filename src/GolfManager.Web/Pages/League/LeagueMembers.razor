@@ -90,20 +90,27 @@
                                         @if (CanManageLeague)
                                         {
                                             <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                <div class="flex justify-end gap-2">
-                                                    <select value="@member.Role"
-                                                            @onchange="args => ChangeMemberRole(member, args)"
-                                                            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
-                                                        @foreach (var role in LeagueRoles)
-                                                        {
-                                                            <option value="@role">@role</option>
-                                                        }
-                                                    </select>
-                                                    <MaterialButton Style="MaterialButtonStyle.Text" OnClick="() => ShowRemoveMemberConfirm(member)">
-                                                        <MaterialIcon Icon="MaterialIcons.Delete" Class="mr-1 text-red-600" />
-                                                        <span class="text-red-600">Remove</span>
-                                                    </MaterialButton>
-                                                </div>
+                                                @if (CanEditMember(member))
+                                                {
+                                                    <div class="flex justify-end gap-2">
+                                                        <select value="@member.Role"
+                                                                @onchange="args => ChangeMemberRole(member, args)"
+                                                                class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                                                            @foreach (var role in GetAssignableRolesForMember(member))
+                                                            {
+                                                                <option value="@role">@role</option>
+                                                            }
+                                                        </select>
+                                                        <MaterialButton Style="MaterialButtonStyle.Text" OnClick="() => ShowRemoveMemberConfirm(member)">
+                                                            <MaterialIcon Icon="MaterialIcons.Delete" Class="mr-1 text-red-600" />
+                                                            <span class="text-red-600">Remove</span>
+                                                        </MaterialButton>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <span class="text-xs text-gray-500">Owner managed by owner/global admin</span>
+                                                }
                                             </td>
                                         }
                                     </tr>
@@ -155,7 +162,7 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">League Role</label>
                 <select @bind="addMemberRequest.Role"
                         class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
-                    @foreach (var role in LeagueRoles)
+                    @foreach (var role in GetAssignableRoles())
                     {
                         <option value="@role">@role</option>
                     }

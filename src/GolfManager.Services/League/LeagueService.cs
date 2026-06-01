@@ -473,6 +473,12 @@ public class LeagueService : ILeagueService
 
     public async Task<LeagueMemberResponse> AddLeagueMemberAsync(string leagueId, AddLeagueMemberRequest request, string currentUserId)
     {
+        var requestedRole = NormalizeRequestedRole(request.Role, request.IsLeagueAdmin);
+        if (requestedRole == LeagueMemberRole.Owner && !await CanManageOwnerMembershipAsync(leagueId, currentUserId))
+        {
+            throw new InvalidOperationException("Only the league owner or a global admin can assign the owner role.");
+        }
+
         // Verify league exists
         var league = await _context.Leagues
             .FirstOrDefaultAsync(l => l.Id == leagueId && l.IsActive);
@@ -533,7 +539,7 @@ public class LeagueService : ILeagueService
             {
                 // Reactivate the membership
                 existingMembership.IsActive = true;
-                existingMembership.Role = NormalizeRequestedRole(request.Role, request.IsLeagueAdmin);
+                existingMembership.Role = requestedRole;
                 existingMembership.IsLeagueAdmin = IsAdminRole(existingMembership.Role);
                 existingMembership.UpdatedAt = DateTime.UtcNow;
                 existingMembership.UpdatedBy = currentUserId;
@@ -541,16 +547,14 @@ public class LeagueService : ILeagueService
         }
         else
         {
-            var role = NormalizeRequestedRole(request.Role, request.IsLeagueAdmin);
-
             // Create new membership
             var userLeague = new UserLeague
             {
                 Id = _shortIdService.GenerateId(),
                 UserId = user.Id,
                 LeagueId = leagueId,
-                IsLeagueAdmin = IsAdminRole(role),
-                Role = role,
+                IsLeagueAdmin = IsAdminRole(requestedRole),
+                Role = requestedRole,
                 JoinedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = currentUserId,
@@ -570,8 +574,8 @@ public class LeagueService : ILeagueService
             Email = user.Email,
             FirstName = user.FirstName,
             LastName = user.LastName,
-            IsLeagueAdmin = IsAdminRole(NormalizeRequestedRole(request.Role, request.IsLeagueAdmin)),
-            Role = NormalizeRequestedRole(request.Role, request.IsLeagueAdmin),
+            IsLeagueAdmin = IsAdminRole(requestedRole),
+            Role = requestedRole,
             IsActive = true,
             JoinedAt = DateTime.UtcNow
         };
@@ -599,6 +603,11 @@ public class LeagueService : ILeagueService
         if (membership == null)
         {
             return false;
+        }
+
+        if (NormalizeRole(membership) == LeagueMemberRole.Owner && !await CanManageOwnerMembershipAsync(leagueId, currentUserId))
+        {
+            throw new InvalidOperationException("Only the league owner or a global admin can remove an owner.");
         }
 
         // Prevent removing the last admin
@@ -640,6 +649,12 @@ public class LeagueService : ILeagueService
         var nextRole = request.Role ?? (request.IsLeagueAdmin.HasValue
             ? (request.IsLeagueAdmin.Value ? LeagueMemberRole.Admin : LeagueMemberRole.Member)
             : currentRole);
+
+        if ((currentRole == LeagueMemberRole.Owner || nextRole == LeagueMemberRole.Owner)
+            && !await CanManageOwnerMembershipAsync(leagueId, currentUserId))
+        {
+            throw new InvalidOperationException("Only the league owner or a global admin can modify owner role assignments.");
+        }
 
         if (IsAdminRole(currentRole) && !IsAdminRole(nextRole))
         {
@@ -821,5 +836,32 @@ public class LeagueService : ILeagueService
     private static bool IsAdminRole(LeagueMemberRole role)
     {
         return role is LeagueMemberRole.Owner or LeagueMemberRole.Admin;
+    }
+
+    private async Task<bool> CanManageOwnerMembershipAsync(string leagueId, string currentUserId)
+    {
+        if (await IsGlobalAdminAsync(currentUserId))
+        {
+            return true;
+        }
+
+        var currentUserRole = await GetActiveUserLeagueRoleAsync(leagueId, currentUserId);
+        return currentUserRole == LeagueMemberRole.Owner;
+    }
+
+    private async Task<LeagueMemberRole?> GetActiveUserLeagueRoleAsync(string leagueId, string userId)
+    {
+        var membership = await _context.UserLeagues
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(ul => ul.LeagueId == leagueId && ul.UserId == userId && ul.IsActive);
+
+        return membership == null ? null : NormalizeRole(membership);
+    }
+
+    private async Task<bool> IsGlobalAdminAsync(string userId)
+    {
+        return await _context.Users
+            .IgnoreQueryFilters()
+            .AnyAsync(u => u.Id == userId && u.IsActive && u.IsGlobalAdmin);
     }
 }

@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace GolfManager.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialWithUnifiedEvents : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -33,6 +33,9 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -49,15 +52,27 @@ namespace GolfManager.Data.Migrations
                     Name = table.Column<string>(type: "TEXT", maxLength: 200, nullable: false),
                     Description = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
                     LogoUrl = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
+                    WelcomeHeadline = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
+                    WelcomeSubhead = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
+                    EmptyStateMessage = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
+                    CommissionerName = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
+                    AnnouncementTitle = table.Column<string>(type: "TEXT", maxLength: 150, nullable: true),
+                    AnnouncementBody = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
                     ActiveSeasonId = table.Column<string>(type: "TEXT", nullable: true),
                     CustomDomain = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
                     UseCustomDomain = table.Column<bool>(type: "INTEGER", nullable: false),
                     CustomDomainVerificationToken = table.Column<string>(type: "TEXT", nullable: true),
                     CustomDomainVerifiedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    RequireAnonymousPassword = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
+                    AnonymousPasswordHash = table.Column<string>(type: "TEXT", maxLength: 256, nullable: true),
+                    AnonymousPasswordUpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -80,6 +95,9 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -108,12 +126,14 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Holes", x => x.Id);
-                    table.UniqueConstraint("AK_Holes_HoleNumber", x => x.HoleNumber);
                     table.ForeignKey(
                         name: "FK_Holes_Courses_CourseId",
                         column: x => x.CourseId,
@@ -142,6 +162,9 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -170,6 +193,9 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -202,6 +228,9 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -231,7 +260,10 @@ namespace GolfManager.Data.Migrations
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
-                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true)
+                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -258,17 +290,14 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_HoleTees", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_HoleTees_Holes_HoleNumber",
-                        column: x => x.HoleNumber,
-                        principalTable: "Holes",
-                        principalColumn: "HoleNumber",
-                        onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_HoleTees_Tees_TeeId",
                         column: x => x.TeeId,
@@ -297,6 +326,7 @@ namespace GolfManager.Data.Migrations
                     TeamSize = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 1),
                     UseHandicaps = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true),
                     MaxTeams = table.Column<int>(type: "INTEGER", nullable: true),
+                    TotalRounds = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 1),
                     AccessType = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 0),
                     RegistrationCode = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
                     RegistrationDeadline = table.Column<DateTime>(type: "TEXT", nullable: true),
@@ -309,6 +339,9 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -349,6 +382,9 @@ namespace GolfManager.Data.Migrations
                     ScoringFormat = table.Column<int>(type: "INTEGER", nullable: false),
                     Name = table.Column<string>(type: "TEXT", maxLength: 200, nullable: true),
                     Description = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
+                    GameOfDayTitle = table.Column<string>(type: "TEXT", maxLength: 150, nullable: true),
+                    GameOfDayWinnerSeasonGolferId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
+                    GameOfDayWinnerDisplayName = table.Column<string>(type: "TEXT", maxLength: 120, nullable: true),
                     IsLocked = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
                     TeamSize = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 1),
                     UseHandicaps = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true),
@@ -357,6 +393,9 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -383,6 +422,48 @@ namespace GolfManager.Data.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "SeasonSettings",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                    SeasonId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                    LeagueId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                    HandicapType = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                    MaxHandicap = table.Column<int>(type: "INTEGER", nullable: true),
+                    MaxScoreForHandicap = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                    IndividualScoringType = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                    TeamScoringType = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                    MissingPlayerType = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                    MissingTeamType = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                    DefaultCourseId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
+                    DefaultStartTime = table.Column<TimeOnly>(type: "TEXT", nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SeasonSettings", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_SeasonSettings_Courses_DefaultCourseId",
+                        column: x => x.DefaultCourseId,
+                        principalTable: "Courses",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_SeasonSettings_Seasons_SeasonId",
+                        column: x => x.SeasonId,
+                        principalTable: "Seasons",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "SeasonTeams",
                 columns: table => new
                 {
@@ -399,6 +480,9 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -428,6 +512,9 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -439,6 +526,51 @@ namespace GolfManager.Data.Migrations
                         principalTable: "Golfers",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "HandicapHistories",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                    GolferId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                    LeagueId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
+                    SeasonId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
+                    HandicapIndex = table.Column<double>(type: "REAL", nullable: false),
+                    EffectiveDate = table.Column<DateOnly>(type: "TEXT", nullable: false),
+                    CalculationMethod = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
+                    RoundsUsed = table.Column<int>(type: "INTEGER", nullable: true),
+                    Notes = table.Column<string>(type: "TEXT", maxLength: 500, nullable: true),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_HandicapHistories", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_HandicapHistories_Golfers_GolferId",
+                        column: x => x.GolferId,
+                        principalTable: "Golfers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_HandicapHistories_Leagues_LeagueId",
+                        column: x => x.LeagueId,
+                        principalTable: "Leagues",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_HandicapHistories_Seasons_SeasonId",
+                        column: x => x.SeasonId,
+                        principalTable: "Seasons",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
                 });
 
             migrationBuilder.CreateTable(
@@ -460,6 +592,9 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -501,6 +636,9 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -534,11 +672,16 @@ namespace GolfManager.Data.Migrations
                     TotalEvents = table.Column<int>(type: "INTEGER", nullable: false),
                     AverageScore = table.Column<double>(type: "REAL", nullable: true),
                     TotalPoints = table.Column<double>(type: "REAL", nullable: true),
+                    IsPaidForSeason = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
+                    PaidAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     JoinedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -579,11 +722,15 @@ namespace GolfManager.Data.Migrations
                     LeagueId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
                     LeagueGolferId = table.Column<string>(type: "TEXT", nullable: true),
                     IsLeagueAdmin = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
+                    Role = table.Column<string>(type: "TEXT", maxLength: 20, nullable: false, defaultValue: "Member"),
                     JoinedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -625,6 +772,9 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -671,10 +821,15 @@ namespace GolfManager.Data.Migrations
                     OneTimeEventTeamId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
                     IsTeamRound = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
                     Format = table.Column<int>(type: "INTEGER", nullable: true),
+                    RoundNumber = table.Column<int>(type: "INTEGER", nullable: false, defaultValue: 1),
+                    RoundLabel = table.Column<string>(type: "TEXT", maxLength: 100, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -736,6 +891,9 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -766,6 +924,9 @@ namespace GolfManager.Data.Migrations
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
                     UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: true)
                 },
                 constraints: table =>
@@ -777,6 +938,61 @@ namespace GolfManager.Data.Migrations
                         principalTable: "Rounds",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "SeasonEventMatches",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                    SeasonEventId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                    LeagueId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
+                    ScorecardId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
+                    HomeTeamId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
+                    AwayTeamId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
+                    HomeSubSeasonGolferId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
+                    AwaySubSeasonGolferId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),
+                    HomePoints = table.Column<double>(type: "REAL", nullable: true),
+                    AwayPoints = table.Column<double>(type: "REAL", nullable: true),
+                    StartingHole = table.Column<int>(type: "INTEGER", nullable: true),
+                    StartingFlight = table.Column<int>(type: "INTEGER", nullable: true),
+                    IsComplete = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
+                    CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
+                    CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    UpdatedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "INTEGER", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
+                    DeletedBy = table.Column<string>(type: "TEXT", nullable: true),
+                    IsActive = table.Column<bool>(type: "INTEGER", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SeasonEventMatches", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_SeasonEventMatches_Scorecards_ScorecardId",
+                        column: x => x.ScorecardId,
+                        principalTable: "Scorecards",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_SeasonEventMatches_SeasonEvents_SeasonEventId",
+                        column: x => x.SeasonEventId,
+                        principalTable: "SeasonEvents",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_SeasonEventMatches_SeasonTeams_AwayTeamId",
+                        column: x => x.AwayTeamId,
+                        principalTable: "SeasonTeams",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
+                    table.ForeignKey(
+                        name: "FK_SeasonEventMatches_SeasonTeams_HomeTeamId",
+                        column: x => x.HomeTeamId,
+                        principalTable: "SeasonTeams",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.SetNull);
                 });
 
             migrationBuilder.CreateIndex(
@@ -797,15 +1013,40 @@ namespace GolfManager.Data.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_HandicapHistories_LeagueId",
+                table: "HandicapHistories",
+                column: "LeagueId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_HandicapHistories_SeasonId",
+                table: "HandicapHistories",
+                column: "SeasonId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_HandicapHistory_Golfer_Date",
+                table: "HandicapHistories",
+                columns: new[] { "GolferId", "EffectiveDate" },
+                descending: new[] { false, true });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_HandicapHistory_League",
+                table: "HandicapHistories",
+                columns: new[] { "GolferId", "LeagueId", "EffectiveDate" },
+                descending: new[] { false, false, true },
+                filter: "LeagueId IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_HandicapHistory_Season",
+                table: "HandicapHistories",
+                columns: new[] { "GolferId", "SeasonId", "EffectiveDate" },
+                descending: new[] { false, false, true },
+                filter: "SeasonId IS NOT NULL");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Holes_CourseId_HoleNumber",
                 table: "Holes",
                 columns: new[] { "CourseId", "HoleNumber" },
                 unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_HoleTees_HoleNumber",
-                table: "HoleTees",
-                column: "HoleNumber");
 
             migrationBuilder.CreateIndex(
                 name: "IX_HoleTees_TeeId_HoleNumber",
@@ -964,6 +1205,31 @@ namespace GolfManager.Data.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_SeasonEventMatches_AwayTeamId",
+                table: "SeasonEventMatches",
+                column: "AwayTeamId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SeasonEventMatches_HomeTeamId",
+                table: "SeasonEventMatches",
+                column: "HomeTeamId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SeasonEventMatches_LeagueId",
+                table: "SeasonEventMatches",
+                column: "LeagueId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SeasonEventMatches_ScorecardId",
+                table: "SeasonEventMatches",
+                column: "ScorecardId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SeasonEventMatches_SeasonEventId",
+                table: "SeasonEventMatches",
+                column: "SeasonEventId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_SeasonEvents_CourseId",
                 table: "SeasonEvents",
                 column: "CourseId");
@@ -1006,6 +1272,22 @@ namespace GolfManager.Data.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_SeasonSettings_DefaultCourseId",
+                table: "SeasonSettings",
+                column: "DefaultCourseId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SeasonSettings_LeagueId",
+                table: "SeasonSettings",
+                column: "LeagueId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SeasonSettings_SeasonId",
+                table: "SeasonSettings",
+                column: "SeasonId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_SeasonTeams_SeasonId",
                 table: "SeasonTeams",
                 column: "SeasonId");
@@ -1045,6 +1327,12 @@ namespace GolfManager.Data.Migrations
                 name: "GolferClubs");
 
             migrationBuilder.DropTable(
+                name: "HandicapHistories");
+
+            migrationBuilder.DropTable(
+                name: "Holes");
+
+            migrationBuilder.DropTable(
                 name: "HoleTees");
 
             migrationBuilder.DropTable(
@@ -1057,25 +1345,31 @@ namespace GolfManager.Data.Migrations
                 name: "RoundHoles");
 
             migrationBuilder.DropTable(
+                name: "SeasonEventMatches");
+
+            migrationBuilder.DropTable(
+                name: "SeasonGolfers");
+
+            migrationBuilder.DropTable(
+                name: "SeasonSettings");
+
+            migrationBuilder.DropTable(
+                name: "UserLeagues");
+
+            migrationBuilder.DropTable(
                 name: "Scorecards");
 
             migrationBuilder.DropTable(
                 name: "SeasonEvents");
 
             migrationBuilder.DropTable(
-                name: "SeasonGolfers");
-
-            migrationBuilder.DropTable(
-                name: "UserLeagues");
-
-            migrationBuilder.DropTable(
-                name: "Holes");
+                name: "SeasonTeams");
 
             migrationBuilder.DropTable(
                 name: "Rounds");
 
             migrationBuilder.DropTable(
-                name: "SeasonTeams");
+                name: "Seasons");
 
             migrationBuilder.DropTable(
                 name: "LeagueGolfers");
@@ -1084,16 +1378,13 @@ namespace GolfManager.Data.Migrations
                 name: "OneTimeEventTeams");
 
             migrationBuilder.DropTable(
-                name: "Seasons");
-
-            migrationBuilder.DropTable(
                 name: "Golfers");
 
             migrationBuilder.DropTable(
-                name: "OneTimeEvents");
+                name: "Leagues");
 
             migrationBuilder.DropTable(
-                name: "Leagues");
+                name: "OneTimeEvents");
 
             migrationBuilder.DropTable(
                 name: "Tees");
