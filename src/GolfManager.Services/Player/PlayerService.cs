@@ -1,8 +1,10 @@
 using System.Security.Cryptography;
 using GolfManager.Core.Entities;
+using GolfManager.Core.Exceptions;
 using GolfManager.Core.Services;
 using GolfManager.Data;
 using GolfManager.Services.Auth;
+using GolfManager.Shared.DTOs.Common;
 using GolfManager.Shared.DTOs.Player;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -31,18 +33,25 @@ public class PlayerService : IPlayerService
         _logger = logger;
     }
 
-    public async Task<List<PlayerResponse>> GetLeaguePlayersAsync(string leagueId)
+    public async Task<PagedResponse<PlayerResponse>> GetLeaguePlayersAsync(string leagueId, int page = 1, int pageSize = 25)
     {
-        // Use IgnoreQueryFilters() because we're explicitly filtering by leagueId
-        var players = await _context.LeagueGolfers
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var baseQuery = _context.LeagueGolfers
             .IgnoreQueryFilters()
+            .Where(lg => lg.LeagueId == leagueId && lg.IsActive);
+
+        var totalCount = await baseQuery.CountAsync();
+        var players = await baseQuery
             .Include(lg => lg.Golfer)
                 .ThenInclude(g => g.User)
-            .Where(lg => lg.LeagueId == leagueId && lg.IsActive)
             .OrderBy(lg => lg.DisplayName)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
-        return players.Select(MapToResponse).ToList();
+        return PagedResponse<PlayerResponse>.From(players.Select(MapToResponse).ToList(), page, pageSize, totalCount);
     }
 
     public async Task<PlayerResponse?> GetPlayerAsync(string leagueId, string playerId)
@@ -66,7 +75,7 @@ public class PlayerService : IPlayerService
 
         if (league == null)
         {
-            throw new KeyNotFoundException($"League with ID {leagueId} not found");
+            throw new NotFoundException($"League with ID {leagueId} not found");
         }
 
         string userId;
@@ -82,7 +91,7 @@ public class PlayerService : IPlayerService
             var user = await _context.Users.FindAsync(userId);
             if (user == null)
             {
-                throw new KeyNotFoundException($"User with ID {userId} not found");
+                throw new NotFoundException($"User with ID {userId} not found");
             }
 
             // Check if user already has a golfer profile
@@ -125,7 +134,7 @@ public class PlayerService : IPlayerService
 
             if (existingUser != null)
             {
-                throw new InvalidOperationException($"User with email {request.Email} already exists");
+                throw new ConflictException($"User with email {request.Email} already exists");
             }
 
             // Generate random password
@@ -174,7 +183,7 @@ public class PlayerService : IPlayerService
         {
             if (existingLeagueGolfer.IsActive)
             {
-                throw new InvalidOperationException("Player is already a member of this league");
+                throw new ConflictException("Player is already a member of this league");
             }
             else
             {
@@ -229,7 +238,7 @@ public class PlayerService : IPlayerService
 
         if (season == null)
         {
-            throw new KeyNotFoundException($"Season with ID {seasonId} not found");
+            throw new NotFoundException($"Season with ID {seasonId} not found");
         }
 
         if (season.IsLocked)
@@ -293,7 +302,7 @@ public class PlayerService : IPlayerService
 
         if (player == null)
         {
-            throw new KeyNotFoundException($"Player with ID {playerId} not found in league {leagueId}");
+            throw new NotFoundException($"Player with ID {playerId} not found in league {leagueId}");
         }
 
         // Update fields if provided

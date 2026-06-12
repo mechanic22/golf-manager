@@ -11,12 +11,11 @@ namespace GolfManager.Api.Controllers;
 /// <summary>
 /// Controller for managing season events
 /// </summary>
-[ApiController]
 [Route("api/v1/seasons/{seasonId}/events")]
-[Authorize]
-public class EventsController : ControllerBase
+public class EventsController : BaseLeagueController
 {
     private readonly IEventService _eventService;
+    private readonly IEventScoringService _scoringService;
     private readonly IHandicapRecalculationQueue _handicapQueue;
     private readonly ISeasonPointsRecalculationQueue _seasonPointsQueue;
     private readonly ICurrentUserService _currentUserService;
@@ -24,12 +23,14 @@ public class EventsController : ControllerBase
 
     public EventsController(
         IEventService eventService,
+        IEventScoringService scoringService,
         IHandicapRecalculationQueue handicapQueue,
         ISeasonPointsRecalculationQueue seasonPointsQueue,
         ICurrentUserService currentUserService,
         ILogger<EventsController> logger)
     {
         _eventService = eventService;
+        _scoringService = scoringService;
         _handicapQueue = handicapQueue;
         _seasonPointsQueue = seasonPointsQueue;
         _currentUserService = currentUserService;
@@ -41,16 +42,15 @@ public class EventsController : ControllerBase
     /// </summary>
     [HttpGet]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
-    public async Task<ActionResult<ApiResponse<List<EventResponse>>>> GetSeasonEvents(string seasonId)
+    public async Task<ActionResult<ApiResponse<PagedResponse<EventResponse>>>> GetSeasonEvents(
+        string seasonId, [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
-        {
-            return BadRequest(ApiResponse<List<EventResponse>>.ErrorResponse("League context required"));
-        }
+            return BadRequest(ApiResponse<PagedResponse<EventResponse>>.ErrorResponse("League context required"));
 
-        var events = await _eventService.GetSeasonEventsAsync(seasonId, leagueId);
-        return Ok(ApiResponse<List<EventResponse>>.SuccessResponse(events));
+        var events = await _eventService.GetSeasonEventsAsync(seasonId, leagueId, page, pageSize);
+        return Ok(ApiResponse<PagedResponse<EventResponse>>.SuccessResponse(events));
     }
 
     /// <summary>
@@ -60,7 +60,7 @@ public class EventsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
     public async Task<ActionResult<ApiResponse<EventResponse>>> GetEventById(string seasonId, string eventId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<EventResponse>.ErrorResponse("League context required"));
@@ -83,7 +83,7 @@ public class EventsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
     public async Task<ActionResult<ApiResponse<EventScoreboardResponse>>> GetEventScoreboard(string seasonId, string eventId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<EventScoreboardResponse>.ErrorResponse("League context required"));
@@ -102,7 +102,7 @@ public class EventsController : ControllerBase
         string seasonId,
         [FromBody] CreateEventRequest request)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<EventResponse>.ErrorResponse("League context required"));
@@ -130,7 +130,7 @@ public class EventsController : ControllerBase
         string eventId,
         [FromBody] UpdateEventRequest request)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<EventResponse>.ErrorResponse("League context required"));
@@ -146,13 +146,31 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
+    /// Get hole-by-hole match detail for a specific matchup
+    /// </summary>
+    [HttpGet("{eventId}/matchups/{matchupId}/detail")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    public async Task<ActionResult<ApiResponse<MatchDetailResponse?>>> GetMatchDetail(string seasonId, string eventId, string matchupId)
+    {
+        var leagueId = LeagueId;
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<MatchDetailResponse?>.ErrorResponse("League context required"));
+
+        var detail = await _eventService.GetMatchDetailAsync(seasonId, eventId, matchupId, leagueId);
+        if (detail == null)
+            return NotFound(ApiResponse<MatchDetailResponse?>.ErrorResponse("Match not found"));
+
+        return Ok(ApiResponse<MatchDetailResponse?>.SuccessResponse(detail));
+    }
+
+    /// <summary>
     /// Get event matchups
     /// </summary>
     [HttpGet("{eventId}/matchups")]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
     public async Task<ActionResult<ApiResponse<List<EventMatchupResponse>>>> GetEventMatchups(string seasonId, string eventId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<List<EventMatchupResponse>>.ErrorResponse("League context required"));
@@ -163,13 +181,32 @@ public class EventsController : ControllerBase
     }
 
     /// <summary>
+    /// Get the current user's matchup (hole assignment + opponent) for an event
+    /// </summary>
+    [HttpGet("{eventId}/my-matchup")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<MyMatchupResponse?>>> GetMyMatchup(string seasonId, string eventId)
+    {
+        var leagueId = LeagueId;
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<MyMatchupResponse?>.ErrorResponse("League context required"));
+
+        var userId = _currentUserService.UserId;
+        if (string.IsNullOrEmpty(userId))
+            return Ok(ApiResponse<MyMatchupResponse?>.SuccessResponse((MyMatchupResponse?)null));
+
+        var matchup = await _eventService.GetMyMatchupForEventAsync(seasonId, eventId, leagueId, userId);
+        return Ok(ApiResponse<MyMatchupResponse?>.SuccessResponse(matchup));
+    }
+
+    /// <summary>
     /// Auto setup matchups from current standings
     /// </summary>
     [HttpPost("{eventId}/matchups/auto-setup")]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<List<EventMatchupResponse>>>> AutoSetupMatchups(string seasonId, string eventId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<List<EventMatchupResponse>>.ErrorResponse("League context required"));
@@ -188,7 +225,7 @@ public class EventsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<EventResponse>>> ScheduleNextWeek(string seasonId, string eventId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<EventResponse>.ErrorResponse("League context required"));
@@ -211,7 +248,7 @@ public class EventsController : ControllerBase
         string matchupId,
         [FromBody] UpdateEventMatchupRequest request)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<EventMatchupResponse>.ErrorResponse("League context required"));
@@ -230,7 +267,7 @@ public class EventsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<int>>> RecalculateEventHandicaps(string seasonId, string eventId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<int>.ErrorResponse("League context required"));
@@ -250,7 +287,7 @@ public class EventsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<bool>>> RecalculateEventGolferHandicap(string seasonId, string eventId, string golferId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<bool>.ErrorResponse("League context required"));
@@ -270,14 +307,14 @@ public class EventsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<int>>> RecalculateOverallStandings(string seasonId, string eventId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<int>.ErrorResponse("League context required"));
         }
 
         var userId = _currentUserService.UserId!;
-        var updated = await _eventService.RecalculateSeasonTeamStandingsAsync(seasonId, leagueId, userId);
+        var updated = await _scoringService.RecalculateSeasonTeamStandingsAsync(seasonId, leagueId, userId);
 
         return Ok(ApiResponse<int>.SuccessResponse(updated, "Overall standings recalculated."));
     }
@@ -289,7 +326,7 @@ public class EventsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteEvent(string seasonId, string eventId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<bool>.ErrorResponse("League context required"));

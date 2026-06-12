@@ -1,0 +1,80 @@
+@page "/admin/leagues"
+@layout AppLayout
+
+<PageTitle>All Leagues - Admin - Pinzo</PageTitle>
+
+@if (!isGlobalAdmin)
+{
+    <div class="text-center py-16">
+        <h2 class="text-2xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+        <p class="text-gray-600 mb-4">You must be a Global Admin to access this page.</p>
+        <a href="/dashboard" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+            Back to Dashboard
+        </a>
+    </div>
+}
+else
+{
+    <div class="mb-6 flex items-center justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">All Leagues</h1>
+            <p class="text-sm text-gray-500 mt-0.5">@(leagues?.Count ?? 0) leagues on this platform</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <input type="text" @bind="searchTerm" @bind:event="oninput" placeholder="Search leagues..."
+                   class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 w-56" />
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="flex flex-col gap-3">
+            @for (int i = 0; i < 5; i++)
+            {
+                <div class="h-16 bg-gray-100 rounded-lg animate-pulse"></div>
+            }
+        </div>
+    }
+    else if (leagues == null || !FilteredLeagues.Any())
+    {
+        <div class="text-center py-12 text-gray-500">
+            @(string.IsNullOrWhiteSpace(searchTerm) ? "No leagues found." : "No leagues match your search.")
+        </div>
+    }
+    else
+    {
+        <div class="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
+            @foreach (var league in FilteredLeagues)
+            {
+                <div class="flex items-center justify-between gap-4 px-5 py-4 hover:bg-gray-50 transition-colors">
+                    <div class="flex items-center gap-3 min-w-0">
+                        @if (!string.IsNullOrEmpty(league.LogoUrl))
+                        {
+                            <img src="@league.LogoUrl" alt="@league.Name" class="w-10 h-10 rounded-lg object-cover shrink-0" />
+                        }
+                        else
+                        {
+                            <div class="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center shrink-0">
+                                <span class="text-primary-700 font-bold text-sm">@league.Name[..Math.Min(2, league.Name.Length)]</span>
+                            </div>
+                        }
+                        <div class="min-w-0">
+                            <p class="text-sm font-semibold text-gray-900 truncate">@league.Name</p>
+                            <p class="text-xs text-gray-500 font-mono">@league.Key &middot; @league.MemberCount members &middot; @league.SeasonCount seasons</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 shrink-0">
+                        @if (!string.IsNullOrEmpty(league.ActiveSeasonId))
+                        {
+                            <span class="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">Active Season</span>
+                        }
+                        <a href="/league/@league.Key"
+                           class="px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors">
+                            Manage
+                        </a>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}

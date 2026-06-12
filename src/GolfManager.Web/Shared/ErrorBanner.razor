@@ -1,0 +1,20 @@
+@* Dismissable error banner. Renders nothing when Message is null or empty. *@
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 mb-4 flex items-start gap-3" role="alert">
+        <MaterialIcon Icon="MaterialIcons.Error" Class="text-red-600 mt-0.5 shrink-0" />
+        <p class="text-sm text-red-800 flex-1">@Message</p>
+        @if (OnDismiss.HasDelegate)
+        {
+            <button type="button" class="text-red-400 hover:text-red-600 shrink-0" @onclick="OnDismiss" aria-label="Dismiss">
+                <MaterialIcon Icon="MaterialIcons.Close" Class="text-base" />
+            </button>
+        }
+    </div>
+}
+
+@code {
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public EventCallback OnDismiss { get; set; }
+}

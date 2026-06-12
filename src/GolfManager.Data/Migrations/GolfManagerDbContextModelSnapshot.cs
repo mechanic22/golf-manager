@@ -547,6 +547,9 @@ namespace GolfManager.Data.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("INTEGER");
 
+                    b.Property<bool>("IsPubliclyDiscoverable")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Key")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1201,21 +1204,14 @@ namespace GolfManager.Data.Migrations
 
             modelBuilder.Entity("GolfManager.Core.Entities.RoundHole", b =>
                 {
-                    b.Property<string>("Id")
+                    b.Property<string>("RoundId")
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("HoleNumber")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("CreatedBy")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("DeletedBy")
                         .HasColumnType("TEXT");
 
                     b.Property<bool?>("FairwayHit")
@@ -1225,17 +1221,6 @@ namespace GolfManager.Data.Migrations
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("GrossScore")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<int>("HoleNumber")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER")
-                        .HasDefaultValue(true);
-
-                    b.Property<bool>("IsDeleted")
                         .HasColumnType("INTEGER");
 
                     b.Property<int?>("NetScore")
@@ -1250,21 +1235,10 @@ namespace GolfManager.Data.Migrations
                     b.Property<int?>("Putts")
                         .HasColumnType("INTEGER");
 
-                    b.Property<string>("RoundId")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("TEXT");
-
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("UpdatedBy")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("RoundId", "HoleNumber")
-                        .IsUnique();
+                    b.HasKey("RoundId", "HoleNumber");
 
                     b.ToTable("RoundHoles", (string)null);
                 });
@@ -1614,6 +1588,182 @@ namespace GolfManager.Data.Migrations
                     b.HasIndex("SeasonEventId");
 
                     b.ToTable("SeasonEventMatches", (string)null);
+                });
+
+            modelBuilder.Entity("GolfManager.Core.Entities.SeasonEventMatchScore", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("AwayPoints")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("AwayTeamId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("AwayTeamName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("HomePoints")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("HomeTeamId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("HomeTeamName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsComplete")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LeagueId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SeasonEventId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SeasonEventMatchId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("StartingFlight")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("StartingHole")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SeasonEventId", "LeagueId");
+
+                    b.HasIndex("SeasonEventMatchId", "LeagueId");
+
+                    b.ToTable("SeasonEventMatchScores");
+                });
+
+            modelBuilder.Entity("GolfManager.Core.Entities.SeasonEventPlayerScore", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CreatedBy")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DeletedBy")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("EventPoints")
+                        .HasColumnType("REAL");
+
+                    b.Property<double?>("Handicap")
+                        .HasColumnType("REAL");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsMissing")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("LeagueId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<double?>("MissScore")
+                        .HasColumnType("REAL");
+
+                    b.Property<double?>("NetScore")
+                        .HasColumnType("REAL");
+
+                    b.Property<int?>("RawScore")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SeasonEventId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SeasonGolferId")
+                        .IsRequired()
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TeamId")
+                        .HasMaxLength(36)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TeamName")
+                        .HasMaxLength(256)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UpdatedBy")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SeasonEventId", "LeagueId");
+
+                    b.HasIndex("SeasonGolferId", "LeagueId");
+
+                    b.HasIndex("TeamId", "LeagueId");
+
+                    b.ToTable("SeasonEventPlayerScores");
                 });
 
             modelBuilder.Entity("GolfManager.Core.Entities.SeasonGolfer", b =>
@@ -2410,6 +2560,44 @@ namespace GolfManager.Data.Migrations
                     b.Navigation("SeasonEvent");
                 });
 
+            modelBuilder.Entity("GolfManager.Core.Entities.SeasonEventMatchScore", b =>
+                {
+                    b.HasOne("GolfManager.Core.Entities.SeasonEvent", "SeasonEvent")
+                        .WithMany("MatchScores")
+                        .HasForeignKey("SeasonEventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("GolfManager.Core.Entities.SeasonEventMatch", "SeasonEventMatch")
+                        .WithMany()
+                        .HasForeignKey("SeasonEventMatchId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SeasonEvent");
+
+                    b.Navigation("SeasonEventMatch");
+                });
+
+            modelBuilder.Entity("GolfManager.Core.Entities.SeasonEventPlayerScore", b =>
+                {
+                    b.HasOne("GolfManager.Core.Entities.SeasonEvent", "SeasonEvent")
+                        .WithMany("PlayerScores")
+                        .HasForeignKey("SeasonEventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("GolfManager.Core.Entities.SeasonGolfer", "SeasonGolfer")
+                        .WithMany()
+                        .HasForeignKey("SeasonGolferId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("SeasonEvent");
+
+                    b.Navigation("SeasonGolfer");
+                });
+
             modelBuilder.Entity("GolfManager.Core.Entities.SeasonGolfer", b =>
                 {
                     b.HasOne("GolfManager.Core.Entities.Golfer", "Golfer")
@@ -2569,6 +2757,13 @@ namespace GolfManager.Data.Migrations
                     b.Navigation("SeasonGolfers");
 
                     b.Navigation("Teams");
+                });
+
+            modelBuilder.Entity("GolfManager.Core.Entities.SeasonEvent", b =>
+                {
+                    b.Navigation("MatchScores");
+
+                    b.Navigation("PlayerScores");
                 });
 
             modelBuilder.Entity("GolfManager.Core.Entities.SeasonTeam", b =>

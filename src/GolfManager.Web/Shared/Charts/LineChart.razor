@@ -1,0 +1,95 @@
+<div>
+    @if (isLoading)
+    {
+        <div class="flex items-center justify-center py-8">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        </div>
+    }
+    else if (!chartSeries.Any(s => s.Points.Any()))
+    {
+        <div class="text-center py-8 text-gray-500 text-sm">
+            <p>@EmptyMessage</p>
+        </div>
+    }
+    else
+    {
+        <svg viewBox="0 0 @chartWidth @chartHeight" class="w-full" style="max-height: @(MaxHeightPx)px;">
+            @for (int i = 0; i <= 4; i++)
+            {
+                var y = padding + (i * (chartHeight - 2 * padding) / 4.0);
+                <line x1="@padding" y1="@y" x2="@(chartWidth - padding)" y2="@y" stroke="#e5e7eb" stroke-width="1" />
+            }
+            @for (int i = 0; i <= 4; i++)
+            {
+                var y = padding + (i * (chartHeight - 2 * padding) / 4.0);
+                var value = maxY - (i * (maxY - minY) / 4.0);
+                var label = value.ToString(YFormat);
+                @:<text x="@(padding - 8)" y="@(y + 4)" text-anchor="end" font-size="11" fill="#6b7280">@label</text>
+            }
+            @foreach (var series in chartSeries.Where(s => s.Points.Any()))
+            {
+                var pts = string.Join(" ", series.Points.Select(p => $"{p.X:F1},{p.Y:F1}"));
+                <polyline points="@pts" fill="none" stroke="@series.Color" stroke-width="2.5"
+                          stroke-linejoin="round" stroke-linecap="round" />
+                @foreach (var point in series.Points)
+                {
+                    <circle cx="@point.X.ToString("F1")" cy="@point.Y.ToString("F1")" r="4"
+                            fill="@series.Color" class="cursor-pointer">
+                        <title>@series.Label: @point.Value.ToString(YFormat) · @point.Date.ToString("MMM d, yyyy")</title>
+                    </circle>
+                }
+            }
+        </svg>
+        @if (chartSeries.Count(s => s.Points.Any()) > 1)
+        {
+            <div class="flex flex-wrap gap-4 mt-3 justify-center text-sm">
+                @foreach (var series in chartSeries.Where(s => s.Points.Any()))
+                {
+                    <div class="flex items-center gap-1.5">
+                        <div class="w-3 h-3 rounded-full" style="background-color: @series.Color"></div>
+                        <span class="text-gray-600">@series.Label</span>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public List<ChartDataSeries> chartSeries { get; set; } = new();
+    [Parameter] public bool isLoading { get; set; }
+    [Parameter] public string YFormat { get; set; } = "F1";
+    [Parameter] public string EmptyMessage { get; set; } = "No data available";
+    [Parameter] public int MaxHeightPx { get; set; } = 250;
+
+    private readonly int chartWidth = 600;
+    private readonly int chartHeight = 300;
+    private readonly int padding = 50;
+    private double minY = 0;
+    private double maxY = 100;
+
+    protected override void OnParametersSet()
+    {
+        var allValues = chartSeries.SelectMany(s => s.Points).Select(p => p.Value).ToList();
+        if (allValues.Any())
+        {
+            minY = Math.Floor(allValues.Min()) - 1;
+            maxY = Math.Ceiling(allValues.Max()) + 1;
+        }
+    }
+
+    public class ChartDataSeries
+    {
+        public string Label { get; set; } = string.Empty;
+        public string Color { get; set; } = string.Empty;
+        public List<ChartPoint> Points { get; set; } = new();
+    }
+
+    public class ChartPoint
+    {
+        public double X { get; set; }
+        public double Y { get; set; }
+        public double Value { get; set; }
+        public DateOnly Date { get; set; }
+    }
+}

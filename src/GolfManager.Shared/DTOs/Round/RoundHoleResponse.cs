@@ -5,14 +5,6 @@ namespace GolfManager.Shared.DTOs.Round;
 /// </summary>
 public class RoundHoleResponse
 {
-    /// <summary>
-    /// Hole ID
-    /// </summary>
-    public string Id { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Hole number (1-18)
-    /// </summary>
     public int HoleNumber { get; set; }
 
     /// <summary>

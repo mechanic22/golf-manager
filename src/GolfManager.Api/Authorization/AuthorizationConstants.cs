@@ -29,6 +29,11 @@ public static class AuthorizationConstants
         /// User must be either a league admin or global admin
         /// </summary>
         public const string LeagueOrGlobalAdmin = "LeagueOrGlobalAdmin";
+
+        /// <summary>
+        /// Anonymous guest user with a valid scoped league session
+        /// </summary>
+        public const string GuestLeagueViewer = "GuestLeagueViewer";
     }
 
     /// <summary>
@@ -50,6 +55,16 @@ public static class AuthorizationConstants
         /// Claim for league admin status
         /// </summary>
         public const string IsLeagueAdmin = "is_league_admin";
+
+        /// <summary>
+        /// Claim indicating this is an anonymous guest session
+        /// </summary>
+        public const string IsGuest = "is_guest";
+
+        /// <summary>
+        /// Claim holding the league key for a guest session
+        /// </summary>
+        public const string LeagueKey = "league_key";
     }
 
     /// <summary>

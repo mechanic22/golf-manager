@@ -1,0 +1,64 @@
+
+@if (Event != null)
+{
+    <div class="bg-white rounded-lg border border-gray-200 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
+        <!-- Date pill -->
+        <div class="shrink-0 w-14 h-14 @(IsRecent ? "bg-gray-100" : "bg-blue-600") rounded-lg flex flex-col items-center justify-center @(IsRecent ? "text-gray-600" : "text-white")">
+            <span class="text-xs font-semibold uppercase leading-none">@Event.EventDate.ToString("MMM")</span>
+            <span class="text-xl font-bold leading-tight">@Event.EventDate.Day</span>
+        </div>
+
+        <!-- Event info -->
+        <div class="flex-1 min-w-0">
+            <h3 class="text-base font-semibold text-gray-900 truncate">@Event.Name</h3>
+            <div class="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
+                @if (!string.IsNullOrEmpty(Event.LeagueName))
+                {
+                    <span class="text-xs font-medium text-primary-600">@Event.LeagueName</span>
+                    <span class="text-xs text-gray-300">&middot;</span>
+                }
+                @if (!string.IsNullOrEmpty(Event.CourseName))
+                {
+                    <span class="text-xs text-gray-500">@Event.CourseName</span>
+                    <span class="text-xs text-gray-300">&middot;</span>
+                }
+                @if (!string.IsNullOrEmpty(Event.FormatLabel))
+                {
+                    <span class="text-xs text-gray-500">@Event.FormatLabel</span>
+                }
+            </div>
+            @if (!IsRecent && Event.StartingHole.HasValue)
+            {
+                <div class="flex items-center gap-2 mt-1.5">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold bg-green-50 text-green-700 border border-green-200 rounded-full">
+                        Hole @Event.StartingHole
+                        @if (Event.StartingFlight.HasValue)
+                        {
+                            <span class="text-green-500">&middot; Flight @Event.StartingFlight</span>
+                        }
+                    </span>
+                    @if (!string.IsNullOrEmpty(Event.OpponentName))
+                    {
+                        <span class="text-xs text-gray-400">vs. @Event.OpponentName</span>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- CTA -->
+        <div class="shrink-0">
+            <a href="@Event.Url"
+               class="px-3 py-1.5 text-sm font-medium rounded-lg transition-colors whitespace-nowrap @(IsRecent ? "text-gray-700 bg-white border border-gray-300 hover:bg-gray-50" : "text-white bg-blue-600 hover:bg-blue-700")">
+                @(IsRecent ? "View Results" : "View Event")
+            </a>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public DashboardEventItem? Event { get; set; }
+
+    [Parameter]
+    public bool IsRecent { get; set; }
+}

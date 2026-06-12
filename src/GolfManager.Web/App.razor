@@ -1,28 +1,93 @@
-﻿@inject GolfManager.Web.Services.IAuthService AuthService
+﻿@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@implements IDisposable
 
 @if (!isAuthReady)
 {
-    <div class="min-h-screen flex flex-col items-center justify-center">
-        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
-        <p class="text-gray-600">Loading...</p>
+    <div class="min-h-screen flex flex-col items-center justify-center bg-gray-50">
+        <img src="img/pinzo-green.png" alt="DK Golf" class="w-16 h-auto mb-4 opacity-90" />
+        <h1 class="text-xl font-bold text-primary-600 mb-6">DK Golf Manager</h1>
+        <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-primary-100 border-t-primary-600 mb-4"></div>
+        <p class="text-sm text-gray-500">@_loadingStatus</p>
     </div>
 }
 else
 {
-    <Router AppAssembly="@typeof(App).Assembly" NotFoundPage="typeof(Pages.NotFound)">
+    <Router AppAssembly="@typeof(App).Assembly">
         <Found Context="routeData">
             <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)"/>
             <FocusOnNavigate RouteData="@routeData" Selector="h1" />
         </Found>
+        <NotFound>
+            @{ Navigation.NavigateTo("/not-found", replace: true); }
+        </NotFound>
     </Router>
 }
 
 @code {
     private bool isAuthReady;
+    private string _loadingStatus = "Starting up...";
+    private IDisposable? _locationChangingHandler;
 
     protected override async Task OnInitializedAsync()
     {
+        _loadingStatus = "Checking your session...";
         await AuthService.InitializeAsync();
         isAuthReady = true;
+        GuardCurrentRoute();
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _locationChangingHandler = Navigation.RegisterLocationChangingHandler(OnLocationChanging);
+        }
+    }
+
+    private ValueTask OnLocationChanging(LocationChangingContext context)
+    {
+        if (!AuthService.IsAuthenticated && !AuthService.IsGuest && !IsPublicRoute(context.TargetLocation))
+        {
+            var relativePath = Navigation.ToBaseRelativePath(context.TargetLocation);
+            context.PreventNavigation();
+            Navigation.NavigateTo($"/login?returnUrl={Uri.EscapeDataString("/" + relativePath)}", replace: true);
+        }
+        return ValueTask.CompletedTask;
+    }
+
+    private void GuardCurrentRoute()
+    {
+        if (!AuthService.IsAuthenticated && !AuthService.IsGuest)
+        {
+            var relativePath = Navigation.ToBaseRelativePath(Navigation.Uri);
+            var fullPath = "/" + relativePath.Split('?')[0].TrimStart('/');
+            if (!IsPublicRoute(fullPath))
+            {
+                var returnUrl = relativePath.TrimStart('/');
+                Navigation.NavigateTo(
+                    string.IsNullOrEmpty(returnUrl) ? "/login" : $"/login?returnUrl={Uri.EscapeDataString("/" + returnUrl)}",
+                    replace: true);
+            }
+        }
+    }
+
+    private static bool IsPublicRoute(string uri)
+    {
+        try
+        {
+            var path = new Uri(uri).AbsolutePath.ToLowerInvariant().TrimEnd('/');
+            return path is "" or "/login" or "/register" or "/not-found" || path.EndsWith("/guest");
+        }
+        catch
+        {
+            var path = ("/" + uri.TrimStart('/').Split('?')[0]).ToLowerInvariant().TrimEnd('/');
+            return path is "" or "/" or "/login" or "/register" or "/not-found" || path.EndsWith("/guest");
+        }
+    }
+
+    public void Dispose()
+    {
+        _locationChangingHandler?.Dispose();
     }
 }

@@ -1,0 +1,26 @@
+@* Empty state inside a card. Pass ChildContent for an optional action button. *@
+
+<MaterialCard Variant="MaterialCardVariant.Outlined">
+    <div class="md-card__content text-center py-12">
+        @if (!string.IsNullOrWhiteSpace(Icon))
+        {
+            <MaterialIcon Icon="@Icon" Class="text-gray-400 text-5xl mb-4" />
+        }
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">@Title</h3>
+        @if (!string.IsNullOrWhiteSpace(Description))
+        {
+            <p class="text-gray-600 mb-4">@Description</p>
+        }
+        @if (ChildContent != null)
+        {
+            <div class="mt-2">@ChildContent</div>
+        }
+    </div>
+</MaterialCard>
+
+@code {
+    [Parameter] public string Title { get; set; } = "Nothing here yet";
+    [Parameter] public string? Description { get; set; }
+    [Parameter] public string? Icon { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

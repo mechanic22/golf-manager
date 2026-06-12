@@ -1,3 +1,4 @@
+using GolfManager.Core.Exceptions;
 using GolfManager.Core.Services;
 using GolfManager.Data;
 using GolfManager.Core.Entities;
@@ -91,7 +92,7 @@ public class SeasonService : ISeasonService
 
         if (existingSeason != null)
         {
-            throw new InvalidOperationException($"Season with key '{seasonKey}' already exists in this league");
+            throw new ConflictException($"Season with key '{seasonKey}' already exists in this league");
         }
 
         // Validate dates
@@ -130,7 +131,7 @@ public class SeasonService : ISeasonService
 
         if (season == null)
         {
-            throw new InvalidOperationException("Season not found");
+            throw new NotFoundException("Season not found");
         }
 
         // Update fields if provided
@@ -182,7 +183,9 @@ public class SeasonService : ISeasonService
             return false;
         }
 
-        _context.Seasons.Remove(season);
+        season.IsDeleted = true;
+        season.UpdatedAt = DateTime.UtcNow;
+        season.UpdatedBy = userId;
         await _context.SaveChangesAsync();
 
         _logger.LogInformation("Deleted season {SeasonId} in league {LeagueId} by user {UserId}",
@@ -199,7 +202,7 @@ public class SeasonService : ISeasonService
 
         if (season == null)
         {
-            throw new InvalidOperationException("Season not found");
+            throw new NotFoundException("Season not found");
         }
 
         if (season.IsLocked)
@@ -428,16 +431,8 @@ public class SeasonService : ISeasonService
             throw new InvalidOperationException("Player name could not be parsed.");
         }
 
-        var existingLeagueGolfer = await _context.LeagueGolfers
-            .IgnoreQueryFilters()
-            .Include(lg => lg.Golfer)
-            .Where(lg => lg.LeagueId == leagueId && lg.IsActive)
-            .FirstOrDefaultAsync(lg => NormalizeName(lg.DisplayName) == normalizedName);
-
-        if (existingLeagueGolfer != null)
-        {
-            return existingLeagueGolfer;
-        }
+        // Caller has already verified this name is not in the pre-loaded golfer lookup.
+        // No DB check needed here.
 
         var emailLocal = Regex.Replace(normalizedName, "[^a-z0-9]+", ".").Trim('.');
         if (string.IsNullOrWhiteSpace(emailLocal))
@@ -703,7 +698,7 @@ public class SeasonService : ISeasonService
             .Include(t => t.Members)
                 .ThenInclude(m => m.LeagueGolfer)
             .FirstOrDefaultAsync(t => t.Id == teamId && t.SeasonId == seasonId && t.LeagueId == leagueId)
-            ?? throw new InvalidOperationException("Team not found");
+            ?? throw new NotFoundException("Team not found");
 
         team.Name = request.Name;
         team.AvatarUrl = request.AvatarUrl;
@@ -748,7 +743,7 @@ public class SeasonService : ISeasonService
         var golfer = await _context.SeasonGolfers
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(g => g.Id == seasonGolferId && g.SeasonId == seasonId && g.LeagueId == leagueId)
-            ?? throw new InvalidOperationException("Season golfer not found");
+            ?? throw new NotFoundException("Season golfer not found");
 
         if (request.TeamId != null)
         {
@@ -756,7 +751,7 @@ public class SeasonService : ISeasonService
                 .IgnoreQueryFilters()
                 .AnyAsync(t => t.Id == request.TeamId && t.SeasonId == seasonId && t.LeagueId == leagueId);
 
-            if (!teamExists) throw new InvalidOperationException("Team not found in this season");
+            if (!teamExists) throw new NotFoundException("Team not found in this season");
         }
 
         golfer.TeamId = request.TeamId;
@@ -788,7 +783,7 @@ public class SeasonService : ISeasonService
         var golfer = await _context.SeasonGolfers
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(g => g.Id == seasonGolferId && g.SeasonId == seasonId && g.LeagueId == leagueId)
-            ?? throw new InvalidOperationException("Player not found in season");
+            ?? throw new NotFoundException("Player not found in season");
 
         golfer.IsPaidForSeason = request.IsPaidForSeason;
         golfer.PaidAt = request.IsPaidForSeason ? DateTime.UtcNow : null;

@@ -12,7 +12,7 @@
 ### Public/marketing layout (`MainLayout` + `NavMenu`)
 Used by pages without `@layout AppLayout`.
 
-Typical top nav links:
+Top nav links:
 - `/`
 - `/icons`
 - `/login` or `/dashboard` (depending on auth)
@@ -21,46 +21,54 @@ Typical top nav links:
 ### App layout (`AppLayout`)
 Used by dashboard, leagues, seasons, profile, admin pages.
 
-Context-aware nav sections:
-- Default context: Dashboard, Events, Players
-- League context (`/league/{LeagueKey}`): Dashboard, Seasons, Members
-- Season context (`/league/{LeagueKey}/season/{SeasonKey}`): Back to League, Events, Standings, Players
-- Admin context (`/admin*`): Dashboard, Users, Leagues
+Context-aware nav — see `context-nav.md` for the full detection logic and per-context link sets.
 
 ## Route Inventory
 
 ### Public/Auth
-- `/`
+- `/` — Home/marketing (anonymous) or redirect to `/dashboard` (authenticated)
 - `/login`
 - `/register`
-- `/icons`
+- `/league/{LeagueKey}/guest` — Guest password entry for a specific league
+- `/icons` — Icon reference page
 - `/not-found`
+- `/access-denied`
 
 ### Dashboard and general
 - `/dashboard`
 - `/events`
-- `/events/create`
-- `/event/{EventKey}`
-- `/event/{EventKey}/manage`
+- `/events/create` — Global admin only
+- `/event/{EventKey}` — Event detail (results, teams, description)
+- `/event/{EventKey}/manage` — Event management (organizer only)
 - `/leagues`
 - `/leagues/create`
+- `/organizer-dashboard`
+- `/guest-standings` — Alias for guest standings (redirects to league guest view)
 
 ### League
-- `/league/{LeagueKey}`
-- `/league/{LeagueKey}/dashboard`
+- `/league/{LeagueKey}` — League overview (Dashboard tab)
+- `/league/{LeagueKey}/dashboard` — Alias for above
 - `/league/{LeagueKey}/members`
 - `/league/{LeagueKey}/seasons`
-- `/league/{LeagueKey}/settings`
-- `/league/{LeagueKey}/player/{PlayerId}`
+- `/league/{LeagueKey}/settings` — League admin only
+- `/league/{LeagueKey}/player/{PlayerId}` — Individual player profile within league
 
 ### Season
-- `/league/{LeagueKey}/season/{SeasonKey}`
+All season routes share the `SeasonLayout`. The `/{Tab}` suffix drives the active tab.
+
+- `/league/{LeagueKey}/season/{SeasonKey}` — Defaults to overview tab
 - `/league/{LeagueKey}/season/{SeasonKey}/overview`
 - `/league/{LeagueKey}/season/{SeasonKey}/events`
 - `/league/{LeagueKey}/season/{SeasonKey}/standings`
 - `/league/{LeagueKey}/season/{SeasonKey}/players`
-- `/league/{leagueKey}/season/{seasonKey}/settings`
-- `/league/{LeagueKey}/season/{SeasonKey}/event/{EventKey}/scores`
+- `/league/{LeagueKey}/season/{SeasonKey}/teams`
+- `/league/{LeagueKey}/season/{SeasonKey}/settings` — League admin only
+
+### Season event sub-pages (admin-only unless noted)
+- `/league/{LeagueKey}/season/{SeasonKey}/event/{EventKey}/scores` — Score entry (admin only)
+- `/league/{LeagueKey}/season/{SeasonKey}/event/{EventKey}/golfers` — Golfer management (admin only)
+- `/league/{LeagueKey}/season/{SeasonKey}/event/{EventKey}/matchups` — Matchup/pairing setup (admin only)
+- `/league/{LeagueKey}/season/{SeasonKey}/event/{EventKey}/scorecards` — Printable scorecards (currently admin only; see `page-content-by-role.md` for recommended change)
 
 ### Profile
 - `/profile`
@@ -68,29 +76,28 @@ Context-aware nav sections:
 - `/profile/rounds`
 - `/profile/handicap`
 
-### Admin
+### Admin (global admin only)
 - `/admin`
 - `/admin/users`
+- `/admin/leagues`
 
 ## Auth and Redirect Behavior
 
 - Most app pages gate on `AuthService.IsAuthenticated` and navigate to `/login` if not authenticated
 - `App.razor` initializes auth before rendering routes
 - `NavMenu` attempts custom-domain league context bootstrapping after first render
+- Guest users (`AuthService.IsGuest`) can only access their specific league's guest standings; any other league URL redirects them to that league's `/guest` page
 
 ## AppState Navigation Context
 
 `AppState` tracks:
-- current league key/id/name
-- league admin flag
-- custom-domain to league-key map
+- current league key / id / name
+- league admin flag (`IsCurrentLeagueAdmin`)
+- custom-domain → league-key map
 
-League key normalization is lowercase/trimmed in `SetCurrentLeague`.
+League key normalization: lowercase + trimmed in `SetCurrentLeague`.
 
-## Known Navigation Gaps
+## Known Issues
 
-These links currently exist in `AppLayout` but matching routes are not present:
-- `/players`
-- `/admin/leagues`
-
-If desired, these should either be implemented as pages or removed/redirected.
+- **`/players`** — referenced in an older nav block but no page exists. Should be removed from any remaining nav references.
+- **Header nav duplicates in-page tabs** at league and season context — see improvement item #1 in the plan.

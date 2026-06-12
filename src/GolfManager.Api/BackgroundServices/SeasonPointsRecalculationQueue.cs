@@ -6,30 +6,39 @@ namespace GolfManager.Api.BackgroundServices;
 
 public sealed class SeasonPointsRecalculationQueue : ISeasonPointsRecalculationQueue
 {
-    private readonly Channel<SeasonPointsRecalculationWorkItem> _channel = Channel.CreateUnbounded<SeasonPointsRecalculationWorkItem>();
-    private readonly ConcurrentDictionary<string, byte> _pendingKeys = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Channel<string> _keys = Channel.CreateUnbounded<string>();
+    private readonly ConcurrentDictionary<string, SeasonPointsRecalculationWorkItem> _pending =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly TimeSpan DebounceDelay = TimeSpan.FromMilliseconds(300);
 
     public ValueTask QueueSeasonAsync(string leagueId, string seasonId, string requestedBy, CancellationToken cancellationToken = default)
     {
-        var workItem = new SeasonPointsRecalculationWorkItem(leagueId, seasonId, requestedBy);
-        var key = BuildKey(workItem);
-        if (!_pendingKeys.TryAdd(key, 0))
+        var item = new SeasonPointsRecalculationWorkItem(leagueId, seasonId, requestedBy);
+        var key = BuildKey(item);
+        var isNew = _pending.TryAdd(key, item);
+
+        if (!isNew)
         {
+            _pending[key] = item;
             return ValueTask.CompletedTask;
         }
 
-        return _channel.Writer.WriteAsync(workItem, cancellationToken);
+        return _keys.Writer.WriteAsync(key, cancellationToken);
     }
 
     public async ValueTask<SeasonPointsRecalculationWorkItem> DequeueAsync(CancellationToken cancellationToken)
     {
-        var workItem = await _channel.Reader.ReadAsync(cancellationToken);
-        _pendingKeys.TryRemove(BuildKey(workItem), out _);
-        return workItem;
+        while (true)
+        {
+            var key = await _keys.Reader.ReadAsync(cancellationToken);
+            await Task.Delay(DebounceDelay, cancellationToken);
+
+            if (_pending.TryRemove(key, out var item))
+                return item;
+        }
     }
 
-    private static string BuildKey(SeasonPointsRecalculationWorkItem workItem)
-    {
-        return $"season:{workItem.LeagueId}:{workItem.SeasonId}";
-    }
+    private static string BuildKey(SeasonPointsRecalculationWorkItem item) =>
+        $"season:{item.LeagueId}:{item.SeasonId}";
 }

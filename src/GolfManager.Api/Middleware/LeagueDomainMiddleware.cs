@@ -87,25 +87,47 @@ public class LeagueContextMiddleware
                         "League context validated: User {UserId} accessing league {LeagueKey}",
                         userId, leagueKey);
                 }
-                else if (leagueContextHeaderProvided && !isAuthEndpoint)
+                else
                 {
-                    _logger.LogWarning(
-                        "Forbidden: User {UserId} attempted to access league {LeagueKey} without membership",
-                        userId, leagueKey);
-
-                    context.Response.StatusCode = 403;
-                    await context.Response.WriteAsJsonAsync(new
+                    // Global admins can access any league even without a UserLeague record.
+                    var isGlobalAdmin = context.User.FindFirst("IsGlobalAdmin")?.Value == "true";
+                    if (isGlobalAdmin)
                     {
-                        error = "Forbidden",
-                        message = "You are not a member of this league"
-                    });
-                    return;
-                }
-                else if (hostResolvedLeague != null)
-                {
-                    context.Items["LeagueId"] = hostResolvedLeague.Id;
-                    context.Items["LeagueKey"] = hostResolvedLeague.Key;
-                    _logger.LogDebug("Host-based league context set for league {LeagueKey}", hostResolvedLeague.Key);
+                        var targetLeague = hostResolvedLeague ?? await dbContext.Leagues
+                            .IgnoreQueryFilters()
+                            .AsNoTracking()
+                            .FirstOrDefaultAsync(l => !l.IsDeleted && l.Key.ToLower() == normalizedLeagueKey);
+
+                        if (targetLeague != null)
+                        {
+                            context.Items["LeagueId"] = targetLeague.Id;
+                            context.Items["LeagueKey"] = targetLeague.Key;
+                            context.Items["IsLeagueAdmin"] = true;
+                            _logger.LogInformation(
+                                "Global admin {UserId} granted access to league {LeagueKey}",
+                                userId, leagueKey);
+                        }
+                    }
+                    else if (hostResolvedLeague != null)
+                    {
+                        context.Items["LeagueId"] = hostResolvedLeague.Id;
+                        context.Items["LeagueKey"] = hostResolvedLeague.Key;
+                        _logger.LogDebug("Host-based league context set for league {LeagueKey}", hostResolvedLeague.Key);
+                    }
+                    else if (leagueContextHeaderProvided && !isAuthEndpoint)
+                    {
+                        _logger.LogWarning(
+                            "Forbidden: User {UserId} attempted to access league {LeagueKey} without membership",
+                            userId, leagueKey);
+
+                        context.Response.StatusCode = 403;
+                        await context.Response.WriteAsJsonAsync(new
+                        {
+                            error = "Forbidden",
+                            message = "You are not a member of this league"
+                        });
+                        return;
+                    }
                 }
             }
             else

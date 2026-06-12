@@ -1,0 +1,85 @@
+@inherits LayoutComponentBase
+@layout AppLayout
+@using GolfManager.Shared.DTOs.Season
+@using MaterialComponents.Models
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-16">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-600">Loading season...</p>
+        </div>
+    </div>
+}
+else if (context == null)
+{
+    <div class="max-w-2xl mx-auto my-8">
+        <MaterialCard Variant="MaterialCardVariant.Elevated">
+            <div class="md-card__content text-center py-16">
+                <MaterialIcon Icon="MaterialIcons.Error" Class="text-red-600 text-5xl mb-4" />
+                <h2 class="text-2xl font-semibold text-gray-900 mb-3">Season Not Found</h2>
+                <p class="text-gray-600 mb-8">The season you're looking for doesn't exist or you don't have access to it.</p>
+                <MaterialButton Style="MaterialButtonStyle.Filled"
+                                OnClick="@(() => Navigation.NavigateTo("/dashboard"))">
+                    Back to Dashboard
+                </MaterialButton>
+            </div>
+        </MaterialCard>
+    </div>
+}
+else
+{
+    <!-- Season Header — rendered once, persists across all season tab navigations -->
+    <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8 py-6">
+        <div class="flex items-center justify-between flex-wrap gap-4">
+            <div>
+                <div class="flex items-center gap-2 text-sm text-gray-600 mb-3">
+                    <a href="/dashboard" class="hover:text-primary-600">Dashboard</a>
+                    <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+                    <a href="@($"/league/{leagueKey}")" class="hover:text-primary-600">@context.League.Name</a>
+                    <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+                    <span class="text-gray-900">@context.Season.Name</span>
+                </div>
+                <div class="flex items-center gap-3 mb-2">
+                    <h1 class="text-3xl font-bold text-gray-900">@context.Season.Name</h1>
+                    @if (context.Season.IsLocked)
+                    {
+                        <MaterialChip Text="Locked" Color="MaterialChipColor.Secondary" Size="MaterialChipSize.Medium" />
+                    }
+                </div>
+                <div class="flex items-center gap-4 text-sm text-gray-600">
+                    <span class="font-mono">@context.Season.Key</span>
+                    <span>•</span>
+                    <div class="flex items-center gap-1">
+                        <MaterialIcon Icon="MaterialIcons.CalendarToday" Size="MaterialComponents.Icons.IconSize.SM" />
+                        <span>@context.Season.StartDate.ToString("MMM d, yyyy")</span>
+                        @if (context.Season.EndDate.HasValue)
+                        {
+                            <span> – @context.Season.EndDate.Value.ToString("MMM d, yyyy")</span>
+                        }
+                    </div>
+                </div>
+            </div>
+            <MaterialButton Style="MaterialButtonStyle.Outlined"
+                            OnClick="@(() => Navigation.NavigateTo($"/league/{leagueKey}/seasons"))">
+                <MaterialIcon Icon="MaterialIcons.ArrowBack" Class="mr-1" />
+                Back to Seasons
+            </MaterialButton>
+        </div>
+    </div>
+
+    <!-- Tab Navigation — persists; only @Body below changes on tab switch -->
+    <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8">
+        <MaterialTabs @bind-ActiveTab="activeTab"
+                      Tabs="@GetNavigationTabs()"
+                      ShowContent="false"
+                      OnTabChange="HandleTabChange" />
+    </div>
+
+    <div class="mt-8"></div>
+
+    <CascadingValue Value="context" IsFixed="false">
+        @Body
+    </CascadingValue>
+}

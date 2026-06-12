@@ -5,7 +5,7 @@ namespace GolfManager.Services.Course;
 
 public interface ICourseService
 {
-    Task<ApiResponse<List<CourseResponse>>> GetCoursesAsync(string? search = null, int page = 1, int pageSize = 25);
+    Task<ApiResponse<PagedResponse<CourseResponse>>> GetCoursesAsync(string? search = null, int page = 1, int pageSize = 25);
     Task<ApiResponse<CourseResponse>> GetCourseAsync(string courseId, bool includeTees = false, bool includeHoles = false);
     Task<ApiResponse<CourseResponse>> GetCourseByKeyAsync(string key, bool includeTees = false, bool includeHoles = false);
     Task<ApiResponse<CourseResponse>> CreateCourseAsync(CreateCourseRequest request, string currentUserId);

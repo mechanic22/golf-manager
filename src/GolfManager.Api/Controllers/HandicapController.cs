@@ -11,10 +11,8 @@ namespace GolfManager.Api.Controllers;
 /// <summary>
 /// Controller for handicap management
 /// </summary>
-[ApiController]
 [Route("api/v1/golfers/{golferId}/handicap")]
-[Authorize]
-public class HandicapController : ControllerBase
+public class HandicapController : BaseLeagueController
 {
     private readonly IHandicapService _handicapService;
     private readonly ILogger<HandicapController> _logger;

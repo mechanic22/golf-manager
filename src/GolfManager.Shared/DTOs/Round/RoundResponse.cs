@@ -33,6 +33,36 @@ public class RoundResponse
     public string? SeasonEventId { get; set; }
 
     /// <summary>
+    /// Season ID (populated when SeasonEventId is set)
+    /// </summary>
+    public string? SeasonId { get; set; }
+
+    /// <summary>
+    /// Season name for display
+    /// </summary>
+    public string? SeasonName { get; set; }
+
+    /// <summary>
+    /// League name for display
+    /// </summary>
+    public string? LeagueName { get; set; }
+
+    /// <summary>
+    /// Event date from the season event (may differ from RoundDate by a few hours due to timezone)
+    /// </summary>
+    public DateTime? EventDate { get; set; }
+
+    /// <summary>
+    /// League key for deep linking to the event results page
+    /// </summary>
+    public string? LeagueKey { get; set; }
+
+    /// <summary>
+    /// Season key for deep linking
+    /// </summary>
+    public string? SeasonKey { get; set; }
+
+    /// <summary>
     /// Course ID
     /// </summary>
     public string CourseId { get; set; } = string.Empty;

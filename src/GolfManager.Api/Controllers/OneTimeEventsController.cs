@@ -11,9 +11,8 @@ namespace GolfManager.Api.Controllers;
 /// <summary>
 /// Controller for managing one-time events
 /// </summary>
-[ApiController]
 [Route("api/v1/events/one-time")]
-public class OneTimeEventsController : ControllerBase
+public class OneTimeEventsController : BaseLeagueController
 {
     private readonly IOneTimeEventService _eventService;
     private readonly ICurrentUserService _currentUserService;

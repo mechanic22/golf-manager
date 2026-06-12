@@ -1,0 +1,145 @@
+@page "/profile/handicap"
+@layout AppLayout
+@using GolfManager.Shared.DTOs.Handicap
+
+<PageTitle>Handicap History - Pinzo</PageTitle>
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-16">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-600">Loading handicap history...</p>
+        </div>
+    </div>
+}
+else
+{
+    <!-- Page Header -->
+    <div class="mb-8">
+        <div class="flex items-center gap-2 text-sm text-gray-600 mb-4">
+            <a href="/profile" class="hover:text-primary-600">Profile</a>
+            <span>/</span>
+            <span class="text-gray-900">Handicap History</span>
+        </div>
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Handicap History</h1>
+        <p class="text-gray-600">Track your handicap index over time</p>
+    </div>
+
+    <!-- Current Handicap Card -->
+    <div class="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-xl font-semibold text-gray-900">Current Handicap Index</h2>
+            <span class="text-3xl font-bold text-primary-600">
+                @(currentHandicap > 0 ? currentHandicap.ToString("F1") : "—")
+            </span>
+        </div>
+        @if (lastUpdated.HasValue)
+        {
+            <p class="text-sm text-gray-600">Last updated: @lastUpdated.Value.ToString("MMMM dd, yyyy")</p>
+        }
+        else
+        {
+            <p class="text-sm text-gray-500">No handicap recorded yet.</p>
+        }
+    </div>
+
+    <!-- Round-by-Round Breakdown -->
+    @if (breakdown?.Differentials.Count > 0)
+    {
+        <div class="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+            <div class="flex items-center justify-between mb-1">
+                <h2 class="text-xl font-semibold text-gray-900">Score Differentials</h2>
+                <span class="text-sm text-gray-500">
+                    Best @breakdown.RoundsUsed of @breakdown.RoundsConsidered rounds
+                    &times; 0.96 = <strong>@breakdown.HandicapIndex.ToString("F1")</strong>
+                </span>
+            </div>
+            <p class="text-sm text-gray-500 mb-4">
+                Rounds used in calculation are highlighted.
+            </p>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="text-left text-xs uppercase tracking-wide text-gray-500 border-b border-gray-200">
+                            <th class="pb-2 pr-4">Date</th>
+                            <th class="pb-2 pr-4">Course</th>
+                            <th class="pb-2 pr-4">Tee</th>
+                            <th class="pb-2 pr-4 text-right">Score</th>
+                            <th class="pb-2 pr-4 text-right">Rating</th>
+                            <th class="pb-2 pr-4 text-right">Slope</th>
+                            <th class="pb-2 text-right">Differential</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in breakdown.Differentials.OrderByDescending(x => x.RoundDate))
+                        {
+                            <tr class="border-t border-gray-100 @(d.UsedInCalculation ? "bg-green-50" : "text-gray-400")">
+                                <td class="py-2 pr-4 @(d.UsedInCalculation ? "font-medium text-gray-900" : "")">
+                                    @d.RoundDate.ToString("MMM d, yyyy")
+                                </td>
+                                <td class="py-2 pr-4">@d.CourseName</td>
+                                <td class="py-2 pr-4">@d.TeeName</td>
+                                <td class="py-2 pr-4 text-right">@d.GrossScore</td>
+                                <td class="py-2 pr-4 text-right">@d.CourseRating.ToString("F1")</td>
+                                <td class="py-2 pr-4 text-right">@d.SlopeRating</td>
+                                <td class="py-2 text-right font-semibold @(d.UsedInCalculation ? "text-green-700" : "")">
+                                    @d.Differential.ToString("F1")
+                                    @if (d.UsedInCalculation)
+                                    {
+                                        <span class="ml-1 text-xs font-normal text-green-600">✓</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+
+    <!-- Handicap History -->
+    <div class="bg-white rounded-lg border border-gray-200 p-6">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Handicap History</h2>
+
+        @if (!handicapHistory.Any())
+        {
+            <p class="text-gray-500">No handicap history available. Play and record rounds to build your handicap.</p>
+        }
+        else
+        {
+            <div class="space-y-3">
+                @foreach (var entry in handicapHistory)
+                {
+                    <div class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div>
+                            <p class="font-medium text-gray-900">@(entry.CalculationMethod ?? "Calculated")</p>
+                            <p class="text-sm text-gray-600">@entry.EffectiveDate.ToString("MMM dd, yyyy")</p>
+                            @if (entry.RoundsUsed.HasValue)
+                            {
+                                <p class="text-xs text-gray-500">Based on @entry.RoundsUsed rounds</p>
+                            }
+                        </div>
+                        <div class="text-right">
+                            <p class="font-semibold text-gray-900">@entry.HandicapIndex.ToString("F1")</p>
+                            @if (!string.IsNullOrEmpty(entry.Notes))
+                            {
+                                <p class="text-xs text-gray-500">@entry.Notes</p>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <!-- Explanation -->
+    <div class="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <h3 class="font-semibold text-blue-900 mb-2">How is my handicap calculated?</h3>
+        <p class="text-sm text-blue-800">
+            Your Handicap Index is calculated using the best 8 of your last 20 rounds.
+            Each round's score differential is calculated based on the course rating and slope.
+            The average of your best 8 differentials is multiplied by 0.96 to get your Handicap Index.
+        </p>
+    </div>
+}

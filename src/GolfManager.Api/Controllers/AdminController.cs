@@ -1,6 +1,7 @@
 using GolfManager.Api.Authorization;
 using GolfManager.Data;
 using GolfManager.Shared.DTOs.Common;
+using GolfManager.Shared.DTOs.League;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -75,5 +76,38 @@ public class AdminController : ControllerBase
         return Ok(ApiResponse<object>.SuccessResponse(
             new { Updated = updated, Total = leagueGolfers.Count },
             $"Recalculated stats for {updated} of {leagueGolfers.Count} players"));
+    }
+
+    /// <summary>
+    /// Get all leagues on the platform (Global Admin only)
+    /// </summary>
+    [HttpGet("leagues")]
+    public async Task<ActionResult<ApiResponse<List<LeagueResponse>>>> GetAllLeagues([FromQuery] string? search = null)
+    {
+        var query = _context.Leagues.AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var lower = search.ToLower();
+            query = query.Where(l => l.Name.ToLower().Contains(lower) || l.Key.ToLower().Contains(lower));
+        }
+
+        var leagues = await query
+            .OrderBy(l => l.Name)
+            .Select(l => new LeagueResponse
+            {
+                Id = l.Id,
+                Key = l.Key,
+                Name = l.Name,
+                Description = l.Description,
+                LogoUrl = l.LogoUrl,
+                ActiveSeasonId = l.ActiveSeasonId,
+                MemberCount = _context.UserLeagues.Count(ul => ul.LeagueId == l.Id && !ul.IsDeleted),
+                SeasonCount = _context.Seasons.Count(s => s.LeagueId == l.Id && !s.IsDeleted),
+                CreatedAt = l.CreatedAt
+            })
+            .ToListAsync();
+
+        return Ok(ApiResponse<List<LeagueResponse>>.SuccessResponse(leagues, $"Found {leagues.Count} leagues"));
     }
 }

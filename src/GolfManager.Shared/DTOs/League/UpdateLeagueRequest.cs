@@ -74,6 +74,11 @@ public class UpdateLeagueRequest
     public bool? UseCustomDomain { get; set; }
 
     /// <summary>
+    /// Whether this league appears in public discovery search. Default: false (opt-in).
+    /// </summary>
+    public bool? IsPubliclyDiscoverable { get; set; }
+
+    /// <summary>
     /// Whether anonymous/public pages should require a password.
     /// </summary>
     public bool? RequireAnonymousPassword { get; set; }

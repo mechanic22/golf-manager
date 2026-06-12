@@ -1,0 +1,238 @@
+@using GolfManager.Shared.DTOs.Event
+@using GolfManager.Shared.DTOs.Season
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-16">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+    </div>
+}
+else
+{
+    <!-- Row 1: Event Spotlight -->
+    <div class="mb-8">
+        <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">Events</p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+                <p class="text-xs font-medium text-gray-500 mb-2">Next Up</p>
+                @if (NextEvent != null)
+                {
+                    <NextEventBanner Event="@ToDashboardItem(NextEvent)" IsRecent="false" />
+                }
+                else
+                {
+                    <div class="bg-white rounded-lg border border-gray-200 px-5 py-4 text-sm text-gray-400 italic">
+                        No upcoming events scheduled.
+                    </div>
+                }
+            </div>
+
+            <div>
+                <p class="text-xs font-medium text-gray-500 mb-2">Last Event</p>
+                @if (LastEvent != null)
+                {
+                    <NextEventBanner Event="@ToDashboardItem(LastEvent)" IsRecent="true" />
+
+                    @if (LastEventTopScores.Any())
+                    {
+                        <div class="mt-2 bg-gray-50 rounded-lg border border-gray-200 px-4 py-3">
+                            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">Top Net Scores</p>
+                            <div class="space-y-2">
+                                @foreach (var (score, idx) in LastEventTopScores.Select((s, i) => (s, i)))
+                                {
+                                    <div class="flex items-center justify-between text-sm">
+                                        <div class="flex items-center gap-2 min-w-0">
+                                            <span class="text-xs font-bold text-gray-300 w-4 shrink-0">@(idx + 1)</span>
+                                            <span class="font-medium text-gray-800 truncate">@score.DisplayName</span>
+                                        </div>
+                                        <span class="font-semibold text-primary-700 shrink-0 ml-4">@score.NetScore</span>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="bg-white rounded-lg border border-gray-200 px-5 py-4 text-sm text-gray-400 italic">
+                        No completed events yet.
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <!-- Row 2: Season Stat Tiles -->
+    <div class="grid grid-cols-2 @(teams.Count > 0 ? "md:grid-cols-4" : "md:grid-cols-3") gap-4 mb-8">
+        <StatTile Label="Events Played"
+                  Value="@CompletedEventCount.ToString()"
+                  Unit="@($"/ {events.Count}")"
+                  Icon="@GolfIcons.Calendar"
+                  IconColor="text-blue-600"
+                  IconBgGradient="from-blue-100 to-blue-50"
+                  Footer="@(events.Count - CompletedEventCount > 0 ? $"{events.Count - CompletedEventCount} remaining" : "Season complete")" />
+
+        <StatTile Label="Players"
+                  Value="@SeasonCtx!.Season.GolferCount.ToString()"
+                  Icon="@GolfIcons.People"
+                  IconColor="text-green-600"
+                  IconBgGradient="from-green-100 to-green-50" />
+
+        @if (teams.Count > 0)
+        {
+            <StatTile Label="Teams"
+                      Value="@teams.Count.ToString()"
+                      Icon="@GolfIcons.Building"
+                      IconColor="text-purple-600"
+                      IconBgGradient="from-purple-100 to-purple-50" />
+        }
+
+        <StatTile Label="Season Status"
+                  Value="@(SeasonCtx.Season.IsLocked ? "Locked" : "Active")"
+                  Icon="@(SeasonCtx.Season.IsLocked ? GolfIcons.Lock : GolfIcons.GolfFlag)"
+                  IconColor="@(SeasonCtx.Season.IsLocked ? "text-gray-500" : "text-primary-600")"
+                  IconBgGradient="@(SeasonCtx.Season.IsLocked ? "from-gray-100 to-gray-50" : "from-primary-100 to-primary-50")"
+                  Footer="@(SeasonCtx.Season.StartDate != default ? SeasonCtx.Season.StartDate.ToString("MMM d, yyyy") : null)" />
+    </div>
+
+    <!-- Row 3: Leaderboards -->
+    <div class="grid grid-cols-1 @(teams.Count > 0 ? "md:grid-cols-2" : "") gap-6 mb-8">
+        <!-- Top Players -->
+        <div class="bg-white rounded-lg border border-gray-200">
+            <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <h3 class="text-sm font-semibold text-gray-900">Top Players</h3>
+                <a href="/league/@LeagueKey/season/@SeasonKey/standings"
+                   class="text-xs text-primary-600 hover:underline font-medium">View all →</a>
+            </div>
+            @if (standings.Count == 0)
+            {
+                <p class="px-5 py-6 text-sm text-gray-400">No standings yet.</p>
+            }
+            else
+            {
+                <div class="divide-y divide-gray-50">
+                    @foreach (var (entry, rank) in standings.Take(5).Select((s, i) => (s, i + 1)))
+                    {
+                        <div class="flex items-center gap-3 px-5 py-3">
+                            <span class="text-sm font-bold text-gray-300 w-5 shrink-0">@rank</span>
+                            <span class="text-sm font-medium text-gray-900 flex-1 truncate">@entry.DisplayName</span>
+                            <span class="text-sm font-semibold text-primary-700 shrink-0">
+                                @(entry.SeasonPoints?.ToString("F1") ?? "—") pts
+                            </span>
+                            <span class="text-xs text-gray-400 shrink-0 w-12 text-right">
+                                @entry.RoundCount rds
+                            </span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        <!-- Team Standings -->
+        @if (teams.Count > 0)
+        {
+            <div class="bg-white rounded-lg border border-gray-200">
+                <div class="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                    <h3 class="text-sm font-semibold text-gray-900">Team Standings</h3>
+                    <a href="/league/@LeagueKey/season/@SeasonKey/teams"
+                       class="text-xs text-primary-600 hover:underline font-medium">View all →</a>
+                </div>
+                @if (RankedTeams.Count == 0)
+                {
+                    <p class="px-5 py-6 text-sm text-gray-400">No team results yet.</p>
+                }
+                else
+                {
+                    <div class="divide-y divide-gray-50">
+                        @foreach (var (standing, rank) in RankedTeams.Select((t, i) => (t, i + 1)))
+                        {
+                            <div class="flex items-center gap-3 px-5 py-3">
+                                <span class="text-sm font-bold text-gray-300 w-5 shrink-0">@rank</span>
+                                <span class="text-sm font-medium text-gray-900 flex-1 truncate">@standing.Team.Name</span>
+                                <span class="text-xs text-gray-400 shrink-0">
+                                    @standing.Wins–@standing.Losses–@standing.Ties
+                                </span>
+                                <span class="text-sm font-semibold text-primary-700 shrink-0 w-16 text-right">
+                                    @standing.PointsFor.ToString("F1") pts
+                                </span>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <!-- Row 4: Season Highlights -->
+    @if (standings.Count > 0)
+    {
+        <div class="mb-8">
+            <p class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-3">Season Highlights</p>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                @if (PointsLeader != null)
+                {
+                    <StatTile Label="Points Leader"
+                              Description="@PointsLeader.DisplayName"
+                              Value="@(PointsLeader.SeasonPoints?.ToString("F1") ?? "—")"
+                              Unit="pts"
+                              Icon="@GolfIcons.Trophy"
+                              IconColor="text-amber-600"
+                              IconBgGradient="from-amber-100 to-amber-50" />
+                }
+
+                @if (BestRoundPlayer != null)
+                {
+                    <StatTile Label="Best Round"
+                              Description="@BestRoundPlayer.DisplayName"
+                              Value="@BestRoundPlayer.BestRawScore!.Value.ToString()"
+                              Unit="raw"
+                              Icon="@GolfIcons.Star"
+                              IconColor="text-yellow-500"
+                              IconBgGradient="from-yellow-100 to-yellow-50" />
+                }
+
+                @if (MostRoundsPlayer != null)
+                {
+                    <StatTile Label="Iron Man"
+                              Description="@MostRoundsPlayer.DisplayName"
+                              Value="@MostRoundsPlayer.RoundCount.ToString()"
+                              Unit="rounds"
+                              Icon="@GolfIcons.Leaderboard"
+                              IconColor="text-blue-600"
+                              IconBgGradient="from-blue-100 to-blue-50" />
+                }
+
+                @if (SharpestNetPlayer != null)
+                {
+                    <StatTile Label="Best Avg Net"
+                              Description="@SharpestNetPlayer.DisplayName"
+                              Value="@SharpestNetPlayer.AverageNetScore!.Value.ToString("F1")"
+                              Unit="avg"
+                              Icon="@GolfIcons.Target"
+                              IconColor="text-green-600"
+                              IconBgGradient="from-green-100 to-green-50" />
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Game of Day Winners -->
+    @if (RecentGameOfDayEvents.Any())
+    {
+        <div class="bg-white rounded-lg border border-gray-200 mb-8">
+            <div class="px-5 py-4 border-b border-gray-100">
+                <h3 class="text-sm font-semibold text-gray-900">Recent Game of Day</h3>
+            </div>
+            <div class="divide-y divide-gray-50">
+                @foreach (var evt in RecentGameOfDayEvents)
+                {
+                    <div class="flex items-center gap-4 px-5 py-3">
+                        <span class="text-xs text-gray-400 shrink-0 w-16">@evt.EventDate.ToString("MMM d")</span>
+                        <span class="text-xs font-medium text-gray-500 flex-1 truncate">@evt.GameOfDayTitle</span>
+                        <span class="text-sm font-semibold text-gray-900 shrink-0">@evt.GameOfDayWinnerDisplayName</span>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+}

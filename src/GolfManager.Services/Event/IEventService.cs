@@ -1,3 +1,4 @@
+using GolfManager.Shared.DTOs.Common;
 using GolfManager.Shared.DTOs.Event;
 
 namespace GolfManager.Services.Event;
@@ -8,14 +9,9 @@ namespace GolfManager.Services.Event;
 public interface IEventService
 {
     /// <summary>
-
-    /// <summary>
-    /// Recalculate season team standings fields from all event scoreboards.
-    /// </summary>
-    Task<int> RecalculateSeasonTeamStandingsAsync(string seasonId, string leagueId, string userId);
     /// Get all events for a season
     /// </summary>
-    Task<List<EventResponse>> GetSeasonEventsAsync(string seasonId, string leagueId);
+    Task<PagedResponse<EventResponse>> GetSeasonEventsAsync(string seasonId, string leagueId, int page = 1, int pageSize = 25);
 
     /// <summary>
     /// Get an event by ID
@@ -71,5 +67,16 @@ public interface IEventService
     /// Recalculate handicap for one golfer after event score changes.
     /// </summary>
     Task<bool> RecalculateEventGolferHandicapAsync(string seasonId, string eventId, string golferId, string leagueId, string userId);
+
+    /// <summary>
+    /// Get the current user's matchup (hole assignment, opponent) for a specific event.
+    /// Returns null if the user has no golfer profile, is not in the season, or has no matchup.
+    /// </summary>
+    Task<MyMatchupResponse?> GetMyMatchupForEventAsync(string seasonId, string eventId, string leagueId, string userId);
+
+    /// <summary>
+    /// Get hole-by-hole match detail for a specific matchup in an event.
+    /// </summary>
+    Task<MatchDetailResponse?> GetMatchDetailAsync(string seasonId, string eventId, string matchupId, string leagueId);
 }
 

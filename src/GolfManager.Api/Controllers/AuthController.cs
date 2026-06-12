@@ -1,10 +1,13 @@
 using System.Security.Claims;
 using GolfManager.Api.Authorization;
+using GolfManager.Data;
 using GolfManager.Services.Auth;
 using GolfManager.Shared.DTOs.Auth;
+using GolfManager.Shared.DTOs.Common;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace GolfManager.Api.Controllers;
 
@@ -14,11 +17,19 @@ public class AuthController : ControllerBase
 {
     private const string LocalCookieScheme = "GolfManager.LocalCookie";
     private readonly IAuthService _authService;
+    private readonly IPasswordHasher _passwordHasher;
+    private readonly GolfManagerDbContext _context;
     private readonly ILogger<AuthController> _logger;
 
-    public AuthController(IAuthService authService, ILogger<AuthController> logger)
+    public AuthController(
+        IAuthService authService,
+        IPasswordHasher passwordHasher,
+        GolfManagerDbContext context,
+        ILogger<AuthController> logger)
     {
         _authService = authService;
+        _passwordHasher = passwordHasher;
+        _context = context;
         _logger = logger;
     }
 
@@ -27,18 +38,16 @@ public class AuthController : ControllerBase
     /// </summary>
     [HttpPost("register")]
     [AllowAnonymous]
-    public async Task<ActionResult<AuthResponse>> Register([FromBody] RegisterRequest request)
+    public async Task<ActionResult<ApiResponse<AuthResponse>>> Register([FromBody] RegisterRequest request)
     {
         var result = await _authService.RegisterAsync(request);
 
         if (result == null)
-        {
-            return BadRequest(new { message = "User with this email already exists" });
-        }
+            return BadRequest(ApiResponse<AuthResponse>.ErrorResponse("User with this email already exists"));
 
         _logger.LogInformation("User registered successfully: {Email}", request.Email);
         await SignInLocalUserAsync(result);
-        return Ok(RemoveClientVisibleTokens(result));
+        return Ok(ApiResponse<AuthResponse>.SuccessResponse(RemoveClientVisibleTokens(result), "User registered successfully"));
     }
 
     /// <summary>
@@ -46,18 +55,16 @@ public class AuthController : ControllerBase
     /// </summary>
     [HttpPost("login")]
     [AllowAnonymous]
-    public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request)
+    public async Task<ActionResult<ApiResponse<AuthResponse>>> Login([FromBody] LoginRequest request)
     {
         var result = await _authService.LoginAsync(request);
 
         if (result == null)
-        {
-            return Unauthorized(new { message = "Invalid email or password" });
-        }
+            return Unauthorized(ApiResponse<AuthResponse>.ErrorResponse("Invalid email or password"));
 
         _logger.LogInformation("User logged in successfully: {Email}", request.Email);
         await SignInLocalUserAsync(result);
-        return Ok(RemoveClientVisibleTokens(result));
+        return Ok(ApiResponse<AuthResponse>.SuccessResponse(RemoveClientVisibleTokens(result), "Login successful"));
     }
 
     /// <summary>
@@ -65,16 +72,91 @@ public class AuthController : ControllerBase
     /// </summary>
     [HttpGet("me")]
     [Authorize]
-    public async Task<ActionResult<AuthResponse>> Me()
+    public async Task<ActionResult<ApiResponse<AuthResponse>>> Me()
     {
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId))
+            return Unauthorized(ApiResponse<AuthResponse>.ErrorResponse("Authentication required"));
+
+        // Guest session — return synthesized response from cookie claims
+        if (User.FindFirst(AuthorizationConstants.Claims.IsGuest)?.Value == "true")
         {
-            return Unauthorized();
+            var guestLeagueKey = User.FindFirst(AuthorizationConstants.Claims.LeagueKey)?.Value;
+            var guestLeagueId = User.FindFirst(AuthorizationConstants.Claims.LeagueId)?.Value;
+            return Ok(ApiResponse<AuthResponse>.SuccessResponse(new AuthResponse
+            {
+                UserId = "guest",
+                IsGuest = true,
+                GuestLeagueKey = guestLeagueKey,
+                GuestLeagueId = guestLeagueId
+            }));
         }
 
         var result = await _authService.GetAuthResponseForUserAsync(userId);
-        return result == null ? Unauthorized() : Ok(RemoveClientVisibleTokens(result));
+        if (result == null)
+            return Unauthorized(ApiResponse<AuthResponse>.ErrorResponse("Authentication required"));
+
+        return Ok(ApiResponse<AuthResponse>.SuccessResponse(RemoveClientVisibleTokens(result)));
+    }
+
+    /// <summary>
+    /// Login as an anonymous guest scoped to a specific league.
+    /// Issues a short-lived rolling cookie — no database user is created.
+    /// </summary>
+    [HttpPost("league-guest-login")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<LeagueGuestLoginResponse>>> LeagueGuestLogin(
+        [FromBody] LeagueGuestLoginRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.LeagueKey))
+            return BadRequest(ApiResponse<LeagueGuestLoginResponse>.ErrorResponse("League key is required"));
+
+        var league = await _context.Leagues
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(l => l.Key.ToLower() == request.LeagueKey.ToLowerInvariant() && l.IsActive && !l.IsDeleted);
+
+        if (league == null)
+            return NotFound(ApiResponse<LeagueGuestLoginResponse>.ErrorResponse("League not found"));
+
+        if (league.RequireAnonymousPassword)
+        {
+            if (string.IsNullOrEmpty(request.Password) || string.IsNullOrEmpty(league.AnonymousPasswordHash))
+                return Unauthorized(ApiResponse<LeagueGuestLoginResponse>.ErrorResponse("Password required for this league"));
+
+            if (!_passwordHasher.VerifyPassword(request.Password, league.AnonymousPasswordHash))
+                return Unauthorized(ApiResponse<LeagueGuestLoginResponse>.ErrorResponse("Incorrect password"));
+        }
+
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, "guest"),
+            new(AuthorizationConstants.Claims.IsGuest, "true"),
+            new(AuthorizationConstants.Claims.LeagueId, league.Id),
+            new(AuthorizationConstants.Claims.LeagueKey, league.Key)
+        };
+
+        var identity = new ClaimsIdentity(claims, LocalCookieScheme);
+        var principal = new ClaimsPrincipal(identity);
+        var properties = new AuthenticationProperties
+        {
+            IsPersistent = true,
+            ExpiresUtc = DateTimeOffset.UtcNow.AddHours(4),
+            AllowRefresh = true
+        };
+
+        await HttpContext.SignInAsync(LocalCookieScheme, principal, properties);
+
+        _logger.LogInformation("Guest login for league {LeagueKey}", league.Key);
+
+        return Ok(ApiResponse<LeagueGuestLoginResponse>.SuccessResponse(new LeagueGuestLoginResponse
+        {
+            LeagueKey = league.Key,
+            LeagueId = league.Id,
+            LeagueName = league.Name,
+            LogoUrl = league.LogoUrl,
+            IsGuest = true
+        }, "Guest access granted"));
     }
 
     /// <summary>
@@ -82,14 +164,14 @@ public class AuthController : ControllerBase
     /// </summary>
     [HttpPost("refresh")]
     [AllowAnonymous]
-    public async Task<ActionResult<AuthResponse>> RefreshToken([FromBody] RefreshTokenRequest request)
+    public async Task<ActionResult<ApiResponse<AuthResponse>>> RefreshToken([FromBody] RefreshTokenRequest request)
     {
         _logger.LogInformation("🔄 Refresh token request received");
 
         if (string.IsNullOrEmpty(request.RefreshToken))
         {
             _logger.LogWarning("❌ Refresh token is null or empty");
-            return BadRequest(new { message = "Refresh token is required" });
+            return BadRequest(ApiResponse<AuthResponse>.ErrorResponse("Refresh token is required"));
         }
 
         _logger.LogInformation("Refresh token (first 10 chars): {TokenPrefix}...",
@@ -100,11 +182,11 @@ public class AuthController : ControllerBase
         if (result == null)
         {
             _logger.LogWarning("❌ Token refresh failed - Invalid or expired refresh token");
-            return Unauthorized(new { message = "Invalid or expired refresh token" });
+            return Unauthorized(ApiResponse<AuthResponse>.ErrorResponse("Invalid or expired refresh token"));
         }
 
         _logger.LogInformation("✅ Token refreshed successfully for user: {UserId}", result.UserId);
-        return Ok(result);
+        return Ok(ApiResponse<AuthResponse>.SuccessResponse(result, "Token refreshed successfully"));
     }
 
     /// <summary>
@@ -112,17 +194,15 @@ public class AuthController : ControllerBase
     /// </summary>
     [HttpPost("logout")]
     [Authorize]
-    public async Task<ActionResult> Logout([FromBody] RefreshTokenRequest? request)
+    public async Task<ActionResult<ApiResponse<bool>>> Logout([FromBody] RefreshTokenRequest? request)
     {
         if (!string.IsNullOrEmpty(request?.RefreshToken))
-        {
             await _authService.RevokeRefreshTokenAsync(request.RefreshToken);
-        }
 
         await HttpContext.SignOutAsync(LocalCookieScheme);
 
         _logger.LogInformation("User logged out successfully");
-        return Ok(new { message = "Logged out successfully" });
+        return Ok(ApiResponse<bool>.SuccessResponse(true, "Logged out successfully"));
     }
 
     /// <summary>
@@ -130,24 +210,20 @@ public class AuthController : ControllerBase
     /// </summary>
     [HttpPost("revoke-all")]
     [Authorize]
-    public async Task<ActionResult> RevokeAllTokens()
+    public async Task<ActionResult<ApiResponse<bool>>> RevokeAllTokens()
     {
-        var userId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
         if (string.IsNullOrEmpty(userId))
-        {
-            return Unauthorized();
-        }
+            return Unauthorized(ApiResponse<bool>.ErrorResponse("Authentication required"));
 
         var result = await _authService.RevokeAllUserTokensAsync(userId);
 
         if (!result)
-        {
-            return BadRequest(new { message = "No active tokens found" });
-        }
+            return BadRequest(ApiResponse<bool>.ErrorResponse("No active tokens found"));
 
         _logger.LogInformation("All tokens revoked for user: {UserId}", userId);
-        return Ok(new { message = "All tokens revoked successfully" });
+        return Ok(ApiResponse<bool>.SuccessResponse(true, "All tokens revoked successfully"));
     }
 
     private async Task SignInLocalUserAsync(AuthResponse authResponse)
@@ -162,9 +238,7 @@ public class AuthController : ControllerBase
         };
 
         foreach (var mapping in authResponse.LeagueMappings)
-        {
             claims.Add(new Claim(AuthorizationConstants.Claims.LeagueId, mapping.LeagueId));
-        }
 
         var identity = new ClaimsIdentity(claims, LocalCookieScheme);
         var principal = new ClaimsPrincipal(identity);

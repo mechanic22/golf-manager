@@ -1,5 +1,6 @@
 using GolfManager.Data;
 using GolfManager.Core.Services;
+using GolfManager.Shared.DTOs.Common;
 using GolfManager.Shared.DTOs.Round;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -35,15 +36,23 @@ public class RoundService : IRoundService
         _seasonPointsQueue = seasonPointsQueue;
     }
 
-    public async Task<List<RoundResponse>> GetLeagueGolferRoundsAsync(string leagueGolferId, string leagueId)
+    public async Task<PagedResponse<RoundResponse>> GetLeagueGolferRoundsAsync(string leagueGolferId, string leagueId, int page = 1, int pageSize = 25)
     {
-        var rounds = await _context.Rounds
+        page = Math.Max(page, 1);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var baseQuery = _context.Rounds
             .IgnoreQueryFilters()
+            .Where(r => r.LeagueGolferId == leagueGolferId && r.LeagueId == leagueId);
+
+        var totalCount = await baseQuery.CountAsync();
+        var rounds = await baseQuery
             .Include(r => r.Course)
             .Include(r => r.Tee)
             .Include(r => r.Holes.OrderBy(h => h.HoleNumber))
-            .Where(r => r.LeagueGolferId == leagueGolferId && r.LeagueId == leagueId)
             .OrderByDescending(r => r.RoundDate)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
             .ToListAsync();
 
         var seasonEvents = await _context.SeasonEvents
@@ -52,9 +61,15 @@ public class RoundService : IRoundService
             .Select(e => new SeasonEventLookup(e.Id, e.EventDate, e.CourseId, e.TeeId))
             .ToListAsync();
 
-        return rounds
-            .Select(r => MapToResponse(r, ResolveSeasonEventId(r, seasonEvents)))
-            .ToList();
+        var items = rounds.Select(r =>
+        {
+            var evt = seasonEvents.FirstOrDefault(e =>
+                e.EventDate.Date == r.RoundDate.Date &&
+                e.CourseId == r.CourseId &&
+                e.TeeId == r.TeeId);
+            return MapToResponse(r, evt?.Id, evt?.EventDate);
+        }).ToList();
+        return PagedResponse<RoundResponse>.From(items, page, pageSize, totalCount);
     }
 
     public async Task<RoundResponse?> GetRoundByIdAsync(string roundId, string leagueId)
@@ -128,17 +143,22 @@ public class RoundService : IRoundService
             throw new InvalidOperationException($"League golfer {request.LeagueGolferId} not found in league {leagueId}");
         }
 
-        // Verify the course and tee exist
-        var course = await _context.Courses.FindAsync(request.CourseId);
-        if (course == null)
+        // Verify the course and tee exist (only when IDs are provided)
+        var courseId = string.IsNullOrWhiteSpace(request.CourseId) ? null : request.CourseId;
+        var teeId = string.IsNullOrWhiteSpace(request.TeeId) ? null : request.TeeId;
+
+        if (courseId != null)
         {
-            throw new InvalidOperationException($"Course {request.CourseId} not found");
+            var course = await _context.Courses.FindAsync(courseId);
+            if (course == null)
+                throw new InvalidOperationException($"Course {courseId} not found");
         }
 
-        var tee = await _context.Tees.FindAsync(request.TeeId);
-        if (tee == null)
+        if (teeId != null)
         {
-            throw new InvalidOperationException($"Tee {request.TeeId} not found");
+            var tee = await _context.Tees.FindAsync(teeId);
+            if (tee == null)
+                throw new InvalidOperationException($"Tee {teeId} not found");
         }
 
         // Create the round
@@ -148,8 +168,8 @@ public class RoundService : IRoundService
             GolferId = leagueGolfer.GolferId,
             LeagueGolferId = request.LeagueGolferId,
             LeagueId = leagueId,
-            CourseId = request.CourseId,
-            TeeId = request.TeeId,
+            CourseId = courseId,
+            TeeId = teeId,
             RoundDate = request.RoundDate,
             HolesPlayed = request.HolesPlayed,
             HandicapUsed = request.HandicapUsed,
@@ -252,7 +272,6 @@ public class RoundService : IRoundService
         {
             holeScore = new Core.Entities.RoundHole
             {
-                Id = Guid.NewGuid().ToString(),
                 RoundId = roundId,
                 HoleNumber = request.HoleNumber,
                 CreatedAt = DateTime.UtcNow,
@@ -360,7 +379,7 @@ public class RoundService : IRoundService
             ?.Id;
     }
 
-    private RoundResponse MapToResponse(Core.Entities.Round round, string? seasonEventId = null)
+    private RoundResponse MapToResponse(Core.Entities.Round round, string? seasonEventId = null, DateTime? fallbackEventDate = null)
     {
         return new RoundResponse
         {
@@ -373,7 +392,10 @@ public class RoundService : IRoundService
             CourseName = round.Course?.Name ?? string.Empty,
             TeeId = round.TeeId,
             TeeName = round.Tee?.Name ?? string.Empty,
-            RoundDate = round.RoundDate,
+            RoundDate = round.RoundDate == default && fallbackEventDate.HasValue
+                ? fallbackEventDate.Value
+                : round.RoundDate,
+            EventDate = fallbackEventDate,
             HolesPlayed = round.HolesPlayed,
             TotalScore = round.TotalScore,
             NetScore = round.NetScore,
@@ -382,7 +404,6 @@ public class RoundService : IRoundService
             Notes = round.Notes,
             Holes = round.Holes.Select(h => new RoundHoleResponse
             {
-                Id = h.Id,
                 HoleNumber = h.HoleNumber,
                 GrossScore = h.GrossScore,
                 NetScore = h.NetScore,

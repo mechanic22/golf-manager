@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "watch:css": "npx @tailwindcss/cli -i ./src/Styles/app-tailwind.css -o ./src/GolfManager.Web/wwwroot/css/app.css --config ./src/Styles/tailwind.config.js --postcss ./src/Styles/postcss.config.js --watch --minify",
-    "build:css": "npx @tailwindcss/cli -i ./src/Styles/app-tailwind.css -o ./src/GolfManager.Web/wwwroot/css/app.css --config ./src/Styles/tailwind.config.js --postcss ./src/Styles/postcss.config.js --minify"
+    "watch:css": "npx @tailwindcss/cli -i ./src/Styles/app-tailwind.css -o ./src/GolfManager.Web/wwwroot/css/app.css --postcss ./src/Styles/postcss.config.js --watch --optimize",
+    "build:css": "npx @tailwindcss/cli -i ./src/Styles/app-tailwind.css -o ./src/GolfManager.Web/wwwroot/css/app.css --postcss ./src/Styles/postcss.config.js --minify"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.0",

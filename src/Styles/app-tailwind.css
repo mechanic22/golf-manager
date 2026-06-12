@@ -280,7 +280,44 @@ a:hover {
     display: flex;
 }
 
-/* Form Controls - Material Components handles input styling */
+/* Form Controls */
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--color-gray-700);
+    margin-bottom: 0.375rem;
+}
+
+.form-control {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--color-gray-700);
+    background-color: white;
+    border: 1px solid var(--color-gray-300);
+    border-radius: var(--radius-md);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    appearance: none;
+}
+
+.form-control:focus {
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 3px rgba(45, 90, 39, 0.15);
+}
+
+.form-control:disabled {
+    background-color: var(--color-gray-100);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
 .validation-message,
 .form-error {
     display: block;
@@ -520,7 +557,7 @@ a:hover {
 
 #navbar.scrolled .active-nav-link {
     background-color: var(--color-gray-100);
-    color: #2563eb !important;
+    color: var(--color-primary-600) !important;
 }
 
 #navbar.scrolled .active-nav-link:hover {
@@ -586,29 +623,81 @@ a:hover {
     top: 0.5rem;
 }
 
-.loading-progress {
-    position: relative;
+.loading-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    background-color: #f9fafb;
+}
+
+.loading-card {
+    display: flex;
+    flex-direction: column;
+    gap: 0.625rem;
+    width: 280px;
+    animation: fadeIn 0.4s ease-out;
+}
+
+.loading-header {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+}
+
+.loading-logo {
+    width: 32px;
+    height: 32px;
+    object-fit: contain;
+    flex-shrink: 0;
+}
+
+.loading-app-title {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1a4731;
+    margin: 0;
+    letter-spacing: 0.01em;
+}
+
+.loading-status-text {
+    font-size: 0.8125rem;
+    color: #6b7280;
+    margin: 0;
+}
+
+.loading-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.loading-bar-track {
+    flex: 1;
+    height: 4px;
+    background-color: #d9e5dc;
+    border-radius: 9999px;
+    overflow: hidden;
+}
+
+.loading-bar-fill {
+    height: 100%;
+    background-color: #1a4731;
+    border-radius: 9999px;
+    width: var(--blazor-load-percentage, 3%);
+    transition: width 0.3s ease-in-out;
+    min-width: 3%;
+}
+
+.loading-progress-text::after {
+    content: var(--blazor-load-percentage-text, "");
+    font-size: 0.75rem;
+    color: #9ca3af;
+    white-space: nowrap;
+    min-width: 2.5rem;
+    text-align: right;
     display: block;
-    width: 8rem;
-    height: 8rem;
-    margin: 20vh auto 1rem auto;
-}
-
-.loading-progress circle {
-    fill: none;
-    stroke: #22c55e;
-    stroke-width: 0.6rem;
-    transform-origin: 50% 50%;
-    animation: loading-progress-spinner 1s linear infinite;
-}
-
-@keyframes loading-progress-spinner {
-    0% {
-        transform: rotate(0deg);
-    }
-    100% {
-        transform: rotate(360deg);
-    }
 }
 
 @keyframes fadeIn {
@@ -689,5 +778,32 @@ a:hover {
     /* Outline - darker for better visibility */
     --md-sys-color-outline: #9ca3af;  /* Medium gray instead of light gray */
     --md-sys-color-outline-variant: #d1d5db;
+}
+
+/* =============================================================================
+   RESPONSIVE TABLE UTILITIES
+   Used by ResponsiveTable.razor: show table on md+, cards on mobile.
+   Defined here (not as Tailwind variants) to avoid cascade ordering issues.
+   ============================================================================= */
+
+.rt-table-wrap {
+    display: none;
+}
+
+.rt-cards-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+@media (min-width: 48rem) {
+    .rt-table-wrap {
+        display: block;
+        overflow-x: auto;
+    }
+
+    .rt-cards-wrap {
+        display: none;
+    }
 }
 

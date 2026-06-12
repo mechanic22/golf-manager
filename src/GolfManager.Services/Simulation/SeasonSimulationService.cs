@@ -498,7 +498,6 @@ public class SeasonSimulationService : ISeasonSimulationService
 
             var roundHole = new RoundHole
             {
-                Id = Guid.NewGuid().ToString(),
                 RoundId = round.Id,
                 HoleNumber = holeNum,
                 GrossScore = score,

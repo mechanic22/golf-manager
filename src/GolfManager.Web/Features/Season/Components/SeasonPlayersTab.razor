@@ -1,0 +1,77 @@
+@using GolfManager.Shared.DTOs.Season
+@using GolfManager.Shared.DTOs.Player
+
+@if (isLoadingGolfers)
+{
+    <div class="flex items-center justify-center py-8">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+    </div>
+}
+else if (golfers == null || golfers.Count == 0)
+{
+    <p class="text-gray-500 text-sm py-4">No players in this season yet.</p>
+}
+else
+{
+    <ResponsiveTable TItem="RankedGolferEntry" Items="@RankedGolfersWithRank">
+        <Empty>
+            <p class="text-gray-500 text-sm py-4">No players in this season yet.</p>
+        </Empty>
+        <Headers>
+            <th class="py-3 pr-4 w-8">#</th>
+            <th class="py-3 pr-6">Player</th>
+            <th class="py-3 pr-6">Team</th>
+            <th class="py-3 pr-4">Handicap</th>
+            <th class="py-3 pr-4">Points</th>
+            <th class="py-3 pr-4">Rounds</th>
+            <th class="py-3 pr-4">Avg Net</th>
+            <th class="py-3 pr-4">Best</th>
+        </Headers>
+        <Row Context="entry">
+            @{ var g = entry.Golfer; var st = standingsByGolferId.TryGetValue(g.SeasonGolferId ?? "", out var sv) ? sv : null; }
+            <tr class="hover:bg-gray-50 cursor-pointer" @onclick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/player/{g.Id}"))">
+                <td class="py-3 pr-4 text-sm text-gray-400">@(entry.DisplayRank > 0 ? entry.DisplayRank : null)</td>
+                <td class="py-3 pr-6 text-sm font-medium text-primary-700 hover:underline">
+                    @g.DisplayName
+                    @if (!string.IsNullOrEmpty(g.Nickname))
+                    {
+                        <span class="ml-1 text-xs text-gray-400">"@g.Nickname"</span>
+                    }
+                </td>
+                <td class="py-3 pr-6 text-sm text-gray-600">
+                    @if (!string.IsNullOrEmpty(g.TeamId)) { @GetTeamName(g.TeamId) }
+                    else { <span class="text-gray-400">—</span> }
+                </td>
+                <td class="py-3 pr-4 text-sm text-gray-600">@(g.LeagueHandicap?.ToString("F1") ?? "—")</td>
+                <td class="py-3 pr-4 text-sm text-gray-700 font-medium">@(st?.SeasonPoints?.ToString("F1") ?? "—")</td>
+                <td class="py-3 pr-4 text-sm text-gray-600">@(st?.RoundCount > 0 ? st.RoundCount.ToString() : "—")</td>
+                <td class="py-3 pr-4 text-sm text-gray-600">@(st?.AverageNetScore?.ToString("F1") ?? "—")</td>
+                <td class="py-3 pr-4 text-sm text-gray-600">@(st?.BestRawScore?.ToString() ?? "—")</td>
+            </tr>
+        </Row>
+        <Card Context="entry">
+            @{ var cg = entry.Golfer; var cs = standingsByGolferId.TryGetValue(cg.SeasonGolferId ?? "", out var csv) ? csv : null; }
+            <div class="border border-gray-200 rounded-lg p-4 bg-white cursor-pointer"
+                 @onclick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/player/{cg.Id}"))">
+                <div class="flex items-center gap-2 mb-2">
+                    @if (entry.DisplayRank > 0)
+                    {
+                        <span class="text-sm font-bold text-gray-400 w-7 shrink-0">#@entry.DisplayRank</span>
+                    }
+                    <span class="text-sm font-semibold text-primary-700">@cg.DisplayName</span>
+                    @if (!string.IsNullOrEmpty(cg.Nickname))
+                    {
+                        <span class="text-xs text-gray-400">"@cg.Nickname"</span>
+                    }
+                </div>
+                <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+                    @if (!string.IsNullOrEmpty(cg.TeamId)) { <span>@GetTeamName(cg.TeamId)</span> }
+                    <span>HCP: @(cg.LeagueHandicap?.ToString("F1") ?? "—")</span>
+                    <span>Pts: @(cs?.SeasonPoints?.ToString("F1") ?? "—")</span>
+                    <span>Rounds: @(cs?.RoundCount > 0 ? cs.RoundCount.ToString() : "—")</span>
+                    <span>Avg Net: @(cs?.AverageNetScore?.ToString("F1") ?? "—")</span>
+                </div>
+            </div>
+        </Card>
+    </ResponsiveTable>
+}

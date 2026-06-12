@@ -1,0 +1,164 @@
+@page "/events"
+@layout AppLayout
+@using GolfManager.Shared.DTOs.Event
+
+<PageTitle>Events - Pinzo</PageTitle>
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-16">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-600">Loading events...</p>
+        </div>
+    </div>
+}
+else
+{
+    <!-- Page Header -->
+    <div class="mb-8">
+        <div class="flex items-center justify-between mb-2">
+            <h1 class="text-3xl font-bold text-gray-900">Events</h1>
+            @if (AuthorizationService.IsGlobalAdmin())
+            {
+                <MaterialButton Style="MaterialButtonStyle.Filled" 
+                              Text="Create Event"
+                              LeadingIcon="@CreateIcon()"
+                              OnClick="@(() => Navigation.NavigateTo("/events/create"))" />
+            }
+        </div>
+        <p class="text-gray-600">Browse and register for one-time golf events</p>
+    </div>
+
+    <!-- My Events Section -->
+    <div class="mb-12">
+        <h2 class="text-2xl font-semibold text-gray-900 mb-4">My Events</h2>
+        
+        @if (myEvents == null || !myEvents.Any())
+        {
+            <div class="bg-white rounded-lg border border-gray-200 p-8 text-center">
+                <div class="text-gray-400 mb-4">
+                    <MaterialIcon Path="@MaterialIcons.Dashboard" Size="MaterialComponents.Icons.IconSize.XL" />
+                </div>
+                <p class="text-gray-600 mb-4">You're not registered for any events yet.</p>
+                <MaterialButton Style="MaterialButtonStyle.Outlined" 
+                              Text="Browse Events"
+                              OnClick="@(() => scrollToUpcoming = true)" />
+            </div>
+        }
+        else
+        {
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                @foreach (var evt in myEvents)
+                {
+                    <div class="bg-white rounded-lg border border-gray-200 hover:shadow-lg transition-shadow cursor-pointer"
+                         @onclick="@(() => Navigation.NavigateTo($"/event/{evt.Key}"))">
+                        <div class="p-6">
+                            <div class="flex items-start justify-between mb-3">
+                                <div class="flex-1">
+                                    <h3 class="text-xl font-semibold text-gray-900 mb-1">@evt.Name</h3>
+                                    <p class="text-sm text-gray-500">@evt.EventDate.ToString("MMM dd, yyyy")</p>
+                                </div>
+                                <span class="@GetEventStatusBadgeClass(evt)">
+                                    @GetEventStatusText(evt)
+                                </span>
+                            </div>
+                            
+                            <div class="flex items-center gap-4 text-sm text-gray-500 mb-4">
+                                @if (!string.IsNullOrEmpty(evt.CourseName))
+                                {
+                                    <div class="flex items-center gap-1">
+                                        <MaterialIcon Path="@MaterialIcons.Home" Size="MaterialComponents.Icons.IconSize.SM" />
+                                        <span>@evt.CourseName</span>
+                                    </div>
+                                }
+                                <div class="flex items-center gap-1">
+                                    <MaterialIcon Path="@MaterialIcons.Person" Size="MaterialComponents.Icons.IconSize.SM" />
+                                    <span>@evt.RegisteredTeamsCount teams</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="border-t border-gray-200 px-6 py-3 bg-gray-50 rounded-b-lg">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">View Details</span>
+                                <MaterialIcon Path="@MaterialIcons.ArrowForward" Size="MaterialComponents.Icons.IconSize.SM" />
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+
+    <!-- Upcoming Events Section -->
+    <div id="upcoming-section">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-2xl font-semibold text-gray-900">Upcoming Events</h2>
+            <div class="flex items-center gap-2">
+                <input type="text" 
+                       @bind="searchQuery" 
+                       @bind:event="oninput"
+                       placeholder="Search events..."
+                       class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 w-64" />
+                <MaterialButton Style="MaterialButtonStyle.Outlined" 
+                              Icon="@SearchIcon()"
+                              OnClick="SearchEvents" />
+            </div>
+        </div>
+
+        @if (upcomingEvents == null || !upcomingEvents.Any())
+        {
+            <div class="bg-white rounded-lg border border-gray-200 p-8 text-center">
+                <div class="text-gray-400 mb-4">
+                    <MaterialIcon Path="@MaterialIcons.Search" Size="MaterialComponents.Icons.IconSize.XL" />
+                </div>
+                <p class="text-gray-600">No upcoming events found.</p>
+            </div>
+        }
+        else
+        {
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                @foreach (var evt in upcomingEvents)
+                {
+                    <div class="bg-white rounded-lg border border-gray-200 hover:shadow-lg transition-shadow">
+                        <div class="p-6">
+                            <div class="flex items-start justify-between mb-3">
+                                <div class="flex-1">
+                                    <h3 class="text-xl font-semibold text-gray-900 mb-1">@evt.Name</h3>
+                                    <p class="text-sm text-gray-500">@evt.EventDate.ToString("MMM dd, yyyy h:mm tt")</p>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center gap-4 text-sm text-gray-500 mb-4">
+                                @if (!string.IsNullOrEmpty(evt.CourseName))
+                                {
+                                    <div class="flex items-center gap-1">
+                                        <MaterialIcon Path="@MaterialIcons.Home" Size="MaterialComponents.Icons.IconSize.SM" />
+                                        <span>@evt.CourseName</span>
+                                    </div>
+                                }
+                                <div class="flex items-center gap-1">
+                                    <MaterialIcon Path="@MaterialIcons.Person" Size="MaterialComponents.Icons.IconSize.SM" />
+                                    <span>@evt.RegisteredTeamsCount teams</span>
+                                </div>
+                                @if (evt.SpotsRemaining.HasValue)
+                                {
+                                    <div class="flex items-center gap-1">
+                                        <span class="text-xs">@evt.SpotsRemaining spots left</span>
+                                    </div>
+                                }
+                            </div>
+
+                            <MaterialButton Style="MaterialButtonStyle.Outlined"
+                                          Text="View Details"
+                                          OnClick="@(() => Navigation.NavigateTo($"/event/{evt.Key}"))"
+                                          Class="w-full" />
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+

@@ -26,8 +26,6 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using System.Data;
-using System.Data.Common;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -37,19 +35,25 @@ builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
-// Add CORS
+// CORS for external API clients (Swagger UI, Postman, etc.)
+// The hosted Blazor WASM app is same-origin and doesn't need CORS.
+var allowedOrigins = builder.Configuration["AllowedOrigins"]
+    ?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+    ?? [];
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("WebClient", policy =>
     {
-        policy.WithOrigins(
-                "https://localhost:7213",
-                "http://localhost:5081")
-              .AllowAnyMethod()
-              .AllowAnyHeader()
-              .AllowCredentials();
+        if (allowedOrigins.Length > 0)
+            policy.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader().AllowCredentials();
+        else
+            policy.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader();
     });
 });
+
+// Add health checks
+builder.Services.AddHealthChecks();
 
 // Add DbContext - conditionally register based on environment
 // This allows tests to override with InMemory provider
@@ -98,9 +102,6 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<ICurrentUserService, CurrentUserService>();
 
-// Add HttpContextAccessor (required for authorization handlers to access route data)
-builder.Services.AddHttpContextAccessor();
-
 // Add league authorization service
 builder.Services.AddScoped<ILeagueAuthorizationService, LeagueAuthorizationService>();
 
@@ -119,6 +120,7 @@ builder.Services.AddScoped<ISeasonSettingsService, SeasonSettingsService>();
 builder.Services.AddScoped<ISeasonSimulationService, SeasonSimulationService>();
 
 // Add event service
+builder.Services.AddScoped<IEventScoringService, EventScoringService>();
 builder.Services.AddScoped<IEventService, EventService>();
 
 // Add season scoring background queues and workers
@@ -269,6 +271,13 @@ builder.Services.AddAuthorization(options =>
         policy.AddRequirements(new LeagueAdminRequirement());
     });
 
+    // Guest league viewer — anonymous guest with a scoped league session cookie
+    options.AddPolicy(AuthorizationConstants.Policies.GuestLeagueViewer, policy =>
+    {
+        policy.RequireAuthenticatedUser();
+        policy.RequireClaim(AuthorizationConstants.Claims.IsGuest, "true");
+    });
+
     // League or global admin policy
     options.AddPolicy(AuthorizationConstants.Policies.LeagueOrGlobalAdmin, policy =>
     {
@@ -298,6 +307,7 @@ if (app.Environment.IsDevelopment())
     using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<GolfManagerDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<DbSeeder>>();
+    var shortIdService = scope.ServiceProvider.GetRequiredService<IShortIdService>();
 
     // Apply schema changes in development; fall back for legacy EnsureCreated databases.
     try
@@ -310,10 +320,8 @@ if (app.Environment.IsDevelopment())
         await context.Database.EnsureCreatedAsync();
     }
 
-    await EnsureSeasonEventMatchSubstituteColumnsAsync(context, logger);
-
     // Seed demo data
-    var seeder = new DbSeeder(context, logger);
+    var seeder = new DbSeeder(context, logger, shortIdService);
     await seeder.SeedAsync();
 }
 
@@ -331,7 +339,11 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-// Add CORS
+// Serve Blazor WebAssembly static files (framework + app files)
+app.UseBlazorFrameworkFiles();
+app.UseStaticFiles();
+
+// Add CORS (for external API clients)
 app.UseCors("WebClient");
 
 // Add authentication middleware
@@ -343,60 +355,12 @@ app.UseLeagueContext();
 // Add authorization middleware
 app.UseAuthorization();
 
-// Map controllers
+// Map health checks, controllers, and SPA fallback
+app.MapHealthChecks("/health");
 app.MapControllers();
+app.MapFallbackToFile("index.html");
 
 app.Run();
-
-static async Task EnsureSeasonEventMatchSubstituteColumnsAsync(GolfManagerDbContext context, ILogger logger)
-{
-    if (!context.Database.IsSqlite())
-    {
-        return;
-    }
-
-    try
-    {
-        await using var connection = context.Database.GetDbConnection();
-        if (connection.State != ConnectionState.Open)
-        {
-            await connection.OpenAsync();
-        }
-
-        if (!await SqliteColumnExistsAsync(connection, "SeasonEventMatches", "HomeSubSeasonGolferId"))
-        {
-            await context.Database.ExecuteSqlRawAsync("ALTER TABLE SeasonEventMatches ADD COLUMN HomeSubSeasonGolferId TEXT NULL;");
-            logger.LogInformation("Added missing column HomeSubSeasonGolferId to SeasonEventMatches.");
-        }
-
-        if (!await SqliteColumnExistsAsync(connection, "SeasonEventMatches", "AwaySubSeasonGolferId"))
-        {
-            await context.Database.ExecuteSqlRawAsync("ALTER TABLE SeasonEventMatches ADD COLUMN AwaySubSeasonGolferId TEXT NULL;");
-            logger.LogInformation("Added missing column AwaySubSeasonGolferId to SeasonEventMatches.");
-        }
-    }
-    catch (Exception ex)
-    {
-        logger.LogWarning(ex, "Failed to verify substitute columns on SeasonEventMatches.");
-    }
-}
-
-static async Task<bool> SqliteColumnExistsAsync(DbConnection connection, string tableName, string columnName)
-{
-    await using var command = connection.CreateCommand();
-    command.CommandText = $"PRAGMA table_info({tableName});";
-
-    await using var reader = await command.ExecuteReaderAsync();
-    while (await reader.ReadAsync())
-    {
-        if (string.Equals(reader[1]?.ToString(), columnName, StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
-        }
-    }
-
-    return false;
-}
 
 // Make the implicit Program class public for integration tests
 public partial class Program { }

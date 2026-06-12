@@ -1,0 +1,288 @@
+@using GolfManager.Shared.DTOs.Player
+@using GolfManager.Shared.DTOs.Event
+@using GolfManager.Shared.DTOs.Round
+@using GolfManager.Core.Enums
+@inject IRoundService RoundService
+@inject IEventService EventService
+@inject ILogger<ScoreEntryRow> Logger
+
+<tr class="@(isSaved ? "bg-green-50" : "")">
+    <td class="px-4 py-3 whitespace-nowrap sticky left-0 bg-white border-r border-gray-200">
+        <div class="flex items-center justify-between">
+            <div>
+                <div class="flex items-center gap-1">
+                    <span class="text-sm font-medium text-gray-900">@Golfer.DisplayName</span>
+                    @if (IsSubstitute)
+                    {
+                        <span class="text-xs font-semibold text-amber-700 bg-amber-100 px-1 rounded">SUB</span>
+                    }
+                </div>
+                @if (Golfer.LeagueHandicap.HasValue)
+                {
+                    <div class="text-xs text-gray-500">
+                        HCP: @Golfer.LeagueHandicap.Value.ToString("F1")
+                    </div>
+                }
+            </div>
+            <div class="flex items-center ml-2">
+                @if (isSaving)
+                {
+                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
+                }
+                else if (isSaved)
+                {
+                    <MaterialIcon Icon="MaterialIcons.CheckCircle" Class="text-green-600 text-sm" />
+                }
+            </div>
+        </div>
+    </td>
+
+    @for (int i = 1; i <= (SeasonEvent.HolesPlayed == HolesPlayed.Eighteen ? 18 : 9); i++)
+    {
+        var holeNumber = i;
+        <td class="px-2 py-2">
+            <input 
+                type="number" 
+                min="1" 
+                max="15"
+                class="w-full px-2 py-1 text-center border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
+                value="@scores[holeNumber - 1]"
+                @onchange="@((e) => HandleScoreChange(e, holeNumber))" />
+        </td>
+    }
+
+    <td class="px-4 py-3 text-center font-semibold bg-gray-50 border-l border-gray-200">
+        @if (totalScore.HasValue)
+        {
+            <span class="@(isSaved ? "text-green-700" : "text-gray-900")">@totalScore</span>
+        }
+        else
+        {
+            <span class="text-gray-400">-</span>
+        }
+    </td>
+</tr>
+
+@code {
+    [Parameter]
+    public PlayerResponse Golfer { get; set; } = null!;
+
+    [Parameter]
+    public EventResponse SeasonEvent { get; set; } = null!;
+
+    [Parameter]
+    public string LeagueId { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool IsSubstitute { get; set; }
+
+    [Parameter]
+    public EventCallback OnScoreChanged { get; set; }
+
+    private int?[] scores = new int?[18];
+    private int? totalScore;
+    private string? roundId;
+    private bool isSaving = false;
+    private bool isSaved = false;
+    private string? loadedEventId;
+    private CancellationTokenSource? _saveCts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadExistingRound();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // When navigating between events, the component instance can be reused.
+        // Reload round data for the current event to keep save/load in sync.
+        if (loadedEventId != SeasonEvent?.Id)
+        {
+            scores = new int?[18];
+            totalScore = null;
+            roundId = null;
+            isSaved = false;
+            loadedEventId = SeasonEvent?.Id;
+            await LoadExistingRound();
+        }
+    }
+
+    private async Task LoadExistingRound()
+    {
+        try
+        {
+            // Get rounds for this golfer and event
+            var rounds = await RoundService.GetGolferRoundsAsync(LeagueId, Golfer.Id);
+            var existingRound = rounds
+                .Where(r =>
+                    (!string.IsNullOrEmpty(SeasonEvent.Id) && r.SeasonEventId == SeasonEvent.Id) ||
+                    (r.RoundDate.Date == SeasonEvent.EventDate.Date &&
+                     (string.IsNullOrEmpty(SeasonEvent.CourseId) || r.CourseId == SeasonEvent.CourseId) &&
+                     (string.IsNullOrEmpty(SeasonEvent.TeeId) || r.TeeId == SeasonEvent.TeeId)))
+                .OrderByDescending(r => r.UpdatedAt ?? r.CreatedAt)
+                .FirstOrDefault();
+
+            if (existingRound != null)
+            {
+                roundId = existingRound.Id;
+                foreach (var hole in existingRound.Holes)
+                {
+                    if (hole.HoleNumber >= 1 && hole.HoleNumber <= 18)
+                    {
+                        scores[hole.HoleNumber - 1] = hole.GrossScore;
+                    }
+                }
+                CalculateTotal();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading existing round for golfer {GolferId}", Golfer.Id);
+        }
+    }
+
+    private void HandleScoreChange(ChangeEventArgs e, int holeNumber)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var score))
+        {
+            scores[holeNumber - 1] = score;
+        }
+        else
+        {
+            scores[holeNumber - 1] = null;
+        }
+
+        CalculateTotal();
+        isSaved = false;
+
+        // Debounce: cancel any pending save and wait 700ms before saving
+        _saveCts?.Cancel();
+        _saveCts = new CancellationTokenSource();
+        var token = _saveCts.Token;
+
+        _ = InvokeAsync(async () =>
+        {
+            try
+            {
+                await Task.Delay(700, token);
+                await SaveScoresAsync();
+            }
+            catch (TaskCanceledException) { /* debounced away */ }
+        });
+    }
+
+    private void CalculateTotal()
+    {
+        var holesWithScores = scores.Where(s => s.HasValue).ToList();
+        totalScore = holesWithScores.Any() ? holesWithScores.Sum() : null;
+    }
+
+    private async Task SaveScoresAsync()
+    {
+        isSaving = true;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            // Create round if it doesn't exist
+            if (string.IsNullOrEmpty(roundId))
+            {
+                var createRequest = new CreateRoundRequest
+                {
+                    LeagueGolferId = Golfer.Id,
+                    SeasonEventId = SeasonEvent.Id,
+                    CourseId = SeasonEvent.CourseId ?? string.Empty,
+                    TeeId = SeasonEvent.TeeId ?? string.Empty,
+                    RoundDate = SeasonEvent.EventDate,
+                    HolesPlayed = SeasonEvent.HolesPlayed,
+                    HandicapUsed = Golfer.LeagueHandicap
+                };
+
+                var createResponse = await RoundService.CreateRoundAsync(LeagueId, createRequest);
+                if (createResponse?.Success == true && createResponse.Data != null)
+                {
+                    roundId = createResponse.Data.Id;
+                }
+                else
+                {
+                    Logger.LogError("Failed to create round for golfer {GolferId}", Golfer.Id);
+                    return;
+                }
+            }
+
+            // Save each hole score
+            for (int i = 0; i < scores.Length; i++)
+            {
+                if (scores[i].HasValue)
+                {
+                    var holeRequest = new RecordHoleScoreRequest
+                    {
+                        HoleNumber = i + 1,
+                        GrossScore = scores[i]
+                    };
+
+                    await RoundService.RecordHoleScoreAsync(LeagueId, roundId, holeRequest);
+                }
+            }
+
+            if (HasCompleteRoundScores())
+            {
+                await RecalculateGolferHandicapAsync();
+            }
+
+            isSaved = true;
+            Logger.LogInformation("Saved scores for golfer {GolferId}", Golfer.Id);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving scores for golfer {GolferId}", Golfer.Id);
+            isSaved = false;
+        }
+        finally
+        {
+            isSaving = false;
+            await InvokeAsync(StateHasChanged);
+            await OnScoreChanged.InvokeAsync();
+        }
+    }
+
+    private bool HasCompleteRoundScores()
+    {
+        var requiredHoles = SeasonEvent.HolesPlayed == HolesPlayed.Eighteen ? 18 : 9;
+        for (var i = 0; i < requiredHoles; i++)
+        {
+            if (!scores[i].HasValue)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private async Task RecalculateGolferHandicapAsync()
+    {
+        if (string.IsNullOrWhiteSpace(LeagueId)
+            || string.IsNullOrWhiteSpace(SeasonEvent.SeasonId)
+            || string.IsNullOrWhiteSpace(SeasonEvent.Id)
+            || string.IsNullOrWhiteSpace(Golfer.GolferId))
+        {
+            return;
+        }
+
+        var response = await EventService.RecalculateEventGolferHandicapAsync(
+            LeagueId,
+            SeasonEvent.SeasonId,
+            SeasonEvent.Id,
+            Golfer.GolferId);
+
+        if (response?.Success != true)
+        {
+            Logger.LogWarning(
+                "Handicap recalculation failed for golfer {GolferId} in event {EventId}",
+                Golfer.GolferId,
+                SeasonEvent.Id);
+        }
+    }
+}
+

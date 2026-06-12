@@ -27,12 +27,11 @@ public class CoursesController : ControllerBase
     /// </summary>
     [HttpGet]
     [AllowAnonymous]
-    public async Task<ActionResult<ApiResponse<List<CourseResponse>>>> GetCourses(
+    public async Task<ActionResult<ApiResponse<PagedResponse<CourseResponse>>>> GetCourses(
         [FromQuery] string? search = null,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 25)
     {
-        pageSize = Math.Min(pageSize, 100);
         var response = await _courseService.GetCoursesAsync(search, page, pageSize);
         return Ok(response);
     }

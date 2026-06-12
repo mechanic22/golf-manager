@@ -86,6 +86,11 @@ public class League : BaseEntity
     public DateTime? CustomDomainVerifiedAt { get; set; }
 
     /// <summary>
+    /// Whether this league appears in public discovery/search results. Default: false (opt-in).
+    /// </summary>
+    public bool IsPubliclyDiscoverable { get; set; }
+
+    /// <summary>
     /// Whether anonymous/public viewers must provide a password to access league public pages.
     /// </summary>
     public bool RequireAnonymousPassword { get; set; }

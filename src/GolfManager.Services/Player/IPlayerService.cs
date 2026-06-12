@@ -1,3 +1,4 @@
+using GolfManager.Shared.DTOs.Common;
 using GolfManager.Shared.DTOs.Player;
 
 namespace GolfManager.Services.Player;
@@ -10,7 +11,7 @@ public interface IPlayerService
     /// <summary>
     /// Get all players in a league
     /// </summary>
-    Task<List<PlayerResponse>> GetLeaguePlayersAsync(string leagueId);
+    Task<PagedResponse<PlayerResponse>> GetLeaguePlayersAsync(string leagueId, int page = 1, int pageSize = 25);
 
     /// <summary>
     /// Get a specific player in a league

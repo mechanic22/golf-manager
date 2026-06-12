@@ -1,0 +1,100 @@
+@page "/dashboard"
+@layout AppLayout
+@using GolfManager.Shared.DTOs.Dashboard
+
+<PageTitle>Dashboard - Pinzo</PageTitle>
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-16">
+        <div class="inline-block animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600"></div>
+    </div>
+}
+else
+{
+    <div class="mb-6 flex items-center justify-between">
+        <h1 class="text-2xl font-bold text-gray-900">Hi, @(data?.User.FirstName ?? "Player")</h1>
+        @if (AuthService.IsGlobalAdmin || (data?.Leagues.Any(l => l.IsAdmin) == true))
+        {
+            <button @onclick="@(() => showCreateModal = true)"
+                    class="px-3 py-1.5 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors">
+                + New League
+            </button>
+        }
+    </div>
+
+    @if (data?.Leagues == null || data.Leagues.Count == 0)
+    {
+        <div class="bg-gray-50 border border-gray-200 rounded-lg p-10 text-center">
+            <p class="text-gray-700 font-medium mb-1">You're not in any leagues yet</p>
+            <p class="text-sm text-gray-500">Contact your league commissioner to be added.</p>
+        </div>
+    }
+    else
+    {
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead>
+                    <tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        <th class="py-3 pr-6">League</th>
+                        <th class="py-3 pr-6">Active Season</th>
+                        <th class="py-3 pr-6">Next Event</th>
+                        <th class="py-3 pr-6">Members</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    @foreach (var league in data.Leagues)
+                    {
+                        <tr class="hover:bg-gray-50">
+                            <td class="py-3 pr-6">
+                                <a href="/league/@league.Key"
+                                   class="font-medium text-primary-700 hover:underline">@league.Name</a>
+                                @if (league.IsAdmin)
+                                {
+                                    <span class="ml-2 text-xs text-blue-600 font-medium">Admin</span>
+                                }
+                            </td>
+                            <td class="py-3 pr-6 text-sm text-gray-700">
+                                @if (league.ActiveSeason != null)
+                                {
+                                    <a href="/league/@league.Key/season/@league.ActiveSeason.Key"
+                                       class="hover:underline text-gray-700">@league.ActiveSeason.Name</a>
+                                }
+                                else
+                                {
+                                    <span class="text-gray-400">—</span>
+                                }
+                            </td>
+                            <td class="py-3 pr-6 text-sm text-gray-700">
+                                @if (league.ActiveSeason?.NextEvent != null)
+                                {
+                                    var evt = league.ActiveSeason.NextEvent;
+                                    <a href="/league/@league.Key/season/@league.ActiveSeason.Key/event/@evt.Id"
+                                       class="hover:underline">
+                                        @(evt.Name ?? evt.EventDate.ToString("MMM d"))
+                                    </a>
+                                    <span class="text-gray-400 ml-1">@evt.EventDate.ToString("MMM d")</span>
+                                    @if (evt.NeedsScores)
+                                    {
+                                        <a href="/league/@league.Key/season/@league.ActiveSeason.Key/event/@evt.Id/scores"
+                                           class="ml-2 text-xs font-semibold text-red-600 hover:underline">Enter scores</a>
+                                    }
+                                }
+                                else
+                                {
+                                    <span class="text-gray-400">—</span>
+                                }
+                            </td>
+                            <td class="py-3 pr-6 text-sm text-gray-500">@league.MemberCount</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    @if (showCreateModal)
+    {
+        <CreateLeagueDialog OnLeagueCreated="HandleLeagueCreated" />
+    }
+}

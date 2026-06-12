@@ -1,0 +1,141 @@
+@using GolfManager.Shared.DTOs.League
+
+<MaterialDialog @bind-IsOpen="IsOpen" Title="Create New League" MaxWidth="MaterialDialogMaxWidth.Small">
+    <ChildContent>
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <div class="alert alert-danger mb-4">
+                @ErrorMessage
+            </div>
+        }
+
+        <EditForm Model="@Request" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+
+            <div>
+                <MaterialInput Value="@Request.Name"
+                              ValueChanged="@((string value) => OnNameChanged(value))"
+                              Label="League Name"
+                              Placeholder="e.g., Pine Valley Members League"
+                              Variant="MaterialInputVariant.Outlined"
+                              Required="true" />
+                <ValidationMessage For="@(() => Request.Name)" />
+            </div>
+
+            <div class="mt-4">
+                <MaterialInput @bind-Value="Request.Key"
+                              Label="League Key (URL-friendly)"
+                              Placeholder="pine-valley-members"
+                              Variant="MaterialInputVariant.Outlined"
+                              Required="true"
+                              ReadOnly="true"
+                              HelperText="Auto-generated from league name" />
+                <ValidationMessage For="@(() => Request.Key)" />
+            </div>
+
+            <div class="mt-4">
+                <MaterialInput @bind-Value="Request.Description"
+                              Label="Description (Optional)"
+                              Placeholder="A brief description of your league"
+                              Variant="MaterialInputVariant.Outlined"
+                              Multiline="true"
+                              Rows="3" />
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <MaterialButton Type="button" Style="MaterialButtonStyle.Text" OnClick="HandleCancel" Disabled="IsSubmitting">
+                    Cancel
+                </MaterialButton>
+                <MaterialButton Type="submit" Style="MaterialButtonStyle.Filled" Disabled="IsSubmitting">
+                    @if (IsSubmitting)
+                    {
+                        <span>Creating...</span>
+                    }
+                    else
+                    {
+                        <span>Create League</span>
+                    }
+                </MaterialButton>
+            </div>
+        </EditForm>
+    </ChildContent>
+</MaterialDialog>
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public EventCallback<bool> IsOpenChanged { get; set; }
+    [Parameter] public EventCallback<LeagueResponse> OnLeagueCreated { get; set; }
+
+    private CreateLeagueRequest Request { get; set; } = new();
+    private string? ErrorMessage { get; set; }
+    private bool IsSubmitting { get; set; }
+
+    [Inject] private ILeagueService LeagueService { get; set; } = default!;
+    [Inject] private ILogger<CreateLeagueDialog> Logger { get; set; } = default!;
+
+    private void OnNameChanged(string name)
+    {
+        Request.Name = name;
+        Request.Key = SlugifyLeagueName(name);
+    }
+
+    private string SlugifyLeagueName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            return string.Empty;
+
+        var slug = name.ToLowerInvariant();
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[^a-z0-9\s-]", "");
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"\s+", " ").Trim();
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"\s", "-");
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"-+", "-");
+
+        if (slug.Length > 50)
+            slug = slug.Substring(0, 50).TrimEnd('-');
+
+        return slug;
+    }
+
+    private async Task HandleSubmit()
+    {
+        IsSubmitting = true;
+        ErrorMessage = null;
+
+        try
+        {
+            var response = await LeagueService.CreateLeagueAsync(Request);
+
+            if (response?.Success == true && response.Data != null)
+            {
+                await OnLeagueCreated.InvokeAsync(response.Data);
+                await CloseDialog();
+            }
+            else
+            {
+                ErrorMessage = response?.Message ?? "Failed to create league. Please try again.";
+                Logger.LogWarning("League creation failed: {ErrorMessage}", ErrorMessage);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Exception in HandleSubmit: {Message}", ex.Message);
+            ErrorMessage = $"An error occurred: {ex.Message}";
+        }
+        finally
+        {
+            IsSubmitting = false;
+        }
+    }
+
+    private async Task HandleCancel()
+    {
+        await CloseDialog();
+    }
+
+    private Task CloseDialog()
+    {
+        Request = new CreateLeagueRequest();
+        ErrorMessage = null;
+        return IsOpenChanged.InvokeAsync(false);
+    }
+}

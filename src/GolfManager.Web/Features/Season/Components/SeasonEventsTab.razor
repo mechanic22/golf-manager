@@ -1,0 +1,68 @@
+@using GolfManager.Shared.DTOs.Event
+
+<div class="mb-4 flex items-center gap-1 bg-gray-100 rounded-lg p-1 text-sm w-fit">
+    @foreach (var (label, value) in new[] { ("All", "all"), ("Upcoming", "upcoming"), ("Completed", "completed") })
+    {
+        <button @onclick="@(() => statusFilter = value)"
+                class="px-3 py-1.5 rounded-md font-medium transition-colors @(statusFilter == value ? "bg-white shadow text-gray-900" : "text-gray-600 hover:text-gray-900")">
+            @label
+        </button>
+    }
+</div>
+
+<ResponsiveTable TItem="EventResponse" Items="@FilteredEvents">
+    <Empty>
+        <p class="text-gray-500 py-6">@(statusFilter == "all" ? "No events yet." : "No events match this filter.")</p>
+    </Empty>
+    <Headers>
+        <th class="py-3 pr-6">Date</th>
+        <th class="py-3 pr-6 w-full">Name</th>
+        <th class="py-3 pr-6">Format</th>
+        <th class="py-3 pr-6">Holes</th>
+        <th class="py-3 pr-6">Status</th>
+    </Headers>
+    <Row Context="evt">
+        <tr class="hover:bg-gray-50 cursor-pointer" @onclick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/event/{evt.Id}"))">
+            <td class="py-3 pr-6 text-sm text-gray-700 whitespace-nowrap">@evt.EventDate.ToString("MMM d, yyyy")</td>
+            <td class="py-3 pr-6 text-sm font-medium text-gray-900 hover:text-primary-600">@(evt.Name ?? $"Event {events.IndexOf(evt) + 1}")</td>
+            <td class="py-3 pr-6 text-sm text-gray-600 whitespace-nowrap">@evt.ScoringFormat</td>
+            <td class="py-3 pr-6 text-sm text-gray-600 whitespace-nowrap">@evt.HolesPlayed</td>
+            <td class="py-3 pr-6 text-sm whitespace-nowrap">@EventStatusBadge(evt)</td>
+        </tr>
+    </Row>
+    <Card Context="evt">
+        <a href="/league/@LeagueKey/season/@SeasonKey/event/@evt.Id" class="block">
+            <div class="border border-gray-200 rounded-lg p-4 bg-white hover:border-primary-300 hover:bg-gray-50 transition-colors">
+                <div class="flex items-start justify-between mb-2">
+                    <div>
+                        <p class="text-sm font-medium text-gray-900">@(evt.Name ?? $"Event {events.IndexOf(evt) + 1}")</p>
+                        <p class="text-xs text-gray-500 mt-0.5">@evt.EventDate.ToString("MMM d, yyyy")</p>
+                    </div>
+                    <span class="text-xs font-medium">@EventStatusBadge(evt)</span>
+                </div>
+                <div class="flex gap-4 text-xs text-gray-500">
+                    <span>@evt.ScoringFormat</span>
+                    <span>@evt.HolesPlayed holes</span>
+                </div>
+            </div>
+        </a>
+    </Card>
+</ResponsiveTable>
+
+@code {
+    private RenderFragment EventStatusBadge(EventResponse evt) => __builder =>
+    {
+        if (evt.IsLocked)
+        {
+            <span class="text-gray-500">Completed</span>
+        }
+        else if (evt.EventDate.Date <= DateTime.Today)
+        {
+            <span class="text-amber-600">In Progress</span>
+        }
+        else
+        {
+            <span class="text-blue-600">Upcoming</span>
+        }
+    };
+}

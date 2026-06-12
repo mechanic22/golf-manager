@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text.Json;
+using GolfManager.Core.Exceptions;
 using GolfManager.Shared.DTOs.Common;
 
 namespace GolfManager.Api.Middleware;
@@ -51,6 +52,9 @@ public class GlobalExceptionHandlerMiddleware
         // Determine status code based on exception type
         context.Response.StatusCode = exception switch
         {
+            NotFoundException => (int)HttpStatusCode.NotFound,
+            ConflictException => (int)HttpStatusCode.Conflict,
+            ForbiddenException => (int)HttpStatusCode.Forbidden,
             ArgumentException => (int)HttpStatusCode.BadRequest,
             UnauthorizedAccessException => (int)HttpStatusCode.Unauthorized,
             KeyNotFoundException => (int)HttpStatusCode.NotFound,
@@ -86,6 +90,9 @@ public class GlobalExceptionHandlerMiddleware
     {
         return exception switch
         {
+            NotFoundException => exception.Message,
+            ConflictException => exception.Message,
+            ForbiddenException => exception.Message,
             ArgumentException => "Invalid request parameters.",
             UnauthorizedAccessException => "You are not authorized to perform this action.",
             KeyNotFoundException => "The requested resource was not found.",

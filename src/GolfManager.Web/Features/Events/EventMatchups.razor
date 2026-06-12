@@ -1,0 +1,184 @@
+@page "/league/{LeagueKey}/season/{SeasonKey}/event/{EventKey}/matchups"
+@layout EventLayout
+@using GolfManager.Shared.DTOs.Season
+@using GolfManager.Shared.DTOs.Event
+
+<PageTitle>Matchups - @(seasonEvent?.Name ?? "Event") - Pinzo</PageTitle>
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center min-h-screen">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-600">Loading matchups...</p>
+        </div>
+    </div>
+}
+else if (accessDenied)
+{
+    <div class="max-w-2xl mx-auto mt-12">
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content text-center py-12">
+                <MaterialIcon Icon="MaterialIcons.Lock" Class="text-red-500 text-5xl mb-4" />
+                <h2 class="text-xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+                <p class="text-gray-600 mb-6">Only league or season admins can manage matchups.</p>
+                <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}"))">
+                    <MaterialIcon Icon="MaterialIcons.ArrowBack" Class="mr-1" />
+                    Back to Season
+                </MaterialButton>
+            </div>
+        </MaterialCard>
+    </div>
+}
+else
+{
+    <div class="max-w-5xl mx-auto">
+        <div class="flex justify-end mb-4">
+            <button @onclick="AutoSetup"
+                    disabled="@isAutoSetupInProgress"
+                    class="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors">
+                @(isAutoSetupInProgress ? "Setting up..." : "Auto Setup")
+            </button>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <p class="text-sm text-red-600 mb-4">@errorMessage</p>
+        }
+
+        <ResponsiveTable TItem="EventMatchupResponse" Items="@matchups">
+            <Empty>
+                <div class="text-center py-12 text-gray-500">
+                    <p class="mb-3">No matchups configured for this event.</p>
+                    <p class="text-sm">Use <strong>Auto Setup</strong> to generate matchups from season standings, or add teams first.</p>
+                </div>
+            </Empty>
+            <Headers>
+                <th class="py-3 pr-4">Flight · Hole</th>
+                <th class="py-3 pr-6 w-full">Home Team</th>
+                <th class="py-3 pr-6 w-full">Away Team</th>
+                <th class="py-3 pr-4 text-right">Home Pts</th>
+                <th class="py-3 pr-4 text-right">Away Pts</th>
+                <th class="py-3 pr-4">Status</th>
+                <th class="py-3 pr-4"></th>
+            </Headers>
+            <Row Context="m">
+                <tr class="hover:bg-gray-50">
+                    <td class="py-3 pr-4 text-sm text-gray-500 whitespace-nowrap">@MatchupLabel(m)</td>
+                    <td class="py-3 pr-6 text-sm font-medium text-gray-900">@GetTeamName(m.HomeTeamId)</td>
+                    <td class="py-3 pr-6 text-sm font-medium text-gray-900">@GetTeamName(m.AwayTeamId)</td>
+                    <td class="py-3 pr-4 text-sm text-gray-700 text-right">@(m.HomePoints?.ToString("F1") ?? "—")</td>
+                    <td class="py-3 pr-4 text-sm text-gray-700 text-right">@(m.AwayPoints?.ToString("F1") ?? "—")</td>
+                    <td class="py-3 pr-4 text-sm whitespace-nowrap">
+                        @if (m.IsComplete)
+                        {
+                            <span class="text-gray-500">Complete</span>
+                        }
+                        else
+                        {
+                            <span class="text-blue-600">Pending</span>
+                        }
+                    </td>
+                    <td class="py-3 pr-4 text-sm">
+                        <button @onclick="@(() => OpenEditModal(m))"
+                                class="text-gray-500 hover:text-gray-700 hover:underline">Edit</button>
+                    </td>
+                </tr>
+            </Row>
+            <Card Context="m">
+                <div class="border border-gray-200 rounded-lg p-4 bg-white">
+                    <div class="flex items-start justify-between mb-3">
+                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">@MatchupLabel(m)</span>
+                        @if (m.IsComplete)
+                        {
+                            <span class="text-xs text-gray-500">Complete</span>
+                        }
+                        else
+                        {
+                            <span class="text-xs text-blue-600">Pending</span>
+                        }
+                    </div>
+                    <div class="space-y-1 mb-3">
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-gray-900">@GetTeamName(m.HomeTeamId)</span>
+                            <span class="text-sm font-bold text-gray-700">@(m.HomePoints?.ToString("F1") ?? "—")</span>
+                        </div>
+                        <div class="text-xs text-center text-gray-400">vs</div>
+                        <div class="flex items-center justify-between">
+                            <span class="text-sm font-medium text-gray-900">@GetTeamName(m.AwayTeamId)</span>
+                            <span class="text-sm font-bold text-gray-700">@(m.AwayPoints?.ToString("F1") ?? "—")</span>
+                        </div>
+                    </div>
+                    <div class="border-t border-gray-100 pt-3">
+                        <button @onclick="@(() => OpenEditModal(m))"
+                                class="text-sm text-gray-500 hover:underline">Edit</button>
+                    </div>
+                </div>
+            </Card>
+        </ResponsiveTable>
+    </div>
+}
+
+<!-- Edit Matchup Modal -->
+@if (showEditModal && editingMatchup != null)
+{
+    <div class="fixed inset-0 bg-black/40 flex items-center justify-center z-50" @onclick="CloseEditModal">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-112 mx-4 p-6" @onclick:stopPropagation>
+            <h2 class="text-lg font-semibold text-gray-900 mb-4">Edit Matchup</h2>
+
+            @if (!string.IsNullOrEmpty(editError))
+            {
+                <p class="text-sm text-red-600 mb-3">@editError</p>
+            }
+
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Home Team</label>
+                    <select @bind="editHomeTeamId"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="">— None —</option>
+                        @foreach (var team in teams)
+                        {
+                            <option value="@team.Id">@team.Name</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Away Team</label>
+                    <select @bind="editAwayTeamId"
+                            class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500">
+                        <option value="">— None —</option>
+                        @foreach (var team in teams)
+                        {
+                            <option value="@team.Id">@team.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="flex gap-3">
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Starting Flight</label>
+                        <input type="number" min="1" max="99" @bind="editStartingFlight" placeholder="—"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Starting Hole</label>
+                        <input type="number" min="1" max="18" @bind="editStartingHole" placeholder="—"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="mt-6 flex justify-end gap-3">
+                <button @onclick="CloseEditModal"
+                        class="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button @onclick="SaveEdit"
+                        disabled="@isSavingEdit"
+                        class="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 disabled:opacity-50">
+                    @(isSavingEdit ? "Saving..." : "Save")
+                </button>
+            </div>
+        </div>
+    </div>
+}

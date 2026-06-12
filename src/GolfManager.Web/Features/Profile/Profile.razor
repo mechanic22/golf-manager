@@ -1,0 +1,215 @@
+@page "/profile"
+@layout AppLayout
+@using MaterialComponents.Models
+@using GolfManager.Shared.DTOs.User
+
+<PageTitle>My Profile - Pinzo</PageTitle>
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-16">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-600">Loading profile...</p>
+        </div>
+    </div>
+}
+else if (user == null)
+{
+    <div class="text-center py-16">
+        <h2 class="text-2xl font-semibold text-gray-900 mb-2">Profile Not Found</h2>
+        <p class="text-gray-600 mb-4">Unable to load your profile.</p>
+        <MaterialButton Style="MaterialButtonStyle.Outlined" 
+                      Text="Back to Dashboard"
+                      OnClick="@(() => Navigation.NavigateTo("/dashboard"))" />
+    </div>
+}
+else
+{
+    <!-- Page Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">My Profile</h1>
+        <p class="text-gray-600">View and manage your golf profile and statistics</p>
+    </div>
+
+    <!-- Profile Card -->
+    <div class="bg-white rounded-lg border border-gray-200 p-6 mb-6">
+        <div class="flex items-start gap-6">
+            <!-- Avatar -->
+            <div class="flex-shrink-0">
+                <div class="w-24 h-24 bg-primary-600 rounded-full flex items-center justify-center text-white text-3xl font-semibold">
+                    @GetInitials()
+                </div>
+            </div>
+
+            <!-- User Info -->
+            <div class="flex-1">
+                <h2 class="text-2xl font-bold text-gray-900 mb-1">@user.FirstName @user.LastName</h2>
+                <p class="text-gray-600 mb-4">@user.Email</p>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="text-sm text-gray-500 mb-1">Handicap Index</div>
+                        <div class="text-2xl font-bold text-primary-600">@(currentHandicap?.ToString("F1") ?? "N/A")</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="text-sm text-gray-500 mb-1">Rounds Played</div>
+                        <div class="text-2xl font-bold text-gray-900">@totalRounds</div>
+                    </div>
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <div class="text-sm text-gray-500 mb-1">Leagues</div>
+                        <div class="text-2xl font-bold text-gray-900">@totalLeagues</div>
+                    </div>
+                </div>
+
+                <MaterialButton Style="MaterialButtonStyle.Outlined" 
+                              Text="Edit Profile"
+                              LeadingIcon="@EditIcon()"
+                              OnClick="EditProfile" />
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="bg-white rounded-lg border border-gray-200">
+        <div class="border-b border-gray-200">
+            <MaterialTabs @bind-ActiveTab="activeTab"
+                          Tabs="@GetTabs()"
+                          ShowContent="false"
+                          OnTabChange="HandleTabChange" />
+        </div>
+
+        <div class="p-6">
+            <!-- Overview Tab -->
+            <div style="@(activeTab == "overview" ? "" : "display:none")">
+                <div class="space-y-6">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-3">Profile Summary</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="bg-gray-50 rounded-lg p-4">
+                                <div class="text-sm text-gray-500 mb-1">Member Since</div>
+                                <div class="text-lg font-semibold text-gray-900">@user.CreatedAt.ToString("MMMM yyyy")</div>
+                            </div>
+
+                            @if (user.LastLoginAt.HasValue)
+                            {
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <div class="text-sm text-gray-500 mb-1">Last Login</div>
+                                    <div class="text-lg font-semibold text-gray-900">@user.LastLoginAt.Value.ToString("MMM dd, yyyy")</div>
+                                </div>
+                            }
+
+                            @if (user.IsGolfer)
+                            {
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <div class="text-sm text-gray-500 mb-1">Current Handicap</div>
+                                    <div class="text-lg font-semibold text-primary-600">@(currentHandicap?.ToString("F1") ?? "Not set")</div>
+                                </div>
+                                <div class="bg-gray-50 rounded-lg p-4">
+                                    <div class="text-sm text-gray-500 mb-1">Total Rounds</div>
+                                    <div class="text-lg font-semibold text-gray-900">@totalRounds</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-3">My Leagues</h3>
+                        @if (totalLeagues > 0)
+                        {
+                            <div class="bg-gray-50 rounded-lg p-4">
+                                <p class="text-gray-700">You are a member of <span class="font-semibold">@totalLeagues</span> league@(totalLeagues > 1 ? "s" : "").</p>
+                                <MaterialButton Style="MaterialButtonStyle.Text" Text="View All Leagues"
+                                              OnClick="@(() => Navigation.NavigateTo("/leagues"))" Class="mt-2" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="bg-gray-50 rounded-lg p-4 text-center">
+                                <p class="text-gray-600 mb-3">You haven't joined any leagues yet.</p>
+                                <MaterialButton Style="MaterialButtonStyle.Filled" Text="Browse Leagues"
+                                              OnClick="@(() => Navigation.NavigateTo("/leagues"))" />
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <!-- Stats Tab (keep-alive) -->
+            <div style="@(activeTab == "stats" ? "" : "display:none")">
+                @if (_mountedTabs.Contains("stats"))
+                {
+                    <ProfileStatsTab />
+                }
+            </div>
+
+            <!-- Rounds Tab (keep-alive) -->
+            <div style="@(activeTab == "rounds" ? "" : "display:none")">
+                @if (_mountedTabs.Contains("rounds"))
+                {
+                    <ProfileRoundsTab />
+                }
+            </div>
+
+            <!-- Handicap Tab (keep-alive) -->
+            <div style="@(activeTab == "handicap" ? "" : "display:none")">
+                @if (_mountedTabs.Contains("handicap"))
+                {
+                    <ProfileHandicapTab />
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@if (showEditModal)
+{
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-112 mx-4">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-semibold text-gray-900">Edit Profile</h2>
+                <button @onclick="CloseEditModal" class="text-gray-400 hover:text-gray-600">
+                    <span class="text-2xl leading-none">&times;</span>
+                </button>
+            </div>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                    <input type="text"
+                           @bind="editFirstName"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                           placeholder="First name" />
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                    <input type="text"
+                           @bind="editLastName"
+                           class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                           placeholder="Last name" />
+                </div>
+
+                @if (!string.IsNullOrEmpty(editError))
+                {
+                    <div class="p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p class="text-sm text-red-700">@editError</p>
+                    </div>
+                }
+            </div>
+
+            <div class="flex gap-3 mt-6">
+                <MaterialButton Style="MaterialButtonStyle.Outlined"
+                              Text="Cancel"
+                              OnClick="CloseEditModal"
+                              Class="flex-1"
+                              Disabled="@isSavingProfile" />
+                <MaterialButton Style="MaterialButtonStyle.Filled"
+                              Text="@(isSavingProfile ? "Saving..." : "Save Changes")"
+                              OnClick="SaveProfile"
+                              Class="flex-1"
+                              Disabled="@isSavingProfile" />
+            </div>
+        </div>
+    </div>
+}
+

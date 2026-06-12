@@ -1,0 +1,21 @@
+@* Page-level title + subtitle, with an optional right-aligned action slot. *@
+
+<div class="mb-8">
+    <div class="flex items-center justify-between mb-2">
+        <h1 class="text-3xl font-bold text-gray-900">@Title</h1>
+        @if (Actions != null)
+        {
+            <div class="flex items-center gap-2">@Actions</div>
+        }
+    </div>
+    @if (!string.IsNullOrWhiteSpace(Subtitle))
+    {
+        <p class="text-gray-600">@Subtitle</p>
+    }
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

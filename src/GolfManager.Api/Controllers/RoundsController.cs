@@ -11,10 +11,8 @@ namespace GolfManager.Api.Controllers;
 /// <summary>
 /// Controller for round management
 /// </summary>
-[ApiController]
 [Route("api/v1/rounds")]
-[Authorize]
-public class RoundsController : ControllerBase
+public class RoundsController : BaseLeagueController
 {
     private readonly IRoundService _roundService;
     private readonly ICurrentUserService _currentUserService;
@@ -35,17 +33,15 @@ public class RoundsController : ControllerBase
     /// </summary>
     [HttpGet("golfer/{leagueGolferId}")]
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
-    public async Task<ActionResult<ApiResponse<List<RoundResponse>>>> GetLeagueGolferRounds(
-        string leagueGolferId)
+    public async Task<ActionResult<ApiResponse<PagedResponse<RoundResponse>>>> GetLeagueGolferRounds(
+        string leagueGolferId, [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
-        {
-            return BadRequest(ApiResponse<List<RoundResponse>>.ErrorResponse("League context required"));
-        }
+            return BadRequest(ApiResponse<PagedResponse<RoundResponse>>.ErrorResponse("League context required"));
 
-        var rounds = await _roundService.GetLeagueGolferRoundsAsync(leagueGolferId, leagueId);
-        return Ok(ApiResponse<List<RoundResponse>>.SuccessResponse(rounds));
+        var rounds = await _roundService.GetLeagueGolferRoundsAsync(leagueGolferId, leagueId, page, pageSize);
+        return Ok(ApiResponse<PagedResponse<RoundResponse>>.SuccessResponse(rounds));
     }
 
     /// <summary>
@@ -56,7 +52,7 @@ public class RoundsController : ControllerBase
     public async Task<ActionResult<ApiResponse<RoundResponse>>> GetRound(
         string roundId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<RoundResponse>.ErrorResponse("League context required"));
@@ -80,7 +76,7 @@ public class RoundsController : ControllerBase
     public async Task<ActionResult<ApiResponse<List<RoundResponse>>>> GetEventRounds(
         string seasonEventId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<List<RoundResponse>>.ErrorResponse("League context required"));
@@ -98,7 +94,7 @@ public class RoundsController : ControllerBase
     public async Task<ActionResult<ApiResponse<RoundResponse>>> CreateRound(
         [FromBody] CreateRoundRequest request)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<RoundResponse>.ErrorResponse("League context required"));
@@ -126,7 +122,7 @@ public class RoundsController : ControllerBase
         string roundId,
         [FromBody] UpdateRoundRequest request)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<RoundResponse>.ErrorResponse("League context required"));
@@ -150,7 +146,7 @@ public class RoundsController : ControllerBase
     public async Task<ActionResult<ApiResponse<object>>> DeleteRound(
         string roundId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<object>.ErrorResponse("League context required"));
@@ -175,7 +171,7 @@ public class RoundsController : ControllerBase
         string roundId,
         [FromBody] RecordHoleScoreRequest request)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<RoundResponse>.ErrorResponse("League context required"));

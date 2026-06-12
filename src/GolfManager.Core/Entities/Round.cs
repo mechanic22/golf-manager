@@ -25,14 +25,14 @@ public class Round : BaseEntity
     public string? LeagueId { get; set; }
 
     /// <summary>
-    /// Course ID
+    /// Course ID (nullable — may be null for rounds imported from legacy data with no course mapping)
     /// </summary>
-    public string CourseId { get; set; } = string.Empty;
+    public string? CourseId { get; set; }
 
     /// <summary>
-    /// Tee ID
+    /// Tee ID (nullable — may be null for rounds imported from legacy data with no tee mapping)
     /// </summary>
-    public string TeeId { get; set; } = string.Empty;
+    public string? TeeId { get; set; }
 
     /// <summary>
     /// Date the round was played
@@ -119,12 +119,12 @@ public class Round : BaseEntity
     /// <summary>
     /// Associated course
     /// </summary>
-    public Course Course { get; set; } = null!;
+    public Course? Course { get; set; }
 
     /// <summary>
     /// Associated tee
     /// </summary>
-    public Tee Tee { get; set; } = null!;
+    public Tee? Tee { get; set; }
 
     /// <summary>
     /// Scorecard (if exists)

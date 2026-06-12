@@ -15,5 +15,20 @@ public class AuthResponse
     /// User's league memberships with domain mappings
     /// </summary>
     public List<LeagueMappingResponse> LeagueMappings { get; set; } = new();
+
+    /// <summary>
+    /// True when this session is an anonymous guest session (no real user account).
+    /// </summary>
+    public bool IsGuest { get; set; }
+
+    /// <summary>
+    /// The league key the guest session is scoped to, when IsGuest is true.
+    /// </summary>
+    public string? GuestLeagueKey { get; set; }
+
+    /// <summary>
+    /// The league ID the guest session is scoped to, when IsGuest is true.
+    /// </summary>
+    public string? GuestLeagueId { get; set; }
 }
 

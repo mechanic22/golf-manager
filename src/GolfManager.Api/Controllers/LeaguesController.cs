@@ -1,10 +1,12 @@
 using System.Security.Claims;
 using GolfManager.Api.Authorization;
+using GolfManager.Data;
 using GolfManager.Services.League;
 using GolfManager.Shared.DTOs.Common;
 using GolfManager.Shared.DTOs.League;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace GolfManager.Api.Controllers;
 
@@ -17,13 +19,16 @@ namespace GolfManager.Api.Controllers;
 public class LeaguesController : ControllerBase
 {
     private readonly ILeagueService _leagueService;
+    private readonly GolfManagerDbContext _context;
     private readonly ILogger<LeaguesController> _logger;
 
     public LeaguesController(
         ILeagueService leagueService,
+        GolfManagerDbContext context,
         ILogger<LeaguesController> logger)
     {
         _leagueService = leagueService;
+        _context = context;
         _logger = logger;
     }
 
@@ -62,6 +67,17 @@ public class LeaguesController : ControllerBase
     }
 
     /// <summary>
+    /// Discover publicly listed leagues (anonymous, opt-in leagues only)
+    /// </summary>
+    [HttpGet("discover")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<List<LeagueResponse>>>> DiscoverLeagues([FromQuery] string? search = null)
+    {
+        var leagues = await _leagueService.GetPublicLeaguesAsync(search);
+        return Ok(ApiResponse<List<LeagueResponse>>.SuccessResponse(leagues, $"Found {leagues.Count} leagues"));
+    }
+
+    /// <summary>
     /// Get a specific league by key
     /// </summary>
     [HttpGet("by-key/{leagueKey}")]
@@ -85,6 +101,70 @@ public class LeaguesController : ControllerBase
         }
 
         return Ok(ApiResponse<LeagueResponse>.SuccessResponse(league, "League retrieved successfully"));
+    }
+
+    /// <summary>
+    /// Get read-only team standings for a guest session.
+    /// League context is derived from the guest cookie claims — no route parameter needed.
+    /// </summary>
+    [HttpGet("guest/standings")]
+    [Authorize(Policy = AuthorizationConstants.Policies.GuestLeagueViewer)]
+    public async Task<ActionResult<ApiResponse<GuestStandingsResponse>>> GetGuestStandings()
+    {
+        var leagueId = User.FindFirst(AuthorizationConstants.Claims.LeagueId)?.Value;
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<GuestStandingsResponse>.ErrorResponse("No league context in guest session"));
+
+        var league = await _context.Leagues
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(l => l.Id == leagueId && !l.IsDeleted);
+
+        if (league == null)
+            return NotFound(ApiResponse<GuestStandingsResponse>.ErrorResponse("League not found"));
+
+        if (string.IsNullOrEmpty(league.ActiveSeasonId))
+        {
+            return Ok(ApiResponse<GuestStandingsResponse>.SuccessResponse(new GuestStandingsResponse
+            {
+                LeagueName = league.Name,
+                LogoUrl = league.LogoUrl
+            }));
+        }
+
+        var season = await _context.Seasons
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == league.ActiveSeasonId && !s.IsDeleted);
+
+        var teams = await _context.SeasonTeams
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(t => t.SeasonId == league.ActiveSeasonId && t.LeagueId == leagueId && !t.IsDeleted)
+            .OrderByDescending(t => t.SeasonPoints ?? 0)
+            .ThenByDescending(t => t.Wins)
+            .ThenBy(t => t.Losses)
+            .ToListAsync();
+
+        var rows = teams.Select((t, i) => new GuestTeamStandingRow
+        {
+            Rank = i + 1,
+            Name = t.Name,
+            Wins = t.Wins,
+            Losses = t.Losses,
+            Ties = t.Ties,
+            SeasonPoints = t.SeasonPoints
+        }).ToList();
+
+        _logger.LogInformation("Guest standings served for league {LeagueId}", leagueId);
+
+        return Ok(ApiResponse<GuestStandingsResponse>.SuccessResponse(new GuestStandingsResponse
+        {
+            LeagueName = league.Name,
+            LogoUrl = league.LogoUrl,
+            SeasonName = season?.Name,
+            Teams = rows
+        }));
     }
 
     /// <summary>

@@ -86,6 +86,16 @@ public class LeagueResponse
     public bool IsCurrentUserAdmin { get; set; }
 
     /// <summary>
+    /// Current user's league-specific handicap (null if not a golfer in this league)
+    /// </summary>
+    public double? CurrentUserLeagueHandicap { get; set; }
+
+    /// <summary>
+    /// Total rounds the current user has played in this league
+    /// </summary>
+    public int? CurrentUserRoundsInLeague { get; set; }
+
+    /// <summary>
     /// Custom domain for this league
     /// </summary>
     public string? CustomDomain { get; set; }
@@ -104,6 +114,11 @@ public class LeagueResponse
     /// When the custom domain was verified
     /// </summary>
     public DateTime? CustomDomainVerifiedAt { get; set; }
+
+    /// <summary>
+    /// Whether this league appears in public discovery search results.
+    /// </summary>
+    public bool IsPubliclyDiscoverable { get; set; }
 
     /// <summary>
     /// Whether anonymous/public pages require a password.

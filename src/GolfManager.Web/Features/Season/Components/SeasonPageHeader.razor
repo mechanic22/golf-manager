@@ -1,0 +1,37 @@
+@using MaterialComponents.Models
+
+<div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8 py-6">
+    <div>
+        <div class="flex items-center gap-2 text-sm text-gray-600 mb-3">
+            <a href="/dashboard" class="hover:text-primary-600">Dashboard</a>
+            <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+            <a href="@($"/league/{LeagueKey}")" class="hover:text-primary-600">@Context.League.Name</a>
+            <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+            <span class="text-gray-900">@Context.Season.Name</span>
+        </div>
+        <div class="flex items-center gap-3 mb-2">
+            <h1 class="text-3xl font-bold text-gray-900">@Context.Season.Name</h1>
+            @if (Context.Season.IsLocked)
+            {
+                <MaterialChip Text="Locked" Color="MaterialChipColor.Secondary" Size="MaterialChipSize.Medium" />
+            }
+        </div>
+        <div class="flex items-center gap-4 text-sm text-gray-600">
+            <span class="font-mono">@Context.Season.Key</span>
+            <span>•</span>
+            <div class="flex items-center gap-1">
+                <MaterialIcon Icon="MaterialIcons.CalendarToday" Size="MaterialComponents.Icons.IconSize.SM" />
+                <span>@Context.Season.StartDate.ToString("MMM d, yyyy")</span>
+                @if (Context.Season.EndDate.HasValue)
+                {
+                    <span> – @Context.Season.EndDate.Value.ToString("MMM d, yyyy")</span>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string LeagueKey { get; set; } = string.Empty;
+    [Parameter, EditorRequired] public SeasonLayoutContext Context { get; set; } = null!;
+}

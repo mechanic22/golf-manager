@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using GolfManager.Core.Common;
 using GolfManager.Core.Entities;
 using GolfManager.Core.Services;
@@ -57,6 +58,10 @@ public class GolfManagerDbContext : DbContext
     public DbSet<Hole> Holes { get; set; } = null!;
     public DbSet<HoleTee> HoleTees { get; set; } = null!;
 
+    // Event Scores (persisted for locked events)
+    public DbSet<SeasonEventPlayerScore> SeasonEventPlayerScores { get; set; } = null!;
+    public DbSet<SeasonEventMatchScore> SeasonEventMatchScores { get; set; } = null!;
+
     // Scoring
     public DbSet<Round> Rounds { get; set; } = null!;
     public DbSet<RoundHole> RoundHoles { get; set; } = null!;
@@ -74,30 +79,44 @@ public class GolfManagerDbContext : DbContext
     }
 
     /// <summary>
-    /// Configure global query filters for tenant isolation
-    /// Automatically filters all ITenantEntity queries by the current LeagueId
+    /// Configure global query filters for soft-delete and multi-tenancy.
+    /// All BaseEntity types get !IsDeleted; ITenantEntity types additionally filter by LeagueId.
+    /// EF Core allows only one HasQueryFilter per entity, so both conditions are combined here.
+    /// Callers that need to see deleted or cross-tenant data must use .IgnoreQueryFilters().
     /// </summary>
     private void ConfigureGlobalFilters(ModelBuilder modelBuilder)
     {
-        // Get the current league ID from the tenant service
         var currentLeagueId = _tenantService?.GetCurrentLeagueId();
 
-        // Apply query filter to all entities that implement ITenantEntity
-        // This ensures that queries automatically filter by the current league
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
-            if (typeof(ITenantEntity).IsAssignableFrom(entityType.ClrType))
-            {
-                // Create a filter expression: entity => entity.LeagueId == currentLeagueId
-                var parameter = System.Linq.Expressions.Expression.Parameter(entityType.ClrType, "e");
-                var property = System.Linq.Expressions.Expression.Property(parameter, nameof(ITenantEntity.LeagueId));
-                var leagueIdValue = System.Linq.Expressions.Expression.Constant(currentLeagueId);
-                var comparison = System.Linq.Expressions.Expression.Equal(property, leagueIdValue);
-                var lambda = System.Linq.Expressions.Expression.Lambda(comparison, parameter);
+            var clrType = entityType.ClrType;
+            if (clrType.IsAbstract) continue;
 
-                // Apply the filter
-                modelBuilder.Entity(entityType.ClrType).HasQueryFilter(lambda);
+            var isBase = typeof(BaseEntity).IsAssignableFrom(clrType);
+            var isTenant = typeof(ITenantEntity).IsAssignableFrom(clrType);
+
+            if (!isBase && !isTenant) continue;
+
+            var parameter = Expression.Parameter(clrType, "e");
+            Expression? filter = null;
+
+            if (isBase)
+            {
+                var isDeletedProp = Expression.Property(parameter, nameof(BaseEntity.IsDeleted));
+                filter = Expression.Not(isDeletedProp);
             }
+
+            if (isTenant)
+            {
+                var leagueIdProp = Expression.Property(parameter, nameof(ITenantEntity.LeagueId));
+                var leagueIdConst = Expression.Constant(currentLeagueId);
+                var tenantFilter = Expression.Equal(leagueIdProp, leagueIdConst);
+                filter = filter is null ? tenantFilter : Expression.AndAlso(filter, tenantFilter);
+            }
+
+            if (filter is not null)
+                modelBuilder.Entity(clrType).HasQueryFilter(Expression.Lambda(filter, parameter));
         }
     }
 

@@ -1,0 +1,359 @@
+@page "/league/{LeagueKey}/season/{SeasonKey}/event/{EventKey}/match/{MatchupKey}"
+@layout AppLayout
+@using GolfManager.Shared.DTOs.Event
+
+<PageTitle>Match - @(matchup?.HomeTeamName ?? "Match") vs @(matchup?.AwayTeamName ?? "") - Pinzo</PageTitle>
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center min-h-screen">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-600">Loading match...</p>
+        </div>
+    </div>
+}
+else if (league == null || season == null || seasonEvent == null || matchup == null)
+{
+    <div class="max-w-2xl mx-auto mt-12">
+        <MaterialCard Variant="MaterialCardVariant.Outlined">
+            <div class="md-card__content text-center py-12">
+                <MaterialIcon Icon="MaterialIcons.Error" Class="text-red-500 text-5xl mb-4" />
+                <h2 class="text-xl font-semibold text-gray-900 mb-2">Match Not Found</h2>
+                <p class="text-gray-600 mb-6">This match doesn't exist or you don't have access to it.</p>
+                <MaterialButton Style="MaterialButtonStyle.Outlined"
+                                OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/event/{EventKey}"))">
+                    <MaterialIcon Icon="MaterialIcons.ArrowBack" Class="mr-1" />
+                    Back to Event
+                </MaterialButton>
+            </div>
+        </MaterialCard>
+    </div>
+}
+else
+{
+    var hasScores = matchScore != null;
+    var homeWins = matchScore?.HomePoints > matchScore?.AwayPoints;
+    var awayWins = matchScore?.AwayPoints > matchScore?.HomePoints;
+    var tie = matchScore?.HomePoints.HasValue == true && matchScore?.AwayPoints.HasValue == true
+              && matchScore.HomePoints == matchScore.AwayPoints;
+
+    var hasDetail = matchDetail?.Holes?.Count > 0;
+    var holes = matchDetail?.Holes ?? new List<MatchDetailHoleResponse>();
+
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Breadcrumbs -->
+        <div class="flex items-center gap-2 text-sm text-gray-600 mb-6">
+            <a href="/dashboard" class="hover:text-primary-600">Dashboard</a>
+            <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+            <a href="/league/@LeagueKey" class="hover:text-primary-600">@league.Name</a>
+            <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+            <a href="/league/@LeagueKey/season/@SeasonKey/events" class="hover:text-primary-600">@season.Name</a>
+            <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+            <a href="/league/@LeagueKey/season/@SeasonKey/event/@EventKey" class="hover:text-primary-600">@(seasonEvent.Name ?? "Event")</a>
+            <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+            <span class="text-gray-900">Match</span>
+        </div>
+
+        <!-- Date + Starting Hole -->
+        <div class="text-sm text-gray-500 mb-4">
+            @seasonEvent.EventDate.ToString("dddd, MMMM d, yyyy h:mm tt")
+            @if (!string.IsNullOrEmpty(MatchupLabel))
+            {
+                <span class="ml-3">@MatchupLabel</span>
+            }
+        </div>
+
+        @if (hasDetail)
+        {
+            <!-- Hole-by-Hole Summary Scorecard (like holy-grail Card 1) -->
+            <div class="bg-white border border-gray-200 rounded-xl overflow-hidden mb-6">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs sm:text-sm">
+                        <thead>
+                            <tr class="border-b border-gray-200 bg-gray-50 text-xs text-gray-500 uppercase tracking-wider">
+                                <th class="py-2 pl-4 pr-2 text-left font-medium min-w-32.5">Team</th>
+                                @foreach (var hole in holes)
+                                {
+                                    <th class="py-2 px-1 text-center font-medium w-10">@hole.HoleNumber</th>
+                                }
+                                <th class="py-2 px-2 text-center font-medium">Total</th>
+                                <th class="py-2 pl-2 pr-4 text-center font-medium">Pts</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @{
+                                var overallHomeWins = (matchDetail?.HomePoints ?? 0) > (matchDetail?.AwayPoints ?? 0);
+                                var overallAwayWins = (matchDetail?.AwayPoints ?? 0) > (matchDetail?.HomePoints ?? 0);
+                                var overallTie = matchDetail?.HomePoints.HasValue == true && matchDetail?.AwayPoints.HasValue == true
+                                                 && matchDetail.HomePoints == matchDetail.AwayPoints;
+                                var homeNetTotal = holes.Where(h => h.HomeNetUsed.HasValue).Sum(h => h.HomeNetUsed!.Value);
+                                var awayNetTotal = holes.Where(h => h.AwayNetUsed.HasValue).Sum(h => h.AwayNetUsed!.Value);
+                                var homeHolePoints = holes.Sum(h => h.HomeHolePoints);
+                                var awayHolePoints = holes.Sum(h => h.AwayHolePoints);
+                            }
+                            <!-- Home Team Row -->
+                            <tr class="border-b border-gray-100 @(overallHomeWins || overallTie ? "bg-green-50" : "")">
+                                <td class="py-3 pl-4 pr-2">
+                                    <div class="font-bold text-gray-900 text-nowrap">@(matchDetail?.HomeTeamName ?? matchup.HomeTeamName ?? "—")</div>
+                                    @if (matchDetail?.HomeMembers?.Count > 0)
+                                    {
+                                        <div class="text-xs text-gray-500 mt-0.5 text-nowrap">
+                                            @string.Join(" / ", matchDetail.HomeMembers.Select(m => m.DisplayName))
+                                        </div>
+                                    }
+                                </td>
+                                @foreach (var hole in holes)
+                                {
+                                    var isHomeWinner = hole.HoleWinner == "Home" || hole.HoleWinner == "Tie";
+                                    <td class="py-3 px-1 text-center @(isHomeWinner ? "bg-green-100" : "")">
+                                        <div class="font-bold text-gray-900">@(hole.HomeNetUsed?.ToString("F0") ?? "—")</div>
+                                        @if (hole.HomeHolePoints > 0)
+                                        {
+                                            <div class="text-xs text-green-700">+@hole.HomeHolePoints.ToString("F0")</div>
+                                        }
+                                        else
+                                        {
+                                            <div class="text-xs text-gray-300">&nbsp;</div>
+                                        }
+                                    </td>
+                                }
+                                <td class="py-3 px-2 text-center @(overallHomeWins || overallTie ? "bg-green-100" : "")">
+                                    <div class="font-bold text-gray-900">@homeNetTotal.ToString("F0")</div>
+                                    <div class="text-xs text-gray-400">@homeHolePoints.ToString("F0")</div>
+                                </td>
+                                <td class="py-3 pl-2 pr-4 text-center">
+                                    <span class="text-xl font-bold @(overallHomeWins || overallTie ? "text-green-700" : "text-gray-400")">
+                                        @((matchDetail?.HomePoints ?? 0).ToString("F1"))
+                                    </span>
+                                </td>
+                            </tr>
+                            <!-- Away Team Row -->
+                            <tr class="@(overallAwayWins || overallTie ? "bg-green-50" : "")">
+                                <td class="py-3 pl-4 pr-2">
+                                    <div class="font-bold text-gray-900 text-nowrap">@(matchDetail?.AwayTeamName ?? matchup.AwayTeamName ?? "—")</div>
+                                    @if (matchDetail?.AwayMembers?.Count > 0)
+                                    {
+                                        <div class="text-xs text-gray-500 mt-0.5 text-nowrap">
+                                            @string.Join(" / ", matchDetail.AwayMembers.Select(m => m.DisplayName))
+                                        </div>
+                                    }
+                                </td>
+                                @foreach (var hole in holes)
+                                {
+                                    var isAwayWinner = hole.HoleWinner == "Away" || hole.HoleWinner == "Tie";
+                                    <td class="py-3 px-1 text-center @(isAwayWinner ? "bg-green-100" : "")">
+                                        <div class="font-bold text-gray-900">@(hole.AwayNetUsed?.ToString("F0") ?? "—")</div>
+                                        @if (hole.AwayHolePoints > 0)
+                                        {
+                                            <div class="text-xs text-green-700">+@hole.AwayHolePoints.ToString("F0")</div>
+                                        }
+                                        else
+                                        {
+                                            <div class="text-xs text-gray-300">&nbsp;</div>
+                                        }
+                                    </td>
+                                }
+                                <td class="py-3 px-2 text-center @(overallAwayWins || overallTie ? "bg-green-100" : "")">
+                                    <div class="font-bold text-gray-900">@awayNetTotal.ToString("F0")</div>
+                                    <div class="text-xs text-gray-400">@awayHolePoints.ToString("F0")</div>
+                                </td>
+                                <td class="py-3 pl-2 pr-4 text-center">
+                                    <span class="text-xl font-bold @(overallAwayWins || overallTie ? "text-green-700" : "text-gray-400")">
+                                        @((matchDetail?.AwayPoints ?? 0).ToString("F1"))
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Per-Golfer Hole Detail (like holy-grail Card 2) -->
+            <div class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-xs sm:text-sm">
+                        <thead>
+                            <tr class="text-xs text-gray-500 uppercase tracking-wider bg-gray-50">
+                                <th class="py-2 pl-4 pr-2 text-left font-medium min-w-32.5">Hole</th>
+                                @foreach (var hole in holes)
+                                {
+                                    <th class="py-2 px-1 text-center font-medium w-10">@hole.HoleNumber</th>
+                                }
+                                <th class="py-2 pl-2 pr-4 text-center font-medium">Total</th>
+                            </tr>
+                            @if (holes.Any(h => h.Par > 0))
+                            {
+                                <tr class="text-xs text-gray-400 bg-gray-50 border-b border-gray-100">
+                                    <th class="py-1 pl-4 pr-2 text-left font-normal">Par</th>
+                                    @foreach (var hole in holes)
+                                    {
+                                        <th class="py-1 px-1 text-center font-normal">@hole.Par</th>
+                                    }
+                                    <th class="py-1 pl-2 pr-4 text-center font-normal">@holes.Sum(h => h.Par)</th>
+                                </tr>
+                            }
+                            @if (holes.Any(h => h.Yardage > 0))
+                            {
+                                <tr class="text-xs text-gray-400 bg-gray-50 border-b border-gray-100">
+                                    <th class="py-1 pl-4 pr-2 text-left font-normal">Yards</th>
+                                    @foreach (var hole in holes)
+                                    {
+                                        <th class="py-1 px-1 text-center font-normal">@hole.Yardage</th>
+                                    }
+                                    <th class="py-1 pl-2 pr-4 text-center font-normal">@holes.Sum(h => h.Yardage)</th>
+                                </tr>
+                            }
+                            @if (holes.Any(h => h.HoleHandicap > 0))
+                            {
+                                <tr class="text-xs text-gray-400 bg-gray-50 border-b border-gray-200">
+                                    <th class="py-1 pl-4 pr-2 text-left font-normal">Hdcp</th>
+                                    @foreach (var hole in holes)
+                                    {
+                                        <th class="py-1 px-1 text-center font-normal">@hole.HoleHandicap</th>
+                                    }
+                                    <th class="py-1 pl-2 pr-4 text-center font-normal"></th>
+                                </tr>
+                            }
+                        </thead>
+                        <tbody>
+                            <!-- Home Golfers -->
+                            @if (matchDetail?.HomeMembers != null)
+                            {
+                                @foreach (var member in matchDetail.HomeMembers)
+                                {
+                                    var memberGross = holes.Sum(h => h.HomeScores.FirstOrDefault(s => s.SeasonGolferId == member.SeasonGolferId)?.GrossScore ?? 0);
+                                    var memberNet = holes.Sum(h => h.HomeScores.FirstOrDefault(s => s.SeasonGolferId == member.SeasonGolferId)?.NetScore ?? 0);
+                                    var hasAnyScore = holes.Any(h => h.HomeScores.FirstOrDefault(s => s.SeasonGolferId == member.SeasonGolferId)?.GrossScore != null);
+                                    <tr class="border-b border-gray-100 hover:bg-gray-50">
+                                        <td class="py-3 pl-4 pr-2">
+                                            <div class="font-bold text-gray-900 text-nowrap">@member.DisplayName</div>
+                                            <div class="text-xs text-gray-400">Hdcp: @FormatHandicap(member.Handicap)</div>
+                                        </td>
+                                        @foreach (var hole in holes)
+                                        {
+                                            var score = hole.HomeScores.FirstOrDefault(s => s.SeasonGolferId == member.SeasonGolferId);
+                                            <td class="py-3 px-1 text-center @(score?.IsUsed == true ? "bg-green-100" : "")">
+                                                @if (score?.GrossScore != null)
+                                                {
+                                                    <div class="font-bold text-gray-900">@score.NetScore?.ToString("F0")</div>
+                                                    <div class="text-xs text-gray-400">
+                                                        @score.GrossScore
+                                                        @if (score.StrokesReceived != 0)
+                                                        {
+                                                            <text>-@score.StrokesReceived</text>
+                                                        }
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="text-gray-300">—</div>
+                                                }
+                                            </td>
+                                        }
+                                        <td class="py-3 pl-2 pr-4 text-center">
+                                            @if (hasAnyScore)
+                                            {
+                                                <div class="font-bold text-gray-900">@memberNet.ToString("F0")</div>
+                                                <div class="text-xs text-gray-400">@memberGross</div>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+
+                            <!-- Spacer row between teams -->
+                            @if ((matchDetail?.HomeMembers?.Count ?? 0) > 0 && (matchDetail?.AwayMembers?.Count ?? 0) > 0)
+                            {
+                                <tr class="h-1 bg-gray-100">
+                                    <td colspan="@(holes.Count + 2)"></td>
+                                </tr>
+                            }
+
+                            <!-- Away Golfers -->
+                            @if (matchDetail?.AwayMembers != null)
+                            {
+                                @foreach (var member in matchDetail.AwayMembers)
+                                {
+                                    var memberGross = holes.Sum(h => h.AwayScores.FirstOrDefault(s => s.SeasonGolferId == member.SeasonGolferId)?.GrossScore ?? 0);
+                                    var memberNet = holes.Sum(h => h.AwayScores.FirstOrDefault(s => s.SeasonGolferId == member.SeasonGolferId)?.NetScore ?? 0);
+                                    var hasAnyScore = holes.Any(h => h.AwayScores.FirstOrDefault(s => s.SeasonGolferId == member.SeasonGolferId)?.GrossScore != null);
+                                    <tr class="border-b border-gray-100 last:border-0 hover:bg-gray-50">
+                                        <td class="py-3 pl-4 pr-2">
+                                            <div class="font-bold text-gray-900 text-nowrap">@member.DisplayName</div>
+                                            <div class="text-xs text-gray-400">Hdcp: @FormatHandicap(member.Handicap)</div>
+                                        </td>
+                                        @foreach (var hole in holes)
+                                        {
+                                            var score = hole.AwayScores.FirstOrDefault(s => s.SeasonGolferId == member.SeasonGolferId);
+                                            <td class="py-3 px-1 text-center @(score?.IsUsed == true ? "bg-green-100" : "")">
+                                                @if (score?.GrossScore != null)
+                                                {
+                                                    <div class="font-bold text-gray-900">@score.NetScore?.ToString("F0")</div>
+                                                    <div class="text-xs text-gray-400">
+                                                        @score.GrossScore
+                                                        @if (score.StrokesReceived != 0)
+                                                        {
+                                                            <text>-@score.StrokesReceived</text>
+                                                        }
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="text-gray-300">—</div>
+                                                }
+                                            </td>
+                                        }
+                                        <td class="py-3 pl-2 pr-4 text-center">
+                                            @if (hasAnyScore)
+                                            {
+                                                <div class="font-bold text-gray-900">@memberNet.ToString("F0")</div>
+                                                <div class="text-xs text-gray-400">@memberGross</div>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        }
+        else
+        {
+            <!-- Fallback: simple match summary when no hole detail is available -->
+            <div class="bg-white border border-gray-200 rounded-xl overflow-hidden mb-6">
+                <table class="w-full text-sm">
+                    <tbody>
+                        <tr class="border-b border-gray-100 @(homeWins || tie ? "bg-green-50" : "")">
+                            <td class="py-4 pl-5 pr-3 font-bold text-gray-900 w-1/2 text-right">
+                                @(matchup.HomeTeamName ?? "—")
+                            </td>
+                            <td class="py-4 px-4 text-center text-gray-400 text-xs whitespace-nowrap">vs</td>
+                            <td class="py-4 pr-5 pl-3 font-bold text-gray-900 w-1/2">
+                                @(matchup.AwayTeamName ?? "—")
+                            </td>
+                        </tr>
+                        @if (hasScores)
+                        {
+                            <tr>
+                                <td class="py-3 pl-5 pr-3 text-right">
+                                    <span class="text-xl font-bold @(homeWins || tie ? "text-green-700" : "text-gray-400")">
+                                        @((matchScore!.HomePoints ?? 0).ToString("F1"))
+                                    </span>
+                                </td>
+                                <td class="py-3 px-4 text-center text-xs text-gray-400">pts</td>
+                                <td class="py-3 pr-5 pl-3">
+                                    <span class="text-xl font-bold @(awayWins || tie ? "text-green-700" : "text-gray-400")">
+                                        @((matchScore!.AwayPoints ?? 0).ToString("F1"))
+                                    </span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="text-center text-gray-400 text-sm py-8">No hole-by-hole scores available yet.</div>
+        }
+    </div>
+}

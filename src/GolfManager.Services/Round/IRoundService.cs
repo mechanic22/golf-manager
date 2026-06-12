@@ -1,3 +1,4 @@
+using GolfManager.Shared.DTOs.Common;
 using GolfManager.Shared.DTOs.Round;
 
 namespace GolfManager.Services.Round;
@@ -10,7 +11,7 @@ public interface IRoundService
     /// <summary>
     /// Get all rounds for a league golfer
     /// </summary>
-    Task<List<RoundResponse>> GetLeagueGolferRoundsAsync(string leagueGolferId, string leagueId);
+    Task<PagedResponse<RoundResponse>> GetLeagueGolferRoundsAsync(string leagueGolferId, string leagueId, int page = 1, int pageSize = 25);
 
     /// <summary>
     /// Get a specific round by ID

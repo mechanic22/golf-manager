@@ -1,4 +1,3 @@
-using GolfManager.Web.Components.Icons;
 using Microsoft.AspNetCore.Components;
 
 namespace GolfManager.Web.Pages;

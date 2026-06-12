@@ -1,0 +1,67 @@
+@using GolfManager.Shared.DTOs.Season
+
+@if (isLoadingTeams)
+{
+    <div class="flex items-center justify-center py-8">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+    </div>
+}
+else if (teams.Count == 0)
+{
+    <p class="text-gray-500 text-sm py-4">No teams in this season yet.</p>
+}
+else
+{
+    <ResponsiveTable TItem="TeamStandingView" Items="@RankedTeams">
+        <Headers>
+            <th class="py-3 pr-6 w-full">Team</th>
+            <th class="py-3 pr-6">Players</th>
+            <th class="py-3 pr-6">W</th>
+            <th class="py-3 pr-6">L</th>
+            <th class="py-3 pr-6">T</th>
+            <th class="py-3 pr-6">Points</th>
+        </Headers>
+        <Row Context="standing">
+            @{ var team = standing.Team; }
+            <tr class="hover:bg-gray-50">
+                <td class="py-3 pr-6">
+                    <a href="/league/@LeagueKey/season/@SeasonKey/team/@team.Id"
+                       class="text-sm font-medium text-primary-700 hover:underline">@team.Name</a>
+                    @if (team.Members.Count > 0)
+                    {
+                        <div class="text-xs text-gray-400 mt-0.5">
+                            @string.Join(", ", team.Members.Select(m => m.DisplayName))
+                        </div>
+                    }
+                </td>
+                <td class="py-3 pr-6 text-sm text-gray-600">@team.Members.Count</td>
+                <td class="py-3 pr-6 text-sm text-gray-700">@standing.Wins</td>
+                <td class="py-3 pr-6 text-sm text-gray-700">@standing.Losses</td>
+                <td class="py-3 pr-6 text-sm text-gray-700">@standing.Ties</td>
+                <td class="py-3 pr-6 text-sm font-medium text-gray-900">@standing.PointsFor.ToString("F1")</td>
+            </tr>
+        </Row>
+        <Card Context="standing">
+            @{ var cardTeam = standing.Team; }
+            <div class="border border-gray-200 rounded-lg p-4 bg-white">
+                <div class="flex items-start justify-between mb-2">
+                    <div>
+                        <a href="/league/@LeagueKey/season/@SeasonKey/team/@cardTeam.Id"
+                           class="text-sm font-semibold text-primary-700 hover:underline">@cardTeam.Name</a>
+                        @if (cardTeam.Members.Count > 0)
+                        {
+                            <p class="text-xs text-gray-400 mt-0.5">@string.Join(", ", cardTeam.Members.Select(m => m.DisplayName))</p>
+                        }
+                    </div>
+                    <span class="text-sm font-bold text-gray-900">@standing.PointsFor.ToString("F1") pts</span>
+                </div>
+                <div class="flex gap-4 text-xs text-gray-500">
+                    <span>W: @standing.Wins</span>
+                    <span>L: @standing.Losses</span>
+                    <span>T: @standing.Ties</span>
+                    <span>@cardTeam.Members.Count players</span>
+                </div>
+            </div>
+        </Card>
+    </ResponsiveTable>
+}

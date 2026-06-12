@@ -18,14 +18,15 @@ public class CourseService : ICourseService
         _logger = logger;
     }
 
-    public async Task<ApiResponse<List<CourseResponse>>> GetCoursesAsync(
+    public async Task<ApiResponse<PagedResponse<CourseResponse>>> GetCoursesAsync(
         string? search = null, int page = 1, int pageSize = 25)
     {
         try
         {
-            var query = _context.Courses
-                .Where(c => !c.IsDeleted)
-                .AsQueryable();
+            page = Math.Max(page, 1);
+            pageSize = Math.Clamp(pageSize, 1, 100);
+
+            var query = _context.Courses.AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(search))
             {
@@ -43,14 +44,13 @@ public class CourseService : ICourseService
                 .Take(pageSize)
                 .ToListAsync();
 
-            var responses = courses.Select(c => MapToResponse(c)).ToList();
-            return ApiResponse<List<CourseResponse>>.SuccessResponse(
-                responses, $"Found {total} course(s)");
+            var paged = PagedResponse<CourseResponse>.From(courses.Select(c => MapToResponse(c)).ToList(), page, pageSize, total);
+            return ApiResponse<PagedResponse<CourseResponse>>.SuccessResponse(paged);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving courses");
-            return ApiResponse<List<CourseResponse>>.ErrorResponse("Failed to retrieve courses", ex.Message);
+            return ApiResponse<PagedResponse<CourseResponse>>.ErrorResponse("Failed to retrieve courses", ex.Message);
         }
     }
 
@@ -60,7 +60,7 @@ public class CourseService : ICourseService
         try
         {
             var course = await BuildCourseQuery(includeTees, includeHoles)
-                .FirstOrDefaultAsync(c => c.Id == courseId && !c.IsDeleted);
+                .FirstOrDefaultAsync(c => c.Id == courseId);
 
             if (course == null)
                 return ApiResponse<CourseResponse>.ErrorResponse("Course not found");
@@ -80,7 +80,7 @@ public class CourseService : ICourseService
         try
         {
             var course = await BuildCourseQuery(includeTees, includeHoles)
-                .FirstOrDefaultAsync(c => c.Key == key && !c.IsDeleted);
+                .FirstOrDefaultAsync(c => c.Key == key);
 
             if (course == null)
                 return ApiResponse<CourseResponse>.ErrorResponse("Course not found");
@@ -104,7 +104,7 @@ public class CourseService : ICourseService
                 : request.Key.ToLowerInvariant();
 
             // Ensure key uniqueness
-            if (await _context.Courses.AnyAsync(c => c.Key == key && !c.IsDeleted))
+            if (await _context.Courses.AnyAsync(c => c.Key == key))
                 return ApiResponse<CourseResponse>.ErrorResponse($"A course with key '{key}' already exists");
 
             var course = new Core.Entities.Course
@@ -146,7 +146,7 @@ public class CourseService : ICourseService
         try
         {
             var course = await _context.Courses
-                .FirstOrDefaultAsync(c => c.Id == courseId && !c.IsDeleted);
+                .FirstOrDefaultAsync(c => c.Id == courseId);
 
             if (course == null)
                 return ApiResponse<CourseResponse>.ErrorResponse("Course not found");
@@ -183,7 +183,7 @@ public class CourseService : ICourseService
         try
         {
             var course = await _context.Courses
-                .FirstOrDefaultAsync(c => c.Id == courseId && !c.IsDeleted);
+                .FirstOrDefaultAsync(c => c.Id == courseId);
 
             if (course == null)
                 return ApiResponse<bool>.ErrorResponse("Course not found");
@@ -208,10 +208,10 @@ public class CourseService : ICourseService
     {
         try
         {
-            if (!await _context.Courses.AnyAsync(c => c.Id == courseId && !c.IsDeleted))
+            if (!await _context.Courses.AnyAsync(c => c.Id == courseId))
                 return ApiResponse<List<TeeResponse>>.ErrorResponse("Course not found");
 
-            var query = _context.Tees.Where(t => t.CourseId == courseId && !t.IsDeleted);
+            var query = _context.Tees.Where(t => t.CourseId == courseId);
 
             if (includeHoles)
                 query = query.Include(t => t.HoleTees.Where(ht => !ht.IsDeleted));
@@ -232,7 +232,7 @@ public class CourseService : ICourseService
     {
         try
         {
-            var query = _context.Tees.Where(t => t.CourseId == courseId && t.Id == teeId && !t.IsDeleted);
+            var query = _context.Tees.Where(t => t.CourseId == courseId && t.Id == teeId);
 
             if (includeHoles)
                 query = query.Include(t => t.HoleTees.Where(ht => !ht.IsDeleted));
@@ -255,12 +255,12 @@ public class CourseService : ICourseService
     {
         try
         {
-            var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == courseId && !c.IsDeleted);
+            var course = await _context.Courses.FirstOrDefaultAsync(c => c.Id == courseId);
             if (course == null)
                 return ApiResponse<TeeResponse>.ErrorResponse("Course not found");
 
             if (await _context.Tees.AnyAsync(t =>
-                    t.CourseId == courseId && t.Name == request.Name && !t.IsDeleted))
+                    t.CourseId == courseId && t.Name == request.Name))
                 return ApiResponse<TeeResponse>.ErrorResponse($"A tee named '{request.Name}' already exists on this course");
 
             var tee = new Tee
@@ -299,7 +299,7 @@ public class CourseService : ICourseService
         try
         {
             var tee = await _context.Tees
-                .FirstOrDefaultAsync(t => t.CourseId == courseId && t.Id == teeId && !t.IsDeleted);
+                .FirstOrDefaultAsync(t => t.CourseId == courseId && t.Id == teeId);
 
             if (tee == null)
                 return ApiResponse<bool>.ErrorResponse("Tee not found");

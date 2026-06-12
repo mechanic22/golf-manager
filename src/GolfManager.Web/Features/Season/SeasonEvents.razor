@@ -1,0 +1,6 @@
+@page "/league/{LeagueKey}/season/{SeasonKey}/events"
+@layout SeasonLayout
+
+<PageTitle>Events - @(Context?.Season.Name ?? "Season") - Pinzo</PageTitle>
+
+<SeasonEventsTab LeagueKey="@LeagueKey" SeasonKey="@SeasonKey" />

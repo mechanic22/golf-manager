@@ -1,0 +1,199 @@
+@using GolfManager.Shared.DTOs.League
+@using GolfManager.Shared.DTOs.Season
+@using GolfManager.Shared.DTOs.Event
+@using GolfManager.Shared.DTOs.Player
+@inject ISeasonService SeasonService
+@inject IEventService EventService
+@inject IPlayerService PlayerService
+@inject NavigationManager Navigation
+@inject ILogger<DashboardTab> Logger
+
+<!-- Admin: Score Entry Needed -->
+@if (CanManageLeague && eventsNeedingScores.Count > 0)
+{
+    <div class="mb-4 flex flex-col gap-2">
+        @foreach (var evt in eventsNeedingScores)
+        {
+            <div class="flex items-center justify-between gap-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+                <div>
+                    <p class="text-sm font-semibold text-red-900">Score entry needed</p>
+                    <p class="text-xs text-red-700">@evt.Name (@evt.EventDate.ToString("MMM d, yyyy"))</p>
+                </div>
+                <a href="/league/@LeagueKey/season/@(currentSeason?.Key)/event/@evt.Id/scores"
+                   class="shrink-0 px-3 py-1.5 text-sm font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 whitespace-nowrap">
+                    Enter Scores
+                </a>
+            </div>
+        }
+    </div>
+}
+
+<!-- Current Season -->
+<div class="mb-6">
+    <div class="flex items-center justify-between mb-2">
+        <h2 class="text-base font-semibold text-gray-700">Current Season</h2>
+        <a href="/league/@LeagueKey/seasons" class="text-sm text-primary-600 hover:underline">All seasons →</a>
+    </div>
+
+    @if (currentSeason != null)
+    {
+        <div class="flex items-center justify-between gap-4 rounded-lg border border-gray-200 px-4 py-3">
+            <div>
+                <a href="/league/@LeagueKey/season/@currentSeason.Key"
+                   class="font-medium text-primary-700 hover:underline">@currentSeason.Name</a>
+                <div class="text-xs text-gray-500 mt-0.5">
+                    @currentSeason.GolferCount players &middot; @currentSeason.EventCount events &middot;
+                    @currentSeason.StartDate.ToString("MMM d, yyyy")
+                    @if (currentSeason.EndDate.HasValue)
+                    {
+                        <span>– @currentSeason.EndDate.Value.ToString("MMM d, yyyy")</span>
+                    }
+                </div>
+            </div>
+            <a href="/league/@LeagueKey/season/@currentSeason.Key"
+               class="shrink-0 text-sm text-primary-600 hover:underline whitespace-nowrap">View →</a>
+        </div>
+    }
+    else
+    {
+        <p class="text-sm text-gray-500">
+            No active season.
+            @if (CanManageLeague)
+            {
+                <a href="/league/@LeagueKey/seasons" class="text-primary-600 hover:underline ml-1">Create one →</a>
+            }
+        </p>
+    }
+</div>
+
+<!-- Next Event -->
+@if (nextEvent != null && currentSeason != null)
+{
+    <div class="mb-6">
+        <h2 class="text-base font-semibold text-gray-700 mb-2">Next Event</h2>
+        <div class="flex items-center justify-between gap-4 rounded-lg border border-gray-200 px-4 py-3">
+            <div>
+                <span class="font-medium text-gray-900">@nextEvent.Name</span>
+                <span class="text-sm text-gray-500 ml-2">@nextEvent.EventDate.ToString("MMM d, yyyy")</span>
+            </div>
+            <a href="/league/@LeagueKey/season/@currentSeason.Key/event/@nextEvent.Id"
+               class="shrink-0 text-sm text-primary-600 hover:underline whitespace-nowrap">View →</a>
+        </div>
+    </div>
+}
+
+<!-- Season Players -->
+@if (seasonPlayers.Count > 0 && currentSeason != null)
+{
+    <div class="mb-6">
+        <div class="flex items-center justify-between mb-2">
+            <h2 class="text-base font-semibold text-gray-700">Golfers</h2>
+            <a href="/league/@LeagueKey/members"
+               class="text-sm text-primary-600 hover:underline">All golfers →</a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <tbody class="divide-y divide-gray-100">
+                    @foreach (var player in seasonPlayers)
+                    {
+                        <tr class="hover:bg-gray-50">
+                            <td class="py-2 pr-6 text-sm font-medium text-gray-900">@player.DisplayName</td>
+                            <td class="py-2 pr-6 text-sm text-gray-500">@player.TotalRounds rounds</td>
+                            <td class="py-2 text-sm text-gray-500">
+                                @(player.LeagueHandicap.HasValue ? $"HCP {player.LeagueHandicap.Value:F1}" : "")
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public LeagueResponse League { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public string LeagueKey { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool CanManageLeague { get; set; }
+
+    [Parameter]
+    public EventCallback OnAddMember { get; set; }
+
+    private SeasonResponse? currentSeason;
+    private List<EventResponse> eventsNeedingScores = [];
+    private EventResponse? nextEvent;
+    private List<PlayerResponse> seasonPlayers = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSeasons();
+    }
+
+    private async Task LoadSeasons()
+    {
+        try
+        {
+            var response = await SeasonService.GetLeagueSeasonsAsync(League.Id);
+            if (response?.Success == true && response.Data != null)
+            {
+                var today = DateOnly.FromDateTime(DateTime.Now);
+                currentSeason = response.Data.FirstOrDefault(s =>
+                    s.StartDate <= today && (!s.EndDate.HasValue || s.EndDate.Value >= today));
+
+                if (currentSeason != null)
+                    await Task.WhenAll(LoadSeasonEvents(), LoadPlayers());
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading seasons for dashboard");
+        }
+    }
+
+    private async Task LoadSeasonEvents()
+    {
+        try
+        {
+            var result = await EventService.GetSeasonEventsAsync(League.Id, currentSeason!.Id);
+            if (result?.Success == true && result.Data != null)
+            {
+                var events = result.Data;
+                nextEvent = events
+                    .Where(e => !e.IsLocked && e.EventDate.Date >= DateTime.Today)
+                    .OrderBy(e => e.EventDate)
+                    .FirstOrDefault();
+
+                if (CanManageLeague)
+                {
+                    eventsNeedingScores = events
+                        .Where(e => !e.IsLocked && e.EventDate.Date <= DateTime.Today)
+                        .OrderBy(e => e.EventDate)
+                        .ToList();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading season events for dashboard");
+        }
+    }
+
+    private async Task LoadPlayers()
+    {
+        try
+        {
+            var resp = await PlayerService.GetSeasonPlayersAsync(League.Id, currentSeason!.Id);
+            seasonPlayers = resp is { Success: true, Data: not null }
+                ? resp.Data.OrderByDescending(p => p.TotalRounds).ThenBy(p => p.LeagueHandicap ?? 99).Take(6).ToList()
+                : [];
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading season players for dashboard");
+        }
+    }
+}

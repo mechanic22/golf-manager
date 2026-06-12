@@ -29,10 +29,10 @@ public sealed class SeasonPointsRecalculationWorker : BackgroundService
             {
                 var workItem = await _queue.DequeueAsync(stoppingToken);
                 using var scope = _serviceProvider.CreateScope();
-                var eventService = scope.ServiceProvider.GetRequiredService<IEventService>();
+                var scoringService = scope.ServiceProvider.GetRequiredService<IEventScoringService>();
                 var userId = string.IsNullOrWhiteSpace(workItem.RequestedBy) ? "system-worker" : workItem.RequestedBy;
 
-                var updated = await eventService.RecalculateSeasonTeamStandingsAsync(workItem.SeasonId, workItem.LeagueId, userId);
+                var updated = await scoringService.RecalculateSeasonTeamStandingsAsync(workItem.SeasonId, workItem.LeagueId, userId);
                 _logger.LogInformation(
                     "Processed season points job for season {SeasonId}: updated {Count} teams",
                     workItem.SeasonId,

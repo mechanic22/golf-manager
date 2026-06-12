@@ -109,5 +109,15 @@ public class SeasonEvent : BaseEntity, ITenantEntity
     /// Associated tee (if set)
     /// </summary>
     public Tee? Tee { get; set; }
+
+    /// <summary>
+    /// Calculated player scores for this event (when locked)
+    /// </summary>
+    public ICollection<SeasonEventPlayerScore> PlayerScores { get; set; } = new List<SeasonEventPlayerScore>();
+
+    /// <summary>
+    /// Calculated match scores for this event (when locked)
+    /// </summary>
+    public ICollection<SeasonEventMatchScore> MatchScores { get; set; } = new List<SeasonEventMatchScore>();
 }
 

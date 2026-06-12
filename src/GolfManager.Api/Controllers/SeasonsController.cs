@@ -1,5 +1,6 @@
 using GolfManager.Api.Authorization;
 using GolfManager.Core.Services;
+using GolfManager.Services.Event;
 using GolfManager.Services.Player;
 using GolfManager.Services.Season;
 using GolfManager.Shared.DTOs.Common;
@@ -13,14 +14,13 @@ namespace GolfManager.Api.Controllers;
 /// <summary>
 /// Controller for managing seasons
 /// </summary>
-[ApiController]
 [Route("api/v1/seasons")]
-[Authorize]
-public class SeasonsController : ControllerBase
+public class SeasonsController : BaseLeagueController
 {
     private readonly ISeasonService _seasonService;
     private readonly ISeasonSettingsService _seasonSettingsService;
     private readonly IPlayerService _playerService;
+    private readonly IEventService _eventService;
     private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<SeasonsController> _logger;
 
@@ -28,12 +28,14 @@ public class SeasonsController : ControllerBase
         ISeasonService seasonService,
         ISeasonSettingsService seasonSettingsService,
         IPlayerService playerService,
+        IEventService eventService,
         ICurrentUserService currentUserService,
         ILogger<SeasonsController> logger)
     {
         _seasonService = seasonService;
         _playerService = playerService;
         _seasonSettingsService = seasonSettingsService;
+        _eventService = eventService;
         _currentUserService = currentUserService;
         _logger = logger;
     }
@@ -45,7 +47,7 @@ public class SeasonsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
     public async Task<ActionResult<ApiResponse<List<SeasonResponse>>>> GetLeagueSeasons()
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<List<SeasonResponse>>.ErrorResponse("League context required"));
@@ -62,7 +64,7 @@ public class SeasonsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
     public async Task<ActionResult<ApiResponse<SeasonResponse>>> GetSeasonById(string seasonId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<SeasonResponse>.ErrorResponse("League context required"));
@@ -85,7 +87,7 @@ public class SeasonsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
     public async Task<ActionResult<ApiResponse<SeasonResponse>>> GetSeasonByKey(string seasonKey)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<SeasonResponse>.ErrorResponse("League context required"));
@@ -108,7 +110,7 @@ public class SeasonsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<SeasonResponse>>> CreateSeason([FromBody] CreateSeasonRequest request)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<SeasonResponse>.ErrorResponse("League context required"));
@@ -135,7 +137,7 @@ public class SeasonsController : ControllerBase
         string seasonId,
         [FromBody] UpdateSeasonRequest request)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<SeasonResponse>.ErrorResponse("League context required"));
@@ -157,7 +159,7 @@ public class SeasonsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteSeason(string seasonId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<bool>.ErrorResponse("League context required"));
@@ -186,7 +188,7 @@ public class SeasonsController : ControllerBase
         string seasonId,
         [FromBody] SeasonSetupRequest request)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<SeasonSetupResponse>.ErrorResponse("League context required"));
@@ -217,7 +219,7 @@ public class SeasonsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
     public async Task<ActionResult<ApiResponse<SeasonSettingsResponse>>> GetSeasonSettings(string seasonId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<SeasonSettingsResponse>.ErrorResponse("League context required"));
@@ -242,7 +244,7 @@ public class SeasonsController : ControllerBase
         string seasonId,
         [FromBody] UpdateSeasonSettingsRequest request)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<SeasonSettingsResponse>.ErrorResponse("League context required"));
@@ -270,7 +272,7 @@ public class SeasonsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<SeasonSettingsResponse>>> CreateDefaultSettings(string seasonId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<SeasonSettingsResponse>.ErrorResponse("League context required"));
@@ -305,7 +307,7 @@ public class SeasonsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
     public async Task<ActionResult<ApiResponse<List<PlayerResponse>>>> GetSeasonPlayers(string seasonId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<List<PlayerResponse>>.ErrorResponse("League context required"));
@@ -324,7 +326,7 @@ public class SeasonsController : ControllerBase
         string seasonId,
         [FromBody] CreatePlayerRequest request)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
         {
             return BadRequest(ApiResponse<PlayerResponse>.ErrorResponse("League context required"));
@@ -343,7 +345,7 @@ public class SeasonsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<bool>>> RemoveSeasonPlayer(string seasonId, string seasonGolferId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
             return BadRequest(ApiResponse<bool>.ErrorResponse("League context required"));
 
@@ -366,7 +368,7 @@ public class SeasonsController : ControllerBase
         string seasonGolferId,
         [FromBody] UpdateSeasonPlayerPaymentRequest request)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
             return BadRequest(ApiResponse<bool>.ErrorResponse("League context required"));
 
@@ -393,7 +395,7 @@ public class SeasonsController : ControllerBase
         string seasonGolferId,
         [FromBody] AssignPlayerToTeamRequest request)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
             return BadRequest(ApiResponse<bool>.ErrorResponse("League context required"));
 
@@ -420,7 +422,7 @@ public class SeasonsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
     public async Task<ActionResult<ApiResponse<List<SeasonTeamResponse>>>> GetSeasonTeams(string seasonId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
             return BadRequest(ApiResponse<List<SeasonTeamResponse>>.ErrorResponse("League context required"));
 
@@ -437,7 +439,7 @@ public class SeasonsController : ControllerBase
         string seasonId,
         [FromBody] CreateSeasonTeamRequest request)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
             return BadRequest(ApiResponse<SeasonTeamResponse>.ErrorResponse("League context required"));
 
@@ -463,7 +465,7 @@ public class SeasonsController : ControllerBase
         string teamId,
         [FromBody] UpdateSeasonTeamRequest request)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
             return BadRequest(ApiResponse<SeasonTeamResponse>.ErrorResponse("League context required"));
 
@@ -486,7 +488,7 @@ public class SeasonsController : ControllerBase
     [Authorize(Policy = AuthorizationConstants.Policies.LeagueAdmin)]
     public async Task<ActionResult<ApiResponse<bool>>> DeleteSeasonTeam(string seasonId, string teamId)
     {
-        var leagueId = HttpContext.Items["LeagueId"] as string;
+        var leagueId = LeagueId;
         if (string.IsNullOrEmpty(leagueId))
             return BadRequest(ApiResponse<bool>.ErrorResponse("League context required"));
 
@@ -497,6 +499,66 @@ public class SeasonsController : ControllerBase
             return NotFound(ApiResponse<bool>.ErrorResponse("Team not found"));
 
         return Ok(ApiResponse<bool>.SuccessResponse(true, "Team deleted"));
+    }
+
+    #endregion
+
+    #region Standings
+
+    [HttpGet("{seasonId}/standings")]
+    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    public async Task<ActionResult<ApiResponse<List<PlayerStandingResponse>>>> GetSeasonStandings(string seasonId)
+    {
+        var leagueId = LeagueId;
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<List<PlayerStandingResponse>>.ErrorResponse("League context required"));
+
+        var playersTask = _playerService.GetSeasonPlayersAsync(seasonId, leagueId);
+        var eventsTask = _eventService.GetSeasonEventsAsync(seasonId, leagueId, pageSize: 100);
+
+        await Task.WhenAll(playersTask, eventsTask);
+
+        var players = playersTask.Result;
+        var events = eventsTask.Result.Items;
+
+        // Load all event scoreboards in parallel (server-side, no HTTP latency)
+        var scoreboardTasks = events
+            .Select(e => _eventService.GetEventScoreboardAsync(seasonId, e.Id, leagueId));
+        var scoreboards = await Task.WhenAll(scoreboardTasks);
+
+        var scoreboardPlayers = scoreboards.SelectMany(s => s.Players).ToList();
+
+        var standings = players.Select(player =>
+        {
+            var playerScores = scoreboardPlayers
+                .Where(sp => string.Equals(sp.SeasonGolferId, player.SeasonGolferId, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            var completedRounds = playerScores.Where(sp => sp.RawScore.HasValue).ToList();
+            var hasPoints = playerScores.Any(sp => sp.EventPoints.HasValue);
+            var totalPoints = hasPoints ? playerScores.Sum(sp => sp.EventPoints ?? 0) : (double?)null;
+
+            return new PlayerStandingResponse
+            {
+                SeasonGolferId = player.SeasonGolferId ?? player.Id,
+                DisplayName = player.DisplayName,
+                LeagueHandicap = player.LeagueHandicap,
+                SeasonPoints = totalPoints,
+                RoundCount = completedRounds.Count,
+                AverageNetScore = completedRounds.Count > 0
+                    ? completedRounds.Average(sp => sp.NetScore ?? sp.RawScore ?? 0)
+                    : null,
+                BestRawScore = completedRounds.Count > 0
+                    ? completedRounds.Min(sp => sp.RawScore ?? int.MaxValue)
+                    : null
+            };
+        })
+        .OrderByDescending(s => s.SeasonPoints ?? double.MinValue)
+        .ThenBy(s => s.AverageNetScore ?? double.MaxValue)
+        .ThenBy(s => s.DisplayName)
+        .ToList();
+
+        return Ok(ApiResponse<List<PlayerStandingResponse>>.SuccessResponse(standings));
     }
 
     #endregion

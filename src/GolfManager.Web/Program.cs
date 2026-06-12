@@ -1,7 +1,14 @@
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using GolfManager.Web;
-using GolfManager.Web.Services;
+using GolfManager.Web.Infrastructure;
+using GolfManager.Web.Features.Auth;
+using GolfManager.Web.Features.Dashboard;
+using GolfManager.Web.Features.League;
+using GolfManager.Web.Features.Season;
+using GolfManager.Web.Features.Events;
+using GolfManager.Web.Features.Profile;
+using GolfManager.Web.Features.Admin;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
@@ -24,10 +31,12 @@ builder.Services.AddScoped<IPlayerService, PlayerService>();
 builder.Services.AddScoped<IEventService, EventService>();
 builder.Services.AddScoped<IRoundService, RoundService>();
 builder.Services.AddScoped<IOneTimeEventService, OneTimeEventService>();
-builder.Services.AddScoped<GolfManager.Web.Services.IHandicapService, GolfManager.Web.Services.HandicapService>();
+builder.Services.AddScoped<IHandicapService, HandicapService>();
+builder.Services.AddScoped<IDashboardService, DashboardService>();
 
-// Configure HttpClient with lazy authentication handler
-var apiBaseAddress = builder.Configuration["ApiBaseAddress"] ?? "https://localhost:7012";
+// In hosted mode the API and Web share the same origin, so use the host's base address.
+// ApiBaseAddress in appsettings can still override this for standalone/dev scenarios.
+var apiBaseAddress = builder.Configuration["ApiBaseAddress"] ?? builder.HostEnvironment.BaseAddress;
 builder.Services.AddScoped(sp =>
 {
     // Create league context handler (adds X-League-Context header)

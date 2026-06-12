@@ -1,5 +1,4 @@
-﻿@using GolfManager.Web.Components.Icons
-@inject IAuthService AuthService
+﻿@inject IAuthService AuthService
 @inject NavigationManager Navigation
 @inject AppState AppState
 @inject IJSRuntime JS
@@ -14,82 +13,50 @@
         </a>
 
         <!-- Desktop Navigation -->
-        <div class="hidden md:flex gap-2 items-center desktop-nav">
-            <NavLink href="" Match="NavLinkMatch.All" class="nav-link-item"
-                     ActiveClass="active-nav-link">
-                Home
-            </NavLink>
-
-            <NavLink href="icons" class="nav-link-item"
-                     ActiveClass="active-nav-link">
-                Icons
-            </NavLink>
-
-            @if (AuthService.IsAuthenticated)
-            {
-                <NavLink href="dashboard" class="nav-link-item"
-                         ActiveClass="active-nav-link">
+        @if (AuthService.IsAuthenticated)
+        {
+            <div class="hidden md:flex gap-2 items-center desktop-nav">
+                <NavLink href="dashboard" class="nav-link-item" ActiveClass="active-nav-link">
                     Dashboard
                 </NavLink>
+                @if (AuthService.IsGlobalAdmin)
+                {
+                    <NavLink href="admin" class="nav-link-item" ActiveClass="active-nav-link">
+                        Admin
+                    </NavLink>
+                }
                 <button @onclick="HandleLogout" class="btn btn-secondary btn-sm ml-2">
                     Logout
                 </button>
-            }
-            else
-            {
-                <NavLink href="login" class="nav-link-item"
-                         ActiveClass="active-nav-link">
-                    Sign In
-                </NavLink>
-                <NavLink href="register" class="btn btn-primary btn-sm ml-2">
-                    Get Started
-                </NavLink>
-            }
-        </div>
+            </div>
 
-        <!-- Mobile Menu Button -->
-        <button @onclick="ToggleNavMenu" id="mobile-menu-btn"
-                class="block md:hidden p-2 border-0 bg-transparent cursor-pointer transition-colors duration-300 mobile-menu-btn">
-            <Icon Path="@GolfIcons.Menu" Size="GolfManager.Web.Components.Icons.IconSize.SM" />
-        </button>
+            <!-- Mobile Menu Button -->
+            <button @onclick="ToggleNavMenu" id="mobile-menu-btn"
+                    class="block md:hidden p-2 border-0 bg-transparent cursor-pointer transition-colors duration-300 mobile-menu-btn">
+                <Icon Path="@GolfIcons.Menu" Size="GolfManager.Web.Shared.Icons.IconSize.SM" />
+            </button>
+        }
+
     </div>
 
     <!-- Mobile Menu -->
-    @if (!collapseNavMenu)
+    @if (AuthService.IsAuthenticated && !collapseNavMenu)
     {
         <div id="mobile-menu" class="border-t border-gray-200/50 backdrop-blur-lg mobile-nav">
             <div class="container max-w-7xl mx-auto px-8 py-4">
                 <div class="flex flex-col gap-2">
-                    <NavLink href="" Match="NavLinkMatch.All" @onclick="ToggleNavMenu" class="nav-link-item"
-                             ActiveClass="active-nav-link">
-                        Home
+                    <NavLink href="dashboard" @onclick="ToggleNavMenu" class="nav-link-item" ActiveClass="active-nav-link">
+                        Dashboard
                     </NavLink>
-
-                    <NavLink href="icons" @onclick="ToggleNavMenu" class="nav-link-item"
-                             ActiveClass="active-nav-link">
-                        Icons
-                    </NavLink>
-
-                    @if (AuthService.IsAuthenticated)
+                    @if (AuthService.IsGlobalAdmin)
                     {
-                        <NavLink href="dashboard" @onclick="ToggleNavMenu" class="nav-link-item"
-                                 ActiveClass="active-nav-link">
-                            Dashboard
-                        </NavLink>
-                        <button @onclick="HandleLogout" class="btn btn-secondary w-full justify-center">
-                            Logout
-                        </button>
-                    }
-                    else
-                    {
-                        <NavLink href="login" @onclick="ToggleNavMenu" class="nav-link-item"
-                                 ActiveClass="active-nav-link">
-                            Sign In
-                        </NavLink>
-                        <NavLink href="register" @onclick="ToggleNavMenu" class="btn btn-primary w-full justify-center">
-                            Get Started
+                        <NavLink href="admin" @onclick="ToggleNavMenu" class="nav-link-item" ActiveClass="active-nav-link">
+                            Admin
                         </NavLink>
                     }
+                    <button @onclick="HandleLogout" class="btn btn-secondary w-full justify-center">
+                        Logout
+                    </button>
                 </div>
             </div>
         </div>
@@ -137,7 +104,7 @@
     private async Task HandleLogout()
     {
         await AuthService.LogoutAsync();
-        Navigation.NavigateTo("/");
+        Navigation.NavigateTo("/login", replace: true);
     }
 
     public async ValueTask DisposeAsync()

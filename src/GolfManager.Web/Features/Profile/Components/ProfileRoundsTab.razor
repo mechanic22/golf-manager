@@ -1,0 +1,127 @@
+@using GolfManager.Shared.DTOs.Round
+
+<!-- Filter bar -->
+<div class="mb-4 flex flex-col sm:flex-row sm:items-end gap-3">
+    <div class="flex-1">
+        <label class="block text-xs font-medium text-gray-600 mb-1 uppercase tracking-wide">Date</label>
+        <select @bind="selectedDateRange"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+            <option value="all">All Time</option>
+            <option value="30">Last 30 Days</option>
+            <option value="90">Last 90 Days</option>
+            <option value="year">This Year</option>
+        </select>
+    </div>
+    <div class="flex-1">
+        <label class="block text-xs font-medium text-gray-600 mb-1 uppercase tracking-wide">League</label>
+        <select @bind="selectedLeagueId"
+                class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 text-sm">
+            <option value="all">All Leagues</option>
+            @foreach (var league in leagueOptions)
+            {
+                <option value="@league.Id">@league.Name</option>
+            }
+        </select>
+    </div>
+    <button @onclick="ApplyFilters"
+            class="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors whitespace-nowrap">
+        Apply
+    </button>
+</div>
+
+@if (isLoading)
+{
+    <div class="flex flex-col gap-4">
+        @for (int i = 0; i < 3; i++)
+        {
+            <div class="h-20 bg-gray-100 rounded-lg animate-pulse"></div>
+        }
+    </div>
+}
+else if (!rounds.Any())
+{
+    <div class="text-center py-12 text-gray-500">
+        <Icon Path="@GolfIcons.GolfCourse" Size="GolfManager.Web.Shared.Icons.IconSize.LG" CssClass="text-gray-300 mx-auto mb-3" />
+        <p>No rounds yet — play some golf and track your scores!</p>
+    </div>
+}
+else if (!GroupedRounds.Any())
+{
+    <div class="text-center py-8 text-gray-500 text-sm">No rounds match the selected filters.</div>
+}
+else
+{
+    <div class="flex flex-col gap-6">
+        @foreach (var group in GroupedRounds)
+        {
+            <div>
+                <!-- Group header -->
+                <div class="flex items-center gap-3 mb-2">
+                    <h3 class="text-sm font-semibold text-gray-700">@group.Label</h3>
+                    <div class="flex-1 h-px bg-gray-200"></div>
+                    @if (!string.IsNullOrEmpty(group.LeagueKey) && !string.IsNullOrEmpty(group.SeasonKey))
+                    {
+                        <a href="/league/@group.LeagueKey/season/@group.SeasonKey/standings"
+                           class="text-xs text-primary-600 hover:text-primary-700 whitespace-nowrap">
+                            View Season →
+                        </a>
+                    }
+                </div>
+
+                <!-- Round rows -->
+                <div class="bg-white rounded-lg border border-gray-200 divide-y divide-gray-100">
+                    @foreach (var round in group.Rounds)
+                    {
+                        var hasEventLink = !string.IsNullOrEmpty(round.SeasonEventId)
+                            && !string.IsNullOrEmpty(round.LeagueKey)
+                            && !string.IsNullOrEmpty(round.SeasonKey);
+
+                        <div class="flex items-center justify-between gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                            <!-- Date + course -->
+                            <div class="flex items-center gap-3 min-w-0">
+                                <div class="shrink-0 w-10 h-10 bg-blue-50 rounded-lg flex flex-col items-center justify-center">
+                                    <span class="text-xs font-semibold text-blue-600 uppercase leading-none">@round.RoundDate.ToString("MMM")</span>
+                                    <span class="text-base font-bold text-blue-700 leading-tight">@round.RoundDate.Day</span>
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="text-sm font-medium text-gray-900 truncate">@round.CourseName</p>
+                                    <p class="text-xs text-gray-500">@round.TeeName &middot; @round.HolesPlayed holes</p>
+                                </div>
+                            </div>
+
+                            <!-- Score info -->
+                            <div class="flex items-center gap-4 shrink-0 text-right">
+                                @if (round.TotalScore.HasValue)
+                                {
+                                    <div>
+                                        <p class="text-xs text-gray-500 uppercase tracking-wide">Raw</p>
+                                        <p class="text-base font-bold text-gray-900">@round.TotalScore</p>
+                                    </div>
+                                }
+                                @if (round.NetScore.HasValue)
+                                {
+                                    <div>
+                                        <p class="text-xs text-gray-500 uppercase tracking-wide">Net</p>
+                                        <p class="text-base font-bold text-primary-700">@round.NetScore</p>
+                                    </div>
+                                }
+                                @if (hasEventLink)
+                                {
+                                    <a href="/league/@round.LeagueKey/season/@round.SeasonKey/event/@round.SeasonEventId"
+                                       class="px-3 py-1 text-xs font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap">
+                                        Results
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Count summary -->
+    <p class="mt-4 text-xs text-gray-500 text-center">
+        Showing @TotalFiltered of @rounds.Count rounds
+    </p>
+}

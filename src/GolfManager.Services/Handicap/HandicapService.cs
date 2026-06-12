@@ -1,3 +1,4 @@
+using GolfManager.Core.Common;
 using GolfManager.Core.Entities;
 using GolfManager.Data;
 using GolfManager.Shared.DTOs.Common;
@@ -23,139 +24,95 @@ public class HandicapService : IHandicapService
     }
 
     public async Task<ApiResponse<List<HandicapHistoryResponse>>> GetHandicapHistoryAsync(
-        string golferId, 
-        string? leagueId = null, 
+        string golferId,
+        string? leagueId = null,
         string? seasonId = null,
         int limit = 50)
     {
-        try
-        {
-            var query = _context.HandicapHistories
-                .Where(h => h.GolferId == golferId && !h.IsDeleted);
+        var query = _context.HandicapHistories
+            .Where(h => h.GolferId == golferId);
 
-            // Filter by scope
-            if (seasonId != null)
+        if (seasonId != null)
+            query = query.Where(h => h.SeasonId == seasonId);
+        else if (leagueId != null)
+            query = query.Where(h => h.LeagueId == leagueId && h.SeasonId == null);
+        else
+            query = query.Where(h => h.LeagueId == null && h.SeasonId == null);
+
+        var history = await query
+            .OrderByDescending(h => h.EffectiveDate)
+            .Take(limit)
+            .Select(h => new HandicapHistoryResponse
             {
-                // Season-specific handicap
-                query = query.Where(h => h.SeasonId == seasonId);
-            }
-            else if (leagueId != null)
-            {
-                // League-specific handicap (but not season-specific)
-                query = query.Where(h => h.LeagueId == leagueId && h.SeasonId == null);
-            }
-            else
-            {
-                // Global handicap only
-                query = query.Where(h => h.LeagueId == null && h.SeasonId == null);
-            }
+                Id = h.Id,
+                GolferId = h.GolferId,
+                LeagueId = h.LeagueId,
+                SeasonId = h.SeasonId,
+                HandicapIndex = h.HandicapIndex,
+                EffectiveDate = h.EffectiveDate,
+                CalculationMethod = h.CalculationMethod,
+                RoundsUsed = h.RoundsUsed,
+                Notes = h.Notes,
+                CreatedAt = h.CreatedAt,
+                CreatedBy = h.CreatedBy
+            })
+            .ToListAsync();
 
-            var history = await query
-                .OrderByDescending(h => h.EffectiveDate)
-                .Take(limit)
-                .Select(h => new HandicapHistoryResponse
-                {
-                    Id = h.Id,
-                    GolferId = h.GolferId,
-                    LeagueId = h.LeagueId,
-                    SeasonId = h.SeasonId,
-                    HandicapIndex = h.HandicapIndex,
-                    EffectiveDate = h.EffectiveDate,
-                    CalculationMethod = h.CalculationMethod,
-                    RoundsUsed = h.RoundsUsed,
-                    Notes = h.Notes,
-                    CreatedAt = h.CreatedAt,
-                    CreatedBy = h.CreatedBy
-                })
-                .ToListAsync();
+        _logger.LogInformation("Retrieved {Count} handicap history records for golfer {GolferId}",
+            history.Count, golferId);
 
-            _logger.LogInformation("Retrieved {Count} handicap history records for golfer {GolferId}", 
-                history.Count, golferId);
-
-            return ApiResponse<List<HandicapHistoryResponse>>.SuccessResponse(
-                history, 
-                $"Retrieved {history.Count} handicap history records");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving handicap history for golfer {GolferId}", golferId);
-            return ApiResponse<List<HandicapHistoryResponse>>.ErrorResponse(
-                "Failed to retrieve handicap history", 
-                ex.Message);
-        }
+        return ApiResponse<List<HandicapHistoryResponse>>.SuccessResponse(
+            history,
+            $"Retrieved {history.Count} handicap history records");
     }
 
     public async Task<ApiResponse<HandicapHistoryResponse>> CreateHandicapAsync(
-        string golferId, 
+        string golferId,
         CreateHandicapRequest request,
         string currentUserId)
     {
-        try
+        var golfer = await _context.Golfers.FirstOrDefaultAsync(g => g.Id == golferId);
+        if (golfer == null)
+            return ApiResponse<HandicapHistoryResponse>.ErrorResponse("Golfer not found");
+
+        var effectiveDate = request.EffectiveDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+
+        var history = new HandicapHistory
         {
-            // Verify golfer exists
-            var golfer = await _context.Golfers
-                .FirstOrDefaultAsync(g => g.Id == golferId && !g.IsDeleted);
+            Id = Guid.NewGuid().ToString(),
+            GolferId = golferId,
+            LeagueId = request.LeagueId,
+            SeasonId = request.SeasonId,
+            HandicapIndex = request.HandicapIndex,
+            EffectiveDate = effectiveDate,
+            CalculationMethod = request.CalculationMethod ?? "Manual",
+            RoundsUsed = request.RoundsUsed,
+            Notes = request.Notes,
+            CreatedAt = DateTime.UtcNow,
+            CreatedBy = currentUserId
+        };
 
-            if (golfer == null)
-            {
-                return ApiResponse<HandicapHistoryResponse>.ErrorResponse("Golfer not found");
-            }
+        _context.HandicapHistories.Add(history);
+        await UpdateCurrentHandicapAsync(golferId, request.LeagueId, request.SeasonId, request.HandicapIndex, currentUserId);
+        await _context.SaveChangesAsync();
 
-            var effectiveDate = request.EffectiveDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        _logger.LogInformation("Created handicap {Handicap} for golfer {GolferId} (League: {LeagueId}, Season: {SeasonId})",
+            request.HandicapIndex, golferId, request.LeagueId ?? "null", request.SeasonId ?? "null");
 
-            // Create handicap history entry
-            var history = new HandicapHistory
-            {
-                Id = Guid.NewGuid().ToString(),
-                GolferId = golferId,
-                LeagueId = request.LeagueId,
-                SeasonId = request.SeasonId,
-                HandicapIndex = request.HandicapIndex,
-                EffectiveDate = effectiveDate,
-                CalculationMethod = request.CalculationMethod ?? "Manual",
-                RoundsUsed = request.RoundsUsed,
-                Notes = request.Notes,
-                CreatedAt = DateTime.UtcNow,
-                CreatedBy = currentUserId
-            };
-
-            _context.HandicapHistories.Add(history);
-
-            // Update the current handicap in the appropriate entity
-            await UpdateCurrentHandicapAsync(golferId, request.LeagueId, request.SeasonId, 
-                request.HandicapIndex, currentUserId);
-
-            await _context.SaveChangesAsync();
-
-            _logger.LogInformation("Created handicap {Handicap} for golfer {GolferId} (League: {LeagueId}, Season: {SeasonId})",
-                request.HandicapIndex, golferId, request.LeagueId ?? "null", request.SeasonId ?? "null");
-
-            var response = new HandicapHistoryResponse
-            {
-                Id = history.Id,
-                GolferId = history.GolferId,
-                LeagueId = history.LeagueId,
-                SeasonId = history.SeasonId,
-                HandicapIndex = history.HandicapIndex,
-                EffectiveDate = history.EffectiveDate,
-                CalculationMethod = history.CalculationMethod,
-                RoundsUsed = history.RoundsUsed,
-                Notes = history.Notes,
-                CreatedAt = history.CreatedAt,
-                CreatedBy = history.CreatedBy
-            };
-
-            return ApiResponse<HandicapHistoryResponse>.SuccessResponse(
-                response, 
-                "Handicap created successfully");
-        }
-        catch (Exception ex)
+        return ApiResponse<HandicapHistoryResponse>.SuccessResponse(new HandicapHistoryResponse
         {
-            _logger.LogError(ex, "Error creating handicap for golfer {GolferId}", golferId);
-            return ApiResponse<HandicapHistoryResponse>.ErrorResponse(
-                "Failed to create handicap", 
-                ex.Message);
-        }
+            Id = history.Id,
+            GolferId = history.GolferId,
+            LeagueId = history.LeagueId,
+            SeasonId = history.SeasonId,
+            HandicapIndex = history.HandicapIndex,
+            EffectiveDate = history.EffectiveDate,
+            CalculationMethod = history.CalculationMethod,
+            RoundsUsed = history.RoundsUsed,
+            Notes = history.Notes,
+            CreatedAt = history.CreatedAt,
+            CreatedBy = history.CreatedBy
+        }, "Handicap created successfully");
     }
 
     public async Task<double?> GetCurrentHandicapAsync(
@@ -163,35 +120,22 @@ public class HandicapService : IHandicapService
         string? leagueId = null,
         string? seasonId = null)
     {
-        try
+        if (seasonId != null)
         {
-            if (seasonId != null)
-            {
-                // Get season handicap
-                var seasonGolfer = await _context.SeasonGolfers
-                    .FirstOrDefaultAsync(sg => sg.GolferId == golferId && sg.SeasonId == seasonId && !sg.IsDeleted);
-                return seasonGolfer?.SeasonHandicap;
-            }
-            else if (leagueId != null)
-            {
-                // Get league handicap
-                var leagueGolfer = await _context.LeagueGolfers
-                    .FirstOrDefaultAsync(lg => lg.GolferId == golferId && lg.LeagueId == leagueId && !lg.IsDeleted);
-                return leagueGolfer?.LeagueHandicap;
-            }
-            else
-            {
-                // Get global handicap
-                var golfer = await _context.Golfers
-                    .FirstOrDefaultAsync(g => g.Id == golferId && !g.IsDeleted);
-                return golfer?.GlobalHandicap;
-            }
+            var seasonGolfer = await _context.SeasonGolfers
+                .FirstOrDefaultAsync(sg => sg.GolferId == golferId && sg.SeasonId == seasonId);
+            return seasonGolfer?.SeasonHandicap;
         }
-        catch (Exception ex)
+
+        if (leagueId != null)
         {
-            _logger.LogError(ex, "Error getting current handicap for golfer {GolferId}", golferId);
-            return null;
+            var leagueGolfer = await _context.LeagueGolfers
+                .FirstOrDefaultAsync(lg => lg.GolferId == golferId && lg.LeagueId == leagueId);
+            return leagueGolfer?.LeagueHandicap;
         }
+
+        var golfer = await _context.Golfers.FirstOrDefaultAsync(g => g.Id == golferId);
+        return golfer?.GlobalHandicap;
     }
 
     /// <summary>
@@ -210,7 +154,7 @@ public class HandicapService : IHandicapService
         {
             // Update season handicap
             var seasonGolfer = await _context.SeasonGolfers
-                .FirstOrDefaultAsync(sg => sg.GolferId == golferId && sg.SeasonId == seasonId && !sg.IsDeleted);
+                .FirstOrDefaultAsync(sg => sg.GolferId == golferId && sg.SeasonId == seasonId);
 
             if (seasonGolfer != null)
             {
@@ -223,7 +167,7 @@ public class HandicapService : IHandicapService
         {
             // Update league handicap
             var leagueGolfer = await _context.LeagueGolfers
-                .FirstOrDefaultAsync(lg => lg.GolferId == golferId && lg.LeagueId == leagueId && !lg.IsDeleted);
+                .FirstOrDefaultAsync(lg => lg.GolferId == golferId && lg.LeagueId == leagueId);
 
             if (leagueGolfer != null)
             {
@@ -237,7 +181,7 @@ public class HandicapService : IHandicapService
         {
             // Update global handicap
             var golfer = await _context.Golfers
-                .FirstOrDefaultAsync(g => g.Id == golferId && !g.IsDeleted);
+                .FirstOrDefaultAsync(g => g.Id == golferId);
 
             if (golfer != null)
             {
@@ -256,103 +200,88 @@ public class HandicapService : IHandicapService
         CalculateHandicapRequest request,
         string currentUserId)
     {
-        try
+        if (!await _context.Golfers.AnyAsync(g => g.Id == golferId))
+            return ApiResponse<HandicapCalculationResponse>.ErrorResponse("Golfer not found");
+
+        if (request.Method == HandicapCalculationMethod.Scratch)
         {
-            if (!await _context.Golfers.AnyAsync(g => g.Id == golferId && !g.IsDeleted))
-                return ApiResponse<HandicapCalculationResponse>.ErrorResponse("Golfer not found");
-
-            if (request.Method == HandicapCalculationMethod.Scratch)
+            var scratchResult = new HandicapCalculationResponse
             {
-                var scratchResult = new HandicapCalculationResponse
-                {
-                    GolferId = golferId,
-                    HandicapIndex = 0,
-                    Method = HandicapCalculationMethod.Scratch,
-                    RoundsUsed = 0,
-                    RoundsConsidered = 0,
-                    Notes = "Scratch golfer — handicap index is 0",
-                    Persisted = false
-                };
-
-                if (request.Persist)
-                {
-                    await PersistCalculatedHandicapAsync(golferId, 0, request, currentUserId, 0);
-                    scratchResult.Persisted = true;
-                }
-
-                return ApiResponse<HandicapCalculationResponse>.SuccessResponse(scratchResult);
-            }
-
-            // Build the round query scoped to the requested league/season
-            var roundQuery = _context.Rounds
-                .Include(r => r.Course)
-                .Include(r => r.Tee)
-                .Where(r => r.GolferId == golferId && r.IsComplete && !r.IsDeleted
-                            && r.TotalScore.HasValue);
-
-            if (request.SeasonId != null)
-            {
-                var season = await _context.Seasons
-                    .FirstOrDefaultAsync(s => s.Id == request.SeasonId && !s.IsDeleted);
-
-                if (season == null)
-                    return ApiResponse<HandicapCalculationResponse>.ErrorResponse("Season not found");
-
-                var seasonStart = season.StartDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-                var seasonEnd = season.EndDate.HasValue
-                    ? season.EndDate.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc)
-                    : DateTime.UtcNow;
-
-                roundQuery = roundQuery.Where(r =>
-                    r.LeagueId == request.LeagueId &&
-                    r.RoundDate >= seasonStart &&
-                    r.RoundDate <= seasonEnd);
-            }
-            else if (request.LeagueId != null)
-            {
-                roundQuery = roundQuery.Where(r => r.LeagueId == request.LeagueId);
-            }
-
-            // WHS uses last 20; Bob's uses all available (or last 20 for consistency)
-            var rounds = await roundQuery
-                .OrderByDescending(r => r.RoundDate)
-                .Take(20)
-                .ToListAsync();
-
-            if (rounds.Count == 0)
-                return ApiResponse<HandicapCalculationResponse>.ErrorResponse(
-                    "No completed rounds found for this golfer in the specified scope");
-
-            HandicapCalculationResponse result = request.Method switch
-            {
-                HandicapCalculationMethod.WorldHandicapSystem => CalculateWhs(golferId, rounds),
-                HandicapCalculationMethod.BobsLeague => CalculateBobsLeague(golferId, rounds),
-                HandicapCalculationMethod.Scratch => CalculateScratch(golferId, rounds),
-                _ => CalculateWhs(golferId, rounds)
+                GolferId = golferId,
+                HandicapIndex = 0,
+                Method = HandicapCalculationMethod.Scratch,
+                RoundsUsed = 0,
+                RoundsConsidered = 0,
+                Notes = "Scratch golfer — handicap index is 0",
+                Persisted = false
             };
-
-            result.Method = request.Method;
 
             if (request.Persist)
             {
-                await PersistCalculatedHandicapAsync(
-                    golferId, result.HandicapIndex, request, currentUserId, result.RoundsUsed);
-                result.Persisted = true;
+                await PersistCalculatedHandicapAsync(golferId, 0, request, currentUserId, 0);
+                scratchResult.Persisted = true;
             }
 
-            _logger.LogInformation(
-                "Calculated {Method} handicap {Index:F1} for golfer {GolferId} using {Rounds} rounds",
-                request.Method, result.HandicapIndex, golferId, result.RoundsUsed);
+            return ApiResponse<HandicapCalculationResponse>.SuccessResponse(scratchResult);
+        }
 
-            return ApiResponse<HandicapCalculationResponse>.SuccessResponse(result,
-                $"Handicap index calculated: {result.HandicapIndex:F1}");
-        }
-        catch (Exception ex)
+        var roundQuery = _context.Rounds
+            .Include(r => r.Course)
+            .Include(r => r.Tee)
+            .Where(r => r.GolferId == golferId && r.IsComplete && r.TotalScore.HasValue);
+
+        if (request.SeasonId != null)
         {
-            _logger.LogError(ex, "Error calculating handicap for golfer {GolferId}", golferId);
-            return ApiResponse<HandicapCalculationResponse>.ErrorResponse(
-                "Failed to calculate handicap", ex.Message);
+            var season = await _context.Seasons.FirstOrDefaultAsync(s => s.Id == request.SeasonId);
+            if (season == null)
+                return ApiResponse<HandicapCalculationResponse>.ErrorResponse("Season not found");
+
+            var seasonStart = season.StartDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+            var seasonEnd = season.EndDate.HasValue
+                ? season.EndDate.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc)
+                : DateTime.UtcNow;
+
+            roundQuery = roundQuery.Where(r =>
+                r.LeagueId == request.LeagueId &&
+                r.RoundDate >= seasonStart &&
+                r.RoundDate <= seasonEnd);
         }
+        else if (request.LeagueId != null)
+        {
+            roundQuery = roundQuery.Where(r => r.LeagueId == request.LeagueId);
+        }
+
+        var rounds = await roundQuery
+            .OrderByDescending(r => r.RoundDate)
+            .Take(20)
+            .ToListAsync();
+
+        if (rounds.Count == 0)
+            return ApiResponse<HandicapCalculationResponse>.ErrorResponse(
+                "No completed rounds found for this golfer in the specified scope");
+
+        HandicapCalculationResponse result = request.Method switch
+        {
+            HandicapCalculationMethod.WorldHandicapSystem => CalculateWhs(golferId, rounds),
+            HandicapCalculationMethod.BobsLeague => CalculateBobsLeague(golferId, rounds),
+            HandicapCalculationMethod.Scratch => CalculateScratch(golferId, rounds),
+            _ => CalculateWhs(golferId, rounds)
+        };
+
+        result.Method = request.Method;
+
+        if (request.Persist)
+        {
+            await PersistCalculatedHandicapAsync(golferId, result.HandicapIndex, request, currentUserId, result.RoundsUsed);
+            result.Persisted = true;
+        }
+
+        _logger.LogInformation(
+            "Calculated {Method} handicap {Index:F1} for golfer {GolferId} using {Rounds} rounds",
+            request.Method, result.HandicapIndex, golferId, result.RoundsUsed);
+
+        return ApiResponse<HandicapCalculationResponse>.SuccessResponse(result,
+            $"Handicap index calculated: {result.HandicapIndex:F1}");
     }
 
     /// <summary>
@@ -394,9 +323,9 @@ public class HandicapService : IHandicapService
                 slopeRating = tee.AverageSlope;
             }
 
-            if (slopeRating <= 0) slopeRating = 113;
+            if (slopeRating <= 0) slopeRating = HandicapConstants.StandardSlopeRating;
 
-            var differential = (round.TotalScore.Value - courseRating) * 113.0 / slopeRating;
+            var differential = (round.TotalScore.Value - courseRating) * HandicapConstants.StandardSlopeRating / slopeRating;
 
             details.Add(new ScoreDifferentialDetail
             {
@@ -420,7 +349,7 @@ public class HandicapService : IHandicapService
 
         var bestN = sorted.Take(n).ToList();
         double avg = bestN.Count > 0 ? bestN.Average(d => d.Differential) : 0;
-        double index = Math.Min(Math.Round(avg * 0.96, 1), 54.0);
+        double index = Math.Min(Math.Round(avg * HandicapConstants.WhsMultiplier, 1), HandicapConstants.WhsMaxIndex);
 
         return new HandicapCalculationResponse
         {
@@ -429,7 +358,7 @@ public class HandicapService : IHandicapService
             RoundsConsidered = details.Count,
             RoundsUsed = n,
             Differentials = details,
-            Notes = $"WHS: best {n} of {details.Count} differentials × 0.96"
+            Notes = $"WHS: best {n} of {details.Count} differentials × {HandicapConstants.WhsMultiplier}"
         };
     }
 
@@ -449,12 +378,12 @@ public class HandicapService : IHandicapService
             if (round.TotalScore == null) continue;
 
             var tee = round.Tee;
-            int par = tee != null ? (tee.ParOut + tee.ParIn) : 72;
+            int par = tee != null ? (tee.ParOut + tee.ParIn) : HandicapConstants.DefaultPar;
             if (round.HolesPlayed == Core.Enums.HolesPlayed.Front && tee != null) par = tee.ParOut;
             if (round.HolesPlayed == Core.Enums.HolesPlayed.Back && tee != null) par = tee.ParIn;
 
             double courseRating = tee?.TotalRating ?? par;
-            int slope = tee?.AverageSlope ?? 113;
+            int slope = tee?.AverageSlope ?? HandicapConstants.StandardSlopeRating;
 
             details.Add(new ScoreDifferentialDetail
             {
@@ -472,8 +401,8 @@ public class HandicapService : IHandicapService
         }
 
         double avgDiff = details.Count > 0 ? details.Average(d => d.Differential) : 0;
-        double index = Math.Min(Math.Round(avgDiff * 0.80, 1), 36.0);
-        index = Math.Max(index, 0); // No negative Bob's handicap
+        double index = Math.Min(Math.Round(avgDiff * HandicapConstants.BobsMultiplier, 1), HandicapConstants.BobsMaxIndex);
+        index = Math.Max(index, 0);
 
         return new HandicapCalculationResponse
         {
@@ -482,7 +411,7 @@ public class HandicapService : IHandicapService
             RoundsConsidered = details.Count,
             RoundsUsed = details.Count,
             Differentials = details,
-            Notes = $"Bob's League: avg({details.Count} rounds over par) × 0.80"
+            Notes = $"Bob's League: avg({details.Count} rounds over par) × {HandicapConstants.BobsMultiplier}"
         };
     }
 

@@ -10,9 +10,8 @@ namespace GolfManager.Api.Controllers;
 /// <summary>
 /// Controller for managing one-time event team registrations
 /// </summary>
-[ApiController]
 [Route("api/v1/events/one-time")]
-public class OneTimeEventTeamsController : ControllerBase
+public class OneTimeEventTeamsController : BaseLeagueController
 {
     private readonly ITeamRegistrationService _teamService;
     private readonly ICurrentUserService _currentUserService;

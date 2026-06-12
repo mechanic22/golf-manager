@@ -1,6 +1,7 @@
 using System.Net;
 using System.Security.Cryptography;
 using DnsClient;
+using GolfManager.Core.Exceptions;
 using DnsClient.Protocol;
 using GolfManager.Core.Configuration;
 using GolfManager.Core.Entities;
@@ -101,6 +102,28 @@ public class LeagueService : ILeagueService
         return await MapToResponseAsync(league, userId);
     }
 
+    public async Task<List<LeagueResponse>> GetPublicLeaguesAsync(string? search = null)
+    {
+        var query = _context.Leagues
+            .Where(l => l.IsPubliclyDiscoverable && l.IsActive);
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var term = search.Trim().ToLowerInvariant();
+            query = query.Where(l =>
+                l.Name.ToLower().Contains(term) ||
+                (l.Description != null && l.Description.ToLower().Contains(term)));
+        }
+
+        var leagues = await query.OrderBy(l => l.Name).Take(50).ToListAsync();
+        var responses = new List<LeagueResponse>();
+        foreach (var league in leagues)
+        {
+            responses.Add(await MapToResponseAsync(league, null));
+        }
+        return responses;
+    }
+
     public async Task<bool> VerifyAnonymousAccessAsync(string leagueKey, string password)
     {
         if (string.IsNullOrWhiteSpace(leagueKey))
@@ -141,7 +164,7 @@ public class LeagueService : ILeagueService
 
         if (existingLeague != null)
         {
-            throw new InvalidOperationException($"League with key '{normalizedKey}' already exists");
+            throw new ConflictException($"League with key '{normalizedKey}' already exists");
         }
 
         var normalizedDomain = NormalizeCustomDomain(request.CustomDomain);
@@ -205,7 +228,7 @@ public class LeagueService : ILeagueService
 
         if (league == null)
         {
-            throw new KeyNotFoundException($"League with ID {leagueId} not found");
+            throw new NotFoundException($"League with ID {leagueId} not found");
         }
 
         // Update fields if provided
@@ -310,6 +333,11 @@ public class LeagueService : ILeagueService
             league.AnonymousPasswordUpdatedAt = DateTime.UtcNow;
         }
 
+        if (request.IsPubliclyDiscoverable.HasValue)
+        {
+            league.IsPubliclyDiscoverable = request.IsPubliclyDiscoverable.Value;
+        }
+
         if (request.RequireAnonymousPassword.HasValue)
         {
             if (request.RequireAnonymousPassword.Value && string.IsNullOrEmpty(league.AnonymousPasswordHash))
@@ -358,7 +386,7 @@ public class LeagueService : ILeagueService
 
         if (league == null)
         {
-            throw new KeyNotFoundException($"League with ID {leagueId} not found");
+            throw new NotFoundException($"League with ID {leagueId} not found");
         }
 
         if (string.IsNullOrWhiteSpace(league.CustomDomain) || !league.UseCustomDomain)
@@ -434,7 +462,6 @@ public class LeagueService : ILeagueService
 
     public async Task<List<LeagueMemberResponse>> GetLeagueMembersAsync(string leagueId)
     {
-        // Get all members (both active and inactive), not deleted
         var members = await _context.UserLeagues
             .IgnoreQueryFilters()
             .Include(ul => ul.User)
@@ -443,17 +470,17 @@ public class LeagueService : ILeagueService
             .ThenBy(ul => ul.User.FirstName)
             .ToListAsync();
 
-        var responses = new List<LeagueMemberResponse>();
+        // Load all active golfer profiles for this league in a single query, keyed by UserId
+        var golferByUserId = await _context.LeagueGolfers
+            .IgnoreQueryFilters()
+            .Include(lg => lg.Golfer)
+            .Where(lg => lg.LeagueId == leagueId && lg.IsActive && lg.Golfer.UserId != null)
+            .ToDictionaryAsync(lg => lg.Golfer.UserId!, StringComparer.OrdinalIgnoreCase);
 
-        foreach (var member in members)
+        return members.Select(member =>
         {
-            // Try to find associated player/golfer
-            var golfer = await _context.LeagueGolfers
-                .IgnoreQueryFilters()
-                .Include(lg => lg.Golfer)
-                .FirstOrDefaultAsync(lg => lg.LeagueId == leagueId && lg.Golfer.UserId == member.UserId && lg.IsActive);
-
-            responses.Add(new LeagueMemberResponse
+            golferByUserId.TryGetValue(member.UserId, out var golfer);
+            return new LeagueMemberResponse
             {
                 UserId = member.UserId,
                 Email = member.User.Email,
@@ -465,10 +492,8 @@ public class LeagueService : ILeagueService
                 JoinedAt = member.JoinedAt,
                 PlayerId = golfer?.GolferId,
                 PlayerDisplayName = golfer?.Golfer?.DisplayName
-            });
-        }
-
-        return responses;
+            };
+        }).ToList();
     }
 
     public async Task<LeagueMemberResponse> AddLeagueMemberAsync(string leagueId, AddLeagueMemberRequest request, string currentUserId)
@@ -476,7 +501,7 @@ public class LeagueService : ILeagueService
         var requestedRole = NormalizeRequestedRole(request.Role, request.IsLeagueAdmin);
         if (requestedRole == LeagueMemberRole.Owner && !await CanManageOwnerMembershipAsync(leagueId, currentUserId))
         {
-            throw new InvalidOperationException("Only the league owner or a global admin can assign the owner role.");
+            throw new ForbiddenException("Only the league owner or a global admin can assign the owner role.");
         }
 
         // Verify league exists
@@ -485,7 +510,7 @@ public class LeagueService : ILeagueService
 
         if (league == null)
         {
-            throw new KeyNotFoundException($"League with ID {leagueId} not found");
+            throw new NotFoundException($"League with ID {leagueId} not found");
         }
 
         // Find user by email
@@ -533,7 +558,7 @@ public class LeagueService : ILeagueService
         {
             if (existingMembership.IsActive)
             {
-                throw new InvalidOperationException($"User {request.Email} is already a member of this league");
+                throw new ConflictException($"User {request.Email} is already a member of this league");
             }
             else
             {
@@ -607,7 +632,7 @@ public class LeagueService : ILeagueService
 
         if (NormalizeRole(membership) == LeagueMemberRole.Owner && !await CanManageOwnerMembershipAsync(leagueId, currentUserId))
         {
-            throw new InvalidOperationException("Only the league owner or a global admin can remove an owner.");
+            throw new ForbiddenException("Only the league owner or a global admin can remove an owner.");
         }
 
         // Prevent removing the last admin
@@ -641,7 +666,7 @@ public class LeagueService : ILeagueService
 
         if (membership == null)
         {
-            throw new KeyNotFoundException($"User {userId} is not a member of league {leagueId}");
+            throw new NotFoundException($"User {userId} is not a member of league {leagueId}");
         }
 
         // If demoting from admin, check that there's at least one other admin
@@ -653,7 +678,7 @@ public class LeagueService : ILeagueService
         if ((currentRole == LeagueMemberRole.Owner || nextRole == LeagueMemberRole.Owner)
             && !await CanManageOwnerMembershipAsync(leagueId, currentUserId))
         {
-            throw new InvalidOperationException("Only the league owner or a global admin can modify owner role assignments.");
+            throw new ForbiddenException("Only the league owner or a global admin can modify owner role assignments.");
         }
 
         if (IsAdminRole(currentRole) && !IsAdminRole(nextRole))
@@ -715,6 +740,9 @@ public class LeagueService : ILeagueService
             .CountAsync(s => s.LeagueId == league.Id && s.IsActive);
 
         bool isCurrentUserAdmin = false;
+        double? currentUserLeagueHandicap = null;
+        int? currentUserRoundsInLeague = null;
+
         if (!string.IsNullOrEmpty(userId))
         {
             isCurrentUserAdmin = await _context.UserLeagues
@@ -724,6 +752,20 @@ public class LeagueService : ILeagueService
                     && ul.LeagueId == league.Id
                     && ul.IsActive
                     && (ul.Role == LeagueMemberRole.Owner || ul.Role == LeagueMemberRole.Admin));
+
+            var leagueGolfer = await _context.LeagueGolfers
+                .IgnoreQueryFilters()
+                .Include(lg => lg.Golfer)
+                .FirstOrDefaultAsync(lg =>
+                    lg.LeagueId == league.Id
+                    && lg.IsActive
+                    && lg.Golfer.UserId == userId);
+
+            if (leagueGolfer != null)
+            {
+                currentUserLeagueHandicap = leagueGolfer.LeagueHandicap;
+                currentUserRoundsInLeague = leagueGolfer.TotalRounds;
+            }
         }
 
         return new LeagueResponse
@@ -744,10 +786,13 @@ public class LeagueService : ILeagueService
             PlayerCount = playerCount,
             SeasonCount = seasonCount,
             IsCurrentUserAdmin = isCurrentUserAdmin,
+            CurrentUserLeagueHandicap = currentUserLeagueHandicap,
+            CurrentUserRoundsInLeague = currentUserRoundsInLeague,
             CustomDomain = league.CustomDomain,
             UseCustomDomain = league.UseCustomDomain,
             CustomDomainVerificationToken = isCurrentUserAdmin ? league.CustomDomainVerificationToken : null,
             CustomDomainVerifiedAt = league.CustomDomainVerifiedAt,
+            IsPubliclyDiscoverable = league.IsPubliclyDiscoverable,
             RequireAnonymousPassword = league.RequireAnonymousPassword,
             HasAnonymousPassword = !string.IsNullOrEmpty(league.AnonymousPasswordHash),
             AnonymousPasswordUpdatedAt = league.AnonymousPasswordUpdatedAt,
@@ -812,7 +857,7 @@ public class LeagueService : ILeagueService
 
         if (customDomainInUse)
         {
-            throw new InvalidOperationException($"Custom domain '{customDomain}' is already in use by another league.");
+            throw new ConflictException($"Custom domain '{customDomain}' is already in use by another league.");
         }
     }
 

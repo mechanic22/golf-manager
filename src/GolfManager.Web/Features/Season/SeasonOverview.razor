@@ -1,0 +1,6 @@
+@page "/league/{LeagueKey}/season/{SeasonKey}"
+@layout SeasonLayout
+
+<PageTitle>@(Context?.Season.Name ?? "Season") - @(Context?.League.Name ?? "League") - Pinzo</PageTitle>
+
+<SeasonOverviewTab LeagueKey="@LeagueKey" SeasonKey="@SeasonKey" />

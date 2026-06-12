@@ -1,0 +1,54 @@
+@using GolfManager.Shared.DTOs.Season
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-8">
+        <div class="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+    </div>
+}
+else
+{
+    <ResponsiveTable TItem="RankedStanding" Items="@RankedStandings">
+        <Empty>
+            <p class="text-gray-500 py-6">No players in this season yet.</p>
+        </Empty>
+        <Headers>
+            <th class="py-3 pr-4 w-10">#</th>
+            <th class="py-3 pr-6">Player</th>
+            <th class="py-3 pr-6">Points</th>
+            <th class="py-3 pr-6">Handicap</th>
+            <th class="py-3 pr-6">Rounds</th>
+            <th class="py-3 pr-6">Avg Net</th>
+            <th class="py-3 pr-6">Best</th>
+        </Headers>
+        <Row Context="entry">
+            <tr class="hover:bg-gray-50">
+                <td class="py-3 pr-4 text-sm text-gray-500">@(entry.DisplayRank > 0 ? entry.DisplayRank : null)</td>
+                <td class="py-3 pr-6 text-sm font-medium text-gray-900">@entry.Standing.DisplayName</td>
+                <td class="py-3 pr-6 text-sm text-gray-700">@(entry.Standing.SeasonPoints?.ToString("F1") ?? "—")</td>
+                <td class="py-3 pr-6 text-sm text-gray-700">@(entry.Standing.LeagueHandicap?.ToString("F1") ?? "—")</td>
+                <td class="py-3 pr-6 text-sm text-gray-700">@entry.Standing.RoundCount</td>
+                <td class="py-3 pr-6 text-sm text-gray-700">@(entry.Standing.AverageNetScore?.ToString("F1") ?? "—")</td>
+                <td class="py-3 pr-6 text-sm text-gray-700">@(entry.Standing.BestRawScore?.ToString() ?? "—")</td>
+            </tr>
+        </Row>
+        <Card Context="entry">
+            <div class="border border-gray-200 rounded-lg p-4 bg-white">
+                <div class="flex items-center gap-3 mb-2">
+                    @if (entry.DisplayRank > 0)
+                    {
+                        <span class="text-lg font-bold text-gray-400 w-7 shrink-0">#@entry.DisplayRank</span>
+                    }
+                    <span class="text-sm font-semibold text-gray-900">@entry.Standing.DisplayName</span>
+                    <span class="ml-auto text-sm font-bold text-primary-700">@(entry.Standing.SeasonPoints?.ToString("F1") ?? "—") pts</span>
+                </div>
+                <div class="flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-500">
+                    <span>HCP: @(entry.Standing.LeagueHandicap?.ToString("F1") ?? "—")</span>
+                    <span>Rounds: @entry.Standing.RoundCount</span>
+                    <span>Avg Net: @(entry.Standing.AverageNetScore?.ToString("F1") ?? "—")</span>
+                    <span>Best: @(entry.Standing.BestRawScore?.ToString() ?? "—")</span>
+                </div>
+            </div>
+        </Card>
+    </ResponsiveTable>
+}

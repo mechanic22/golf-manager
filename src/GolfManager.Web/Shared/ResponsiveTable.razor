@@ -1,0 +1,41 @@
+@typeparam TItem
+
+@if (Items?.Any() == true)
+{
+    <div class="rt-table-wrap">
+        <table class="min-w-full divide-y divide-gray-200">
+            @if (Headers != null)
+            {
+                <thead>
+                    <tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        @Headers
+                    </tr>
+                </thead>
+            }
+            <tbody class="divide-y divide-gray-100">
+                @foreach (var item in Items)
+                {
+                    @Row(item)
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="rt-cards-wrap">
+        @foreach (var item in Items)
+        {
+            @Card(item)
+        }
+    </div>
+}
+else if (Empty != null)
+{
+    @Empty
+}
+
+@code {
+    [Parameter] public IEnumerable<TItem>? Items { get; set; }
+    [Parameter] public RenderFragment? Headers { get; set; }
+    [Parameter, EditorRequired] public RenderFragment<TItem> Row { get; set; } = null!;
+    [Parameter, EditorRequired] public RenderFragment<TItem> Card { get; set; } = null!;
+    [Parameter] public RenderFragment? Empty { get; set; }
+}

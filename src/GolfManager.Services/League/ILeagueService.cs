@@ -23,6 +23,11 @@ public interface ILeagueService
     Task<LeagueResponse?> GetLeagueByKeyAsync(string leagueKey, string? userId = null, string? anonymousAccessPassword = null);
 
     /// <summary>
+    /// Get publicly discoverable leagues (anonymous, optional search filter)
+    /// </summary>
+    Task<List<LeagueResponse>> GetPublicLeaguesAsync(string? search = null);
+
+    /// <summary>
     /// Verify whether a supplied anonymous/public password grants access for a league key.
     /// </summary>
     Task<bool> VerifyAnonymousAccessAsync(string leagueKey, string password);

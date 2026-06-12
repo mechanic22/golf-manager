@@ -7,8 +7,7 @@
     <title>GolfManager.Web</title>
     <base href="/" />
     <link rel="preload" id="webassembly" />
-    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
-    <link rel="stylesheet" href="_content/FifthBox.MaterialComponents.Blazor/css/material-components.css" />
+<link rel="stylesheet" href="_content/FifthBox.MaterialComponents.Blazor/css/material-components.css" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link href="GolfManager.Web.styles.css" rel="stylesheet" />
@@ -17,11 +16,21 @@
 
 <body>
     <div id="app">
-        <svg class="loading-progress">
-            <circle r="40%" cx="50%" cy="50%" />
-            <circle r="40%" cx="50%" cy="50%" />
-        </svg>
-        <div class="loading-progress-text"></div>
+        <div class="loading-screen">
+            <div class="loading-card">
+                <div class="loading-header">
+                    <img src="img/pinzo-green.png" alt="Pinzo Logo" class="loading-logo" />
+                    <h1 class="loading-app-title">Pinzo</h1>
+                </div>
+                <p class="loading-status-text" id="loading-status">Loading application...</p>
+                <div class="loading-bar-wrap">
+                    <div class="loading-bar-track">
+                        <div class="loading-bar-fill"></div>
+                    </div>
+                    <span class="loading-progress-text"></span>
+                </div>
+            </div>
+        </div>
     </div>
 
     <div id="blazor-error-ui">
@@ -29,6 +38,22 @@
         <a href="." class="reload">Reload</a>
         <span class="dismiss">🗙</span>
     </div>
+    <script>
+        (function () {
+            var msgs = [
+                [0, "Loading application..."],
+                [2000, "Downloading resources..."],
+                [5000, "Initializing runtime..."],
+                [9000, "Almost ready..."]
+            ];
+            msgs.forEach(function (m) {
+                setTimeout(function () {
+                    var el = document.getElementById('loading-status');
+                    if (el && document.getElementById('app')) el.textContent = m[1];
+                }, m[0]);
+            });
+        })();
+    </script>
     <script src="_content/FifthBox.MaterialComponents.Blazor/js/material-components.js"></script>
     <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
 </body>

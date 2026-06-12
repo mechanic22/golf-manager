@@ -1,0 +1,220 @@
+@page "/league/{LeagueKey}"
+@page "/league/{LeagueKey}/dashboard"
+@page "/league/{LeagueKey}/seasons"
+@page "/league/{LeagueKey}/members"
+@page "/league/{LeagueKey}/settings"
+@layout AppLayout
+@using GolfManager.Shared.DTOs.League
+@using GolfManager.Shared.DTOs.Season
+@using GolfManager.Core.Enums
+@using MaterialComponents.Models
+
+<PageTitle>@(league?.Name ?? "League") - Pinzo</PageTitle>
+
+<LeaguePageShell League="@league"
+                 LeagueKey="@LeagueKey"
+                 CurrentLeagueName="@AppState.CurrentLeagueName"
+                 ActiveTab="@activeTab"
+                 ShowSettingsTab="@CanManageLeague"
+                 ShowLeagueIcon="true"
+                 IsLoading="@isLoading"
+                 LoadingMessage="Loading league...">
+    <HeaderActions>
+        <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="@(() => Navigation.NavigateTo("/dashboard"))">
+            <MaterialIcon Icon="MaterialIcons.ArrowBack" Class="mr-1" />
+            Back
+        </MaterialButton>
+    </HeaderActions>
+    <ChildContent>
+        <div style="display: @(activeTab == "dashboard" ? "block" : "none")">
+            @if (hasLoadedDashboard && league != null)
+            {
+                <DashboardTab League="@league"
+                             LeagueKey="@LeagueKey"
+                             CanManageLeague="@CanManageLeague"
+                             OnAddMember="ShowAddMemberModal" />
+            }
+        </div>
+
+        <div style="display: @(activeTab == "seasons" ? "block" : "none")">
+            @if (hasLoadedSeasons && league != null)
+            {
+                <SeasonsTab @key="seasonsTabVersion"
+                           League="@league"
+                           LeagueKey="@LeagueKey"
+                           CanManageLeague="@CanManageLeague"
+                           OnCreateSeason="ShowAddSeasonModal" />
+            }
+        </div>
+
+        <div style="display: @(activeTab == "members" ? "block" : "none")">
+            @if (hasLoadedMembers && league != null)
+            {
+                <MembersTab League="@league"
+                           CanManageLeague="@CanManageLeague"
+                           OnAddMember="ShowAddMemberModal"
+                           OnPromoteToAdmin="PromoteToAdmin"
+                           OnDemoteFromAdmin="DemoteFromAdmin"
+                           OnRemoveMember="ShowRemoveMemberConfirm" />
+            }
+        </div>
+
+        <div style="display: @(activeTab == "settings" ? "block" : "none")">
+            @if (hasLoadedSettings && league != null)
+            {
+                <SettingsTab League="@league"
+                            LeagueKey="@LeagueKey"
+                            CanEdit="@CanManageLeague"
+                            OnLeagueUpdated="ReloadLeague" />
+            }
+        </div>
+    </ChildContent>
+</LeaguePageShell>
+
+
+
+@if (CanManageLeague)
+{
+<!-- Add Member Modal -->
+<MaterialDialog @bind-IsOpen="showAddMemberModal" Title="Add League Member" MaxWidth="MaterialDialogMaxWidth.Small">
+    <ChildContent>
+        @if (!string.IsNullOrEmpty(addMemberError))
+        {
+            <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-4">
+                @addMemberError
+            </div>
+        }
+
+        <div class="space-y-6">
+            <MaterialInput @bind-Value="addMemberRequest.Email"
+                          Label="Email Address"
+                          Type="email"
+                          Variant="MaterialInputVariant.Outlined"
+                          SupportingText="Enter the email address of the user to add"
+                          Required="true" />
+
+            <div class="bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded text-sm">
+                <strong>Note:</strong> If the user doesn't exist, they will be created automatically. Please provide their first and last name below.
+            </div>
+
+            <MaterialInput @bind-Value="addMemberRequest.FirstName"
+                          Label="First Name"
+                          Variant="MaterialInputVariant.Outlined"
+                          SupportingText="Required if creating a new user" />
+
+            <MaterialInput @bind-Value="addMemberRequest.LastName"
+                          Label="Last Name"
+                          Variant="MaterialInputVariant.Outlined"
+                          SupportingText="Required if creating a new user" />
+
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-2">League Role</label>
+                <select @bind="addMemberRequest.Role"
+                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500">
+                    @foreach (var role in LeagueRoles)
+                    {
+                        <option value="@role">@role</option>
+                    }
+                </select>
+            </div>
+
+            <MaterialInput @bind-Value="addMemberRequest.InvitationMessage"
+                          Label="Invitation Message (Optional)"
+                          Variant="MaterialInputVariant.Outlined"
+                          Multiline="true"
+                          Rows="3"
+                          SupportingText="Optional welcome message for the new member" />
+        </div>
+    </ChildContent>
+    <Actions>
+        <MaterialButton Style="MaterialButtonStyle.Text" OnClick="() => showAddMemberModal = false" Disabled="isAddingMember">
+            Cancel
+        </MaterialButton>
+        <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="HandleAddMember" Disabled="isAddingMember">
+            @if (isAddingMember)
+            {
+                <span>Adding...</span>
+            }
+            else
+            {
+                <span>Add Member</span>
+            }
+        </MaterialButton>
+    </Actions>
+</MaterialDialog>
+
+<!-- Remove Member Confirmation -->
+<MaterialDialog @bind-IsOpen="showRemoveConfirm" Title="Remove Member" MaxWidth="MaterialDialogMaxWidth.Small">
+    <ChildContent>
+        @if (memberToRemove != null)
+        {
+            <p class="text-gray-700">
+                Are you sure you want to remove <strong>@memberToRemove.FullName</strong> from this league?
+            </p>
+        }
+    </ChildContent>
+    <Actions>
+        <MaterialButton Style="MaterialButtonStyle.Text" OnClick="() => showRemoveConfirm = false" Disabled="isRemovingMember">
+            Cancel
+        </MaterialButton>
+        <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="HandleRemoveMember" Disabled="isRemovingMember">
+            @if (isRemovingMember)
+            {
+                <span>Removing...</span>
+            }
+            else
+            {
+                <span>Remove</span>
+            }
+        </MaterialButton>
+    </Actions>
+</MaterialDialog>
+
+<!-- Add Season Modal -->
+<MaterialDialog @bind-IsOpen="showAddSeasonModal" Title="Create New Season" MaxWidth="MaterialDialogMaxWidth.Small">
+    <ChildContent>
+        @if (!string.IsNullOrEmpty(addSeasonError))
+        {
+            <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-4">
+                @addSeasonError
+            </div>
+        }
+
+        <div class="space-y-6">
+            <MaterialInput @bind-Value="addSeasonRequest.Name"
+                          Label="Season Name"
+                          Variant="MaterialInputVariant.Outlined"
+                          SupportingText="Display name for the season (e.g., '2024 Season', 'Spring 2024'). A URL-friendly key will be auto-generated."
+                          Required="true" />
+
+            <MaterialInput @bind-Value="addSeasonRequest.StartDate"
+                          Label="Start Date"
+                          Type="date"
+                          Variant="MaterialInputVariant.Outlined"
+                          SupportingText="When does this season begin?"
+                          Required="true" />
+
+            <MaterialInput @bind-Value="addSeasonRequest.EndDate"
+                          Label="End Date (Optional)"
+                          Type="date"
+                          Variant="MaterialInputVariant.Outlined"
+                          SupportingText="When does this season end? Leave blank if ongoing." />
+        </div>
+    </ChildContent>
+    <Actions>
+        <MaterialButton Style="MaterialButtonStyle.Text" OnClick="() => showAddSeasonModal = false" Disabled="isAddingSeason">
+            Cancel
+        </MaterialButton>
+        <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="HandleAddSeason" Disabled="isAddingSeason">
+            @if (isAddingSeason)
+            {
+                <span>Creating...</span>
+            }
+            else
+            {
+                <span>Create Season</span>
+            }
+        </MaterialButton>
+    </Actions>
+</MaterialDialog>
+}

@@ -186,22 +186,82 @@ public class UsersController : ControllerBase
             return Ok(ApiResponse<List<RoundResponse>>.SuccessResponse(new List<RoundResponse>(), "User has no golfer profile"));
         }
 
-        var rounds = await _context.Rounds
-            .Where(r => r.GolferId == user.Golfer.Id && r.IsActive)
+        var golferId = user.Golfer.Id;
+
+        // Fetch rounds without the IsActive filter — rounds from score entry may be IsActive=false
+        // The global !IsDeleted query filter still applies
+        var rawRounds = await _context.Rounds
+            .Where(r => r.GolferId == golferId)
             .Include(r => r.Course)
             .Include(r => r.Tee)
+            .Include(r => r.Holes)
             .OrderByDescending(r => r.RoundDate)
-            .Take(50) // Limit to most recent 50 rounds
-            .Select(r => new RoundResponse
+            .Take(200)
+            .ToListAsync();
+
+        // Collect league IDs to resolve season event context
+        var leagueIds = rawRounds
+            .Where(r => !string.IsNullOrEmpty(r.LeagueId))
+            .Select(r => r.LeagueId!)
+            .Distinct()
+            .ToList();
+
+        // Load season events keyed by league for matching date/course/tee
+        var seasonEvents = leagueIds.Count > 0
+            ? await _context.SeasonEvents
+                .Where(e => leagueIds.Contains(e.LeagueId))
+                .Select(e => new { e.Id, e.EventDate, e.CourseId, e.TeeId, e.LeagueId, e.SeasonId })
+                .ToListAsync()
+            : new List<dynamic>() as dynamic;
+
+        var seasonEventList = leagueIds.Count > 0
+            ? await _context.SeasonEvents
+                .Where(e => leagueIds.Contains(e.LeagueId))
+                .Select(e => new { e.Id, e.EventDate, e.CourseId, e.TeeId, e.LeagueId, e.SeasonId })
+                .ToListAsync()
+            : [];
+
+        var seasonIds = seasonEventList.Select(e => e.SeasonId).Distinct().ToList();
+        var seasonMap = await _context.Seasons
+            .Where(s => seasonIds.Contains(s.Id))
+            .Select(s => new { s.Id, s.Name, s.Key })
+            .ToDictionaryAsync(s => s.Id);
+
+        var leagueMap = await _context.Leagues
+            .Where(l => leagueIds.Contains(l.Id))
+            .Select(l => new { l.Id, l.Name, l.Key })
+            .ToDictionaryAsync(l => l.Id);
+
+        var rounds = rawRounds.Select(r =>
+        {
+            var matchedEvent = string.IsNullOrEmpty(r.LeagueId) ? null :
+                seasonEventList.FirstOrDefault(e =>
+                    e.LeagueId == r.LeagueId &&
+                    e.EventDate.Date == r.RoundDate.Date &&
+                    e.CourseId == r.CourseId &&
+                    e.TeeId == r.TeeId);
+
+            var seasonId = matchedEvent?.SeasonId;
+            seasonMap.TryGetValue(seasonId ?? string.Empty, out var season);
+            leagueMap.TryGetValue(r.LeagueId ?? string.Empty, out var league);
+
+            return new RoundResponse
             {
                 Id = r.Id,
                 GolferId = r.GolferId,
                 LeagueGolferId = r.LeagueGolferId,
                 LeagueId = r.LeagueId,
+                LeagueName = league?.Name,
+                LeagueKey = league?.Key,
+                SeasonEventId = matchedEvent?.Id,
+                SeasonId = seasonId,
+                SeasonName = season?.Name,
+                SeasonKey = season?.Key,
+                EventDate = matchedEvent?.EventDate,
                 CourseId = r.CourseId,
-                CourseName = r.Course != null ? r.Course.Name : "Unknown Course",
+                CourseName = r.Course?.Name ?? "Unknown Course",
                 TeeId = r.TeeId,
-                TeeName = r.Tee != null ? r.Tee.Name : "Unknown",
+                TeeName = r.Tee?.Name ?? "Unknown",
                 RoundDate = r.RoundDate,
                 HolesPlayed = r.HolesPlayed,
                 TotalScore = r.TotalScore,
@@ -209,14 +269,142 @@ public class UsersController : ControllerBase
                 HandicapUsed = r.HandicapUsed,
                 IsComplete = r.IsComplete,
                 Notes = r.Notes,
+                Holes = r.Holes.Select(h => new RoundHoleResponse
+                {
+                    HoleNumber = h.HoleNumber,
+                    GrossScore = h.GrossScore,
+                    NetScore = h.NetScore
+                }).OrderBy(h => h.HoleNumber).ToList(),
                 CreatedAt = r.CreatedAt,
                 UpdatedAt = r.UpdatedAt
-            })
-            .ToListAsync();
+            };
+        }).ToList();
 
         _logger.LogInformation("Retrieved {Count} rounds for user {UserId}", rounds.Count, userId);
 
         return Ok(ApiResponse<List<RoundResponse>>.SuccessResponse(rounds, $"Retrieved {rounds.Count} rounds"));
+    }
+
+    /// <summary>
+    /// Get current user's golf statistics (aggregated from rounds)
+    /// </summary>
+    [HttpGet("me/stats")]
+    public async Task<ActionResult<ApiResponse<GolferStatsResponse>>> GetMyStats()
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized(ApiResponse<GolferStatsResponse>.ErrorResponse("User not authenticated"));
+        }
+
+        var user = await _context.Users
+            .Include(u => u.Golfer)
+            .FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
+
+        if (user?.Golfer == null)
+        {
+            return Ok(ApiResponse<GolferStatsResponse>.SuccessResponse(new GolferStatsResponse()));
+        }
+
+        var golferId = user.Golfer.Id;
+        var now = DateTime.UtcNow;
+        var yearStart = new DateTime(now.Year, 1, 1);
+        var last30 = now.AddDays(-30);
+
+        var rounds = await _context.Rounds
+            .Include(r => r.Course)
+            .Where(r => r.GolferId == golferId && !r.IsDeleted && r.TotalScore.HasValue)
+            .OrderByDescending(r => r.RoundDate)
+            .ToListAsync();
+
+        var courseStats = rounds
+            .Where(r => r.Course != null)
+            .GroupBy(r => r.Course!.Name)
+            .Select(g => new CourseStatEntry
+            {
+                CourseName = g.Key,
+                Rounds = g.Count(),
+                AverageScore = Math.Round(g.Average(r => r.TotalScore!.Value), 1),
+                BestScore = g.Min(r => r.TotalScore!.Value)
+            })
+            .OrderByDescending(c => c.Rounds)
+            .Take(10)
+            .ToList();
+
+        var stats = new GolferStatsResponse
+        {
+            RoundsPlayed = rounds.Count,
+            AverageGrossScore = rounds.Any() ? Math.Round(rounds.Average(r => r.TotalScore!.Value), 1) : null,
+            AverageNetScore = rounds.Any(r => r.NetScore.HasValue)
+                ? Math.Round(rounds.Where(r => r.NetScore.HasValue).Average(r => r.NetScore!.Value), 1)
+                : null,
+            LowGrossScore = rounds.Any() ? rounds.Min(r => r.TotalScore!.Value) : null,
+            LowNetScore = rounds.Any(r => r.NetScore.HasValue) ? rounds.Where(r => r.NetScore.HasValue).Min(r => r.NetScore!.Value) : null,
+            CurrentHandicap = user.Golfer.GlobalHandicap,
+            RoundsThisYear = rounds.Count(r => r.RoundDate >= yearStart),
+            RoundsLast30Days = rounds.Count(r => r.RoundDate >= last30),
+            CourseStats = courseStats
+        };
+
+        return Ok(ApiResponse<GolferStatsResponse>.SuccessResponse(stats));
+    }
+
+    /// <summary>
+    /// Update current user's own profile (first/last name)
+    /// </summary>
+    [HttpPut("me")]
+    public async Task<ActionResult<ApiResponse<UserProfileResponse>>> UpdateMyProfile([FromBody] UpdateProfileRequest request)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized(ApiResponse<UserProfileResponse>.ErrorResponse("User not authenticated"));
+        }
+
+        var user = await _context.Users
+            .Include(u => u.Golfer)
+            .Include(u => u.UserLeagues)
+            .FirstOrDefaultAsync(u => u.Id == userId && u.IsActive);
+
+        if (user == null)
+        {
+            return NotFound(ApiResponse<UserProfileResponse>.ErrorResponse("User not found"));
+        }
+
+        user.FirstName = request.FirstName.Trim();
+        user.LastName = request.LastName.Trim();
+        user.UpdatedAt = DateTime.UtcNow;
+        user.UpdatedBy = userId;
+
+        if (user.Golfer != null)
+        {
+            user.Golfer.DisplayName = $"{user.FirstName} {user.LastName}";
+        }
+
+        await _context.SaveChangesAsync();
+
+        var roundsCount = user.Golfer != null
+            ? await _context.Rounds.CountAsync(r => r.GolferId == user.Golfer.Id && !r.IsDeleted)
+            : 0;
+
+        var response = new UserProfileResponse
+        {
+            Id = user.Id,
+            Email = user.Email,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            IsGlobalAdmin = user.IsGlobalAdmin,
+            CreatedAt = user.CreatedAt,
+            LastLoginAt = user.LastLoginAt,
+            LeagueCount = user.UserLeagues.Count(ul => ul.IsActive),
+            IsGolfer = user.Golfer != null,
+            GolferId = user.Golfer?.Id,
+            HandicapIndex = user.Golfer?.GlobalHandicap,
+            RoundsCount = roundsCount,
+            DisplayName = user.Golfer?.DisplayName ?? $"{user.FirstName} {user.LastName}"
+        };
+
+        return Ok(ApiResponse<UserProfileResponse>.SuccessResponse(response, "Profile updated successfully"));
     }
 
     /// <summary>

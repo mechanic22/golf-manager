@@ -1,0 +1,150 @@
+@page "/admin"
+@layout AppLayout
+
+<PageTitle>Admin Dashboard - Pinzo</PageTitle>
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-16">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-600">Loading admin dashboard...</p>
+        </div>
+    </div>
+}
+else if (!isGlobalAdmin)
+{
+    <div class="text-center py-16">
+        <MaterialIcon Path="@MaterialIcons.LockClosed" Size="MaterialComponents.Icons.IconSize.XL" Class="text-gray-400 mb-4" />
+        <h2 class="text-2xl font-semibold text-gray-900 mb-2">Access Denied</h2>
+        <p class="text-gray-600 mb-4">You must be a Global Admin to access this page.</p>
+        <MaterialButton Style="MaterialButtonStyle.Outlined" 
+                      Text="Back to Dashboard"
+                      OnClick="@(() => Navigation.NavigateTo("/dashboard"))" />
+    </div>
+}
+else
+{
+    <!-- Page Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-900 mb-2">Admin Dashboard</h1>
+        <p class="text-gray-600">Platform administration and management</p>
+    </div>
+
+    <!-- Platform Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <!-- Total Users -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-sm font-medium text-gray-600">Total Users</h3>
+                <MaterialIcon Path="@MaterialIcons.Person" Size="MaterialComponents.Icons.IconSize.SM" Class="text-primary-600" />
+            </div>
+            <p class="text-3xl font-bold text-gray-900">@stats.TotalUsers</p>
+            <p class="text-sm text-gray-600 mt-2">@stats.ActiveUsers active</p>
+            @if (stats.NewUsersThisMonth > 0)
+            {
+                <p class="text-sm text-green-600">+@stats.NewUsersThisMonth this month</p>
+            }
+        </div>
+
+        <!-- Total Leagues -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-sm font-medium text-gray-600">Total Leagues</h3>
+                <MaterialIcon Path="@MaterialIcons.Star" Size="MaterialComponents.Icons.IconSize.SM" Class="text-primary-600" />
+            </div>
+            <p class="text-3xl font-bold text-gray-900">@stats.TotalLeagues</p>
+            <p class="text-sm text-gray-600 mt-2">@stats.ActiveLeagues active</p>
+        </div>
+
+        <!-- Total Seasons -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-sm font-medium text-gray-600">Total Seasons</h3>
+                <MaterialIcon Path="@MaterialIcons.Assignment" Size="MaterialComponents.Icons.IconSize.SM" Class="text-primary-600" />
+            </div>
+            <p class="text-3xl font-bold text-gray-900">@stats.TotalSeasons</p>
+            <p class="text-sm text-gray-600 mt-2">@stats.ActiveSeasons active</p>
+        </div>
+
+        <!-- Total Events -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6">
+            <div class="flex items-center justify-between mb-2">
+                <h3 class="text-sm font-medium text-gray-600">Total Events</h3>
+                <MaterialIcon Path="@MaterialIcons.Dashboard" Size="MaterialComponents.Icons.IconSize.SM" Class="text-primary-600" />
+            </div>
+            <p class="text-3xl font-bold text-gray-900">@stats.TotalEvents</p>
+            <p class="text-sm text-gray-600 mt-2">@stats.UpcomingEvents upcoming</p>
+        </div>
+    </div>
+
+    <!-- Quick Actions -->
+    <div class="bg-white rounded-lg border border-gray-200 p-6 mb-8">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <MaterialButton Style="MaterialButtonStyle.Filled"
+                          Text="Create League"
+                          OnClick="@(() => Navigation.NavigateTo("/leagues/create"))" />
+            <MaterialButton Style="MaterialButtonStyle.Filled"
+                          Text="Create Event"
+                          OnClick="@(() => Navigation.NavigateTo("/events/create"))" />
+            <MaterialButton Style="MaterialButtonStyle.Outlined"
+                          Text="Manage Users"
+                          OnClick="@(() => Navigation.NavigateTo("/admin/users"))" />
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="bg-white rounded-lg border border-gray-200 p-6 mb-8">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Recent Activity</h2>
+        <div class="text-center py-8">
+            <MaterialIcon Path="@MaterialIcons.Assignment" Size="MaterialComponents.Icons.IconSize.LG" Class="text-gray-300 mb-3" />
+            <p class="text-sm text-gray-500">Activity log not yet available.</p>
+        </div>
+    </div>
+
+    <!-- Maintenance -->
+    <div class="bg-white rounded-lg border border-gray-200 p-6 mb-8">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">Maintenance</h2>
+        <div class="space-y-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm font-medium text-gray-900">Recalculate Player Stats</p>
+                    <p class="text-xs text-gray-600">Recomputes TotalRounds, AverageScore, and BestScore for all players from round data.</p>
+                </div>
+                <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="RecalculatePlayerStats" Disabled="isRecalculating">
+                    @if (isRecalculating)
+                    {
+                        <span>Recalculating...</span>
+                    }
+                    else
+                    {
+                        <span>Recalculate</span>
+                    }
+                </MaterialButton>
+            </div>
+            @if (!string.IsNullOrEmpty(recalcMessage))
+            {
+                <div class="px-4 py-3 rounded text-sm @(recalcSuccess ? "bg-green-50 border border-green-200 text-green-800" : "bg-red-50 border border-red-200 text-red-800")">
+                    @recalcMessage
+                </div>
+            }
+        </div>
+    </div>
+
+    <!-- System Health -->
+    <div class="bg-white rounded-lg border border-gray-200 p-6">
+        <h2 class="text-xl font-semibold text-gray-900 mb-4">System Health</h2>
+        <div class="space-y-4">
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-600">Database Status</span>
+                <span class="text-sm text-gray-400">—</span>
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="text-sm text-gray-600">API Status</span>
+                <span class="text-sm text-gray-400">—</span>
+            </div>
+        </div>
+        <p class="text-xs text-gray-400 mt-4">Health monitoring not yet configured.</p>
+    </div>
+}

@@ -1,0 +1,58 @@
+@page "/league/{LeagueKey}/guest"
+
+<PageTitle>Guest Access - Pinzo Golf</PageTitle>
+
+<div
+    style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background-color: #f9fafb; padding: 2rem;">
+    <div class="card" style="max-width: 28rem; width: 100%; padding: 2.5rem;">
+        <div style="text-align: center; margin-bottom: 2rem;">
+            <img src="/img/pinzo-green.png" alt="Pinzo Golf" style="height: 2.5rem; margin-bottom: 1rem;" />
+            <h1 style="font-size: 1.875rem; font-weight: 700; color: #111827; margin-bottom: 0.5rem;">League Standings
+            </h1>
+            <p style="color: #6b7280; font-size: 0.875rem;">Enter the password to view @LeagueKey standings</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger">
+                @errorMessage
+            </div>
+        }
+
+        @if (!loginSuccessful)
+        {
+            <form @onsubmit="HandleGuestLogin">
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input id="password" type="password" @bind="password" class="form-control" placeholder="••••••••"
+                           disabled="@isLoading" />
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span>Signing In...</span>
+                    }
+                    else
+                    {
+                        <span>View Standings</span>
+                    }
+                </button>
+            </form>
+        }
+        else
+        {
+            <div style="text-align: center; padding: 2rem;">
+                <div style="font-size: 3rem; margin-bottom: 1rem;">✓</div>
+                <p style="color: #16a34a; font-size: 1.125rem; font-weight: 600;">Access Granted!</p>
+                <p style="color: #6b7280; font-size: 0.875rem; margin-top: 1rem;">Redirecting to standings...</p>
+            </div>
+        }
+
+        <div style="margin-top: 1.5rem; text-align: center; padding-top: 1.5rem; border-top: 1px solid #e5e7eb;">
+            <p style="color: #6b7280; font-size: 0.875rem;">
+                Have an account? <a href="/login" class="text-primary-600 font-medium">Sign in</a>
+            </p>
+        </div>
+    </div>
+</div>
