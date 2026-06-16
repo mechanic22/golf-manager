@@ -21,83 +21,85 @@ else if (players.Count == 0 || players.All(p => p.RawScore == null))
 }
 else
 {
-    <!-- Desktop table -->
-    <div class="hidden md:block bg-white border border-gray-200 rounded-xl overflow-hidden">
-        <table class="w-full text-sm">
-            <thead>
-                <tr class="border-b border-gray-200 text-xs text-gray-500 uppercase tracking-wider">
-                    <th class="py-2 pl-5 pr-3 text-left font-medium w-10">Pos</th>
-                    <th class="py-2 px-3 text-left font-medium">Player</th>
-                    <th class="py-2 px-3 text-left font-medium">Team</th>
-                    <th class="py-2 px-3 text-center font-medium">HI</th>
-                    <th class="py-2 px-3 text-center font-medium">Gross</th>
-                    <th class="py-2 px-3 text-center font-medium">Net</th>
-                    <th class="py-2 pl-3 pr-5 text-center font-medium">Pts</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach (var p in players)
-                {
-                    <tr class="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                        <td class="py-3 pl-5 pr-3 text-gray-500 text-center">
-                            @(p.EventPosition.HasValue ? p.EventPosition.Value.ToString() : "—")
-                        </td>
-                        <td class="py-3 px-3 font-medium text-gray-900">@p.DisplayName</td>
-                        <td class="py-3 px-3 text-gray-500">@(p.TeamName ?? "—")</td>
-                        <td class="py-3 px-3 text-center text-gray-500">@FormatHandicap(p.Handicap)</td>
-                        <td class="py-3 px-3 text-center text-gray-400">@(p.RawScore?.ToString() ?? "—")</td>
-                        <td class="py-3 px-3 text-center text-gray-400">
-                            @(p.NetScore.HasValue ? p.NetScore.Value.ToString("F1") : "—")
-                        </td>
-                        <td class="py-3 pl-3 pr-5 text-center font-medium text-gray-700">
-                            @(p.EventPoints.HasValue ? p.EventPoints.Value.ToString("F1") : "—")
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-    </div>
-
-    <!-- Mobile cards -->
-    <div class="md:hidden space-y-3">
-        @foreach (var p in players)
-        {
-            <div class="bg-white border border-gray-200 rounded-lg p-4">
-                <div class="flex items-start justify-between gap-2 mb-2">
-                    <div>
-                        <div class="flex items-center gap-2">
-                            @if (p.EventPosition.HasValue)
-                            {
-                                <span class="text-xs font-semibold text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">
-                                    #@p.EventPosition
-                                </span>
-                            }
-                            <span class="font-medium text-gray-900">@p.DisplayName</span>
-                        </div>
-                        @if (!string.IsNullOrEmpty(p.TeamName))
+    <MaterialCard>
+        <ResponsiveTable TItem="EventPlayerScoreResponse" Items="@players">
+            <Headers>
+                <th class="py-2 pl-5 pr-3 text-left w-10">Pos</th>
+                <th class="py-2 px-3 text-left">Player</th>
+                <th class="py-2 px-3 text-left">Team</th>
+                <th class="py-2 px-3 text-center">HDCP</th>
+                <th class="py-2 px-3 text-center">Gross</th>
+                <th class="py-2 px-3 text-center">Net</th>
+                <th class="py-2 pl-3 pr-5 text-center">Pts</th>
+            </Headers>
+            <Row Context="p">
+                <tr class="hover:bg-gray-50">
+                    <td class="py-3 pl-5 pr-3 text-gray-500 text-center">
+                        @(p.EventPosition.HasValue ? p.EventPosition.Value.ToString() : "—")
+                    </td>
+                    <td class="py-3 px-3 font-medium text-gray-900">@p.DisplayName</td>
+                    <td class="py-3 px-3 text-gray-500">@(p.TeamName ?? "—")</td>
+                    <td class="py-3 px-3 text-center text-gray-500">@FormatHandicap(p.Handicap)</td>
+                    <td class="py-3 px-3 text-center text-gray-400">
+                        @if (p.RawScore.HasValue)
                         {
-                            <div class="text-xs text-gray-500 mt-0.5">@p.TeamName</div>
+                            @p.RawScore
+                        }
+                        else if (p.MissScore.HasValue)
+                        {
+                            <text>Miss @(p.MissCount ?? 1)</text>
+                        }
+                        else
+                        {
+                            <text>—</text>
+                        }
+                    </td>
+                    <td class="py-3 px-3 text-center text-gray-400">
+                        @(p.NetScore.HasValue ? p.NetScore.Value.ToString("F2") : "—")
+                    </td>
+                    <td class="py-3 pl-3 pr-5 text-center font-medium text-gray-700">
+                        @(p.EventPoints.HasValue ? p.EventPoints.Value.ToString("F2") : "—")
+                    </td>
+                </tr>
+            </Row>
+            <Card Context="p">
+                <div class="border border-gray-200 rounded-lg p-4 bg-white">
+                    <div class="flex items-start justify-between gap-2 mb-2">
+                        <div>
+                            <div class="flex items-center gap-2">
+                                @if (p.EventPosition.HasValue)
+                                {
+                                    <span class="text-xs font-semibold text-gray-500 bg-gray-100 rounded-full px-2 py-0.5">
+                                        #@p.EventPosition
+                                    </span>
+                                }
+                                <span class="font-medium text-gray-900">@p.DisplayName</span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(p.TeamName))
+                            {
+                                <div class="text-xs text-gray-500 mt-0.5">@p.TeamName</div>
+                            }
+                        </div>
+                        @if (p.EventPoints.HasValue)
+                        {
+                            <span class="text-lg font-bold text-gray-800">@p.EventPoints.Value.ToString("F2") pts</span>
                         }
                     </div>
-                    @if (p.EventPoints.HasValue)
-                    {
-                        <span class="text-lg font-bold text-gray-800">@p.EventPoints.Value.ToString("F1") pts</span>
-                    }
+                    <div class="flex gap-4 text-sm text-gray-500">
+                        <span>HDCP: @FormatHandicap(p.Handicap)</span>
+                        <span>Gross: @(p.RawScore.HasValue ? p.RawScore.ToString() : p.MissScore.HasValue ? $"Miss {p.MissCount ?? 1}" : "—")</span>
+                        <span>Net: @(p.NetScore.HasValue ? p.NetScore.Value.ToString("F2") : "—")</span>
+                    </div>
                 </div>
-                <div class="flex gap-4 text-sm text-gray-500">
-                    <span>HI: @FormatHandicap(p.Handicap)</span>
-                    <span>Gross: @(p.RawScore?.ToString() ?? "—")</span>
-                    <span>Net: @(p.NetScore.HasValue ? p.NetScore.Value.ToString("F1") : "—")</span>
-                </div>
-            </div>
-        }
-    </div>
+            </Card>
+        </ResponsiveTable>
+    </MaterialCard>
 }
 
 @code {
     private static string FormatHandicap(double? h)
     {
         if (!h.HasValue) return "—";
-        return h.Value < 0 ? $"+{Math.Abs(h.Value):F0}" : h.Value.ToString("F0");
+        return h.Value < 0 ? $"+{Math.Abs(h.Value):F2}" : h.Value.ToString("F2");
     }
 }

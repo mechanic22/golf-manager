@@ -1,0 +1,94 @@
+@using GolfManager.Shared.DTOs.Season
+@using Microsoft.JSInterop
+@using System.Text.Json
+@inject IJSRuntime JS
+
+@if (CurrentHoles == null || !CurrentHoles.Any(h => h.HolesPlayed > 0))
+{
+    <div class="text-center py-8 text-gray-500 text-sm">
+        <p>@EmptyMessage</p>
+    </div>
+}
+else
+{
+    <div style="position:relative; height:340px;">
+        <canvas id="@_chartId"></canvas>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public List<HoleStatEntry>? CurrentHoles { get; set; }
+    [Parameter] public List<HoleStatEntry>? CareerHoles { get; set; }
+    [Parameter] public string EmptyMessage { get; set; } = "No scoring data available";
+
+    private readonly string _chartId = $"scoring-profile-{Guid.NewGuid():N}";
+    private List<HoleStatEntry>? _lastCurrentHoles;
+    private List<HoleStatEntry>? _lastCareerHoles;
+
+    private record ScoringTotals(int Total, int EagleOrBetter, int Birdies, int Pars, int Bogeys, int DoubleBogeys, int TriplePlus);
+
+    private static ScoringTotals Aggregate(List<HoleStatEntry> holes)
+    {
+        int eagle  = holes.Sum(h => h.EagleOrBetter);
+        int birdie = holes.Sum(h => h.Birdies);
+        int par    = holes.Sum(h => h.Pars);
+        int bogey  = holes.Sum(h => h.Bogeys);
+        int dbl    = holes.Sum(h => h.DoubleBogeys);
+        int tri    = holes.Sum(h => h.TriplePlus);
+        int total  = eagle + birdie + par + bogey + dbl + tri;
+        return new ScoringTotals(total, eagle, birdie, par, bogey, dbl, tri);
+    }
+
+    private static double[] ToPercentages(ScoringTotals t)
+    {
+        if (t.Total == 0) return new double[6];
+        double pct(int n) => Math.Round(n * 100.0 / t.Total, 1);
+        return new[] { pct(t.EagleOrBetter), pct(t.Birdies), pct(t.Pars), pct(t.Bogeys), pct(t.DoubleBogeys), pct(t.TriplePlus) };
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (CurrentHoles == null || !CurrentHoles.Any(h => h.HolesPlayed > 0)) return;
+        if (!firstRender && CurrentHoles == _lastCurrentHoles && CareerHoles == _lastCareerHoles) return;
+
+        _lastCurrentHoles = CurrentHoles;
+        _lastCareerHoles = CareerHoles;
+
+        var labels = new[] { "Eagle+", "Birdie", "Par", "Bogey", "Double", "Triple+" };
+        var datasets = new List<object>();
+
+        var currentTotals = Aggregate(CurrentHoles);
+        datasets.Add(new
+        {
+            label = "This Season",
+            data = ToPercentages(currentTotals),
+            backgroundColor = "rgba(132,204,22,0.25)",
+            borderColor = "rgba(132,204,22,1)",
+            pointBackgroundColor = "rgba(132,204,22,1)",
+            pointBorderColor = "#fff",
+            pointHoverBackgroundColor = "#fff",
+            pointHoverBorderColor = "rgba(132,204,22,1)"
+        });
+
+        if (CareerHoles != null && CareerHoles.Any(h => h.HolesPlayed > 0))
+        {
+            var careerTotals = Aggregate(CareerHoles);
+            datasets.Add(new
+            {
+                label = "Career",
+                data = ToPercentages(careerTotals),
+                backgroundColor = "rgba(220,38,38,0.1)",
+                borderColor = "rgba(220,38,38,0.7)",
+                pointBackgroundColor = "rgba(220,38,38,0.7)",
+                pointBorderColor = "#fff",
+                pointHoverBackgroundColor = "#fff",
+                pointHoverBorderColor = "rgba(220,38,38,0.7)"
+            });
+        }
+
+        var labelsJson = JsonSerializer.Serialize(labels);
+        var datasetsJson = JsonSerializer.Serialize(datasets);
+
+        await JS.InvokeVoidAsync("initializeScoringProfileRadarChart", _chartId, labelsJson, datasetsJson);
+    }
+}

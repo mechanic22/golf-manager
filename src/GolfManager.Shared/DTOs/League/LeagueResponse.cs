@@ -66,6 +66,11 @@ public class LeagueResponse
     public string? ActiveSeasonId { get; set; }
 
     /// <summary>
+    /// Currently active season URL key (slug)
+    /// </summary>
+    public string? ActiveSeasonKey { get; set; }
+
+    /// <summary>
     /// Total number of members in the league
     /// </summary>
     public int MemberCount { get; set; }

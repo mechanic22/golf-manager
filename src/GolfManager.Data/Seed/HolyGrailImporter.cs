@@ -64,6 +64,7 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger, ISh
             await ImportRoundHolesAsync(sqlContent);
             await ImportSeasonEventGolfersAsync(sqlContent);  // must run after rounds are in _roundMap; creates SeasonEventPlayerScores directly from holy-grail data
             await SetLeagueGolferActiveStatusAsync();
+            await SetGolferJoinedDatesAsync();
 
             _logger.LogInformation("===========================================");
             _logger.LogInformation("Holy Grail Data Import Completed Successfully!");
@@ -113,6 +114,7 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger, ISh
                 Key = key,
                 Name = name,
                 Description = string.Empty,
+                LogoUrl = key == "dkgl" ? "/img/dkgltr.png" : null,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -683,8 +685,11 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger, ISh
 
             _seasonEventMap[eventKey] = eventKey;
 
-            // Map scoring format
-            var scoringFormat = eventType.Equals("Match", StringComparison.OrdinalIgnoreCase) ? ScoringFormat.TwoPoint : ScoringFormat.StrokePlay;
+            // Map scoring format and event type
+            var isPlayoff = eventType.Equals("PlayoffNight", StringComparison.OrdinalIgnoreCase);
+            var scoringFormat = (eventType.Equals("Match", StringComparison.OrdinalIgnoreCase) || isPlayoff)
+                ? ScoringFormat.TwoPoint
+                : ScoringFormat.StrokePlay;
 
             var seasonEvent = new SeasonEvent
             {
@@ -693,7 +698,7 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger, ISh
                 LeagueId = leagueId,
                 Name = $"{seasonKey} Event - {eventDate:MMM dd}",
                 EventDate = eventDate,
-                EventType = SeasonEventType.Regular, // All imported events are regular season events
+                EventType = isPlayoff ? SeasonEventType.Playoff : SeasonEventType.Regular,
                 ScoringFormat = scoringFormat,
                 CourseId = courseId,
                 TeeId = teeId,
@@ -1342,6 +1347,52 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger, ISh
             activeUpdated,
             inactiveUpdated,
             currentSeason.Key);
+    }
+
+    private async Task SetGolferJoinedDatesAsync()
+    {
+        _logger.LogInformation("Setting golfer joined dates from first round...");
+
+        // Find the earliest round date per global GolferId
+        var earliestByGolferId = await _context.Rounds
+            .IgnoreQueryFilters()
+            .Where(r => r.GolferId != null)
+            .GroupBy(r => r.GolferId)
+            .Select(g => new { GolferId = g.Key, EarliestDate = g.Min(r => r.RoundDate) })
+            .ToDictionaryAsync(x => x.GolferId, x => x.EarliestDate);
+
+        var leagueGolfers = await _context.LeagueGolfers
+            .IgnoreQueryFilters()
+            .ToListAsync();
+
+        int lgUpdated = 0;
+        foreach (var lg in leagueGolfers)
+        {
+            if (earliestByGolferId.TryGetValue(lg.GolferId, out var earliest))
+            {
+                lg.JoinedAt = earliest;
+                lgUpdated++;
+            }
+        }
+        await _context.SaveChangesAsync();
+
+        var userLeagues = await _context.UserLeagues
+            .IgnoreQueryFilters()
+            .Include(ul => ul.LeagueGolfer)
+            .ToListAsync();
+
+        int ulUpdated = 0;
+        foreach (var ul in userLeagues)
+        {
+            if (ul.LeagueGolfer != null && earliestByGolferId.TryGetValue(ul.LeagueGolfer.GolferId, out var earliest))
+            {
+                ul.JoinedAt = earliest;
+                ulUpdated++;
+            }
+        }
+        await _context.SaveChangesAsync();
+
+        _logger.LogInformation("✓ Set joined dates for {LgCount} league golfers, {UlCount} user leagues", lgUpdated, ulUpdated);
     }
 
     private async Task PopulateEventPlayerScoresAsync(SeasonEvent seasonEvent)

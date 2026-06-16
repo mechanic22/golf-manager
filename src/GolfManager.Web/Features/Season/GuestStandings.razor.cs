@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.Components;
-using GolfManager.Shared.DTOs.League;
 
 namespace GolfManager.Web.Features.Season;
 
@@ -10,21 +9,20 @@ public partial class GuestStandings : ComponentBase
 
     [Inject] private IAuthService AuthService { get; set; } = null!;
     [Inject] private ILeagueService LeagueService { get; set; } = null!;
+    [Inject] private AppState AppState { get; set; } = null!;
     [Inject] private NavigationManager Navigation { get; set; } = null!;
     [Inject] private ILogger<GuestStandings> Logger { get; set; } = null!;
 
-    private GuestStandingsResponse? standings;
     private bool isLoading = true;
-    private string? leagueKey;
+    private bool noSeason = false;
+    private string? leagueName;
+    private string? logoUrl;
 
     protected override async Task OnInitializedAsync()
     {
-        leagueKey = LeagueKey;
-
         await AuthService.InitializeAsync();
 
-        // Verify user is guest or has permission to view
-        if (!AuthService.IsGuest && !AuthService.IsAuthenticated)
+        if (!AuthService.IsAuthenticated)
         {
             Navigation.NavigateTo($"/league/{LeagueKey}/guest");
             return;
@@ -32,49 +30,45 @@ public partial class GuestStandings : ComponentBase
 
         if (AuthService.IsGuest && AuthService.GuestLeagueKey != LeagueKey)
         {
-            // Guest logged in to a different league
             Navigation.NavigateTo($"/league/{LeagueKey}/guest");
             return;
         }
 
-        await LoadStandings();
+        AppState.SetCurrentLeague(LeagueKey);
+        await ResolveAndRedirect();
     }
 
-    private async Task LoadStandings()
+    private async Task ResolveAndRedirect()
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(LeagueKey))
-            {
-                Logger.LogWarning("LeagueKey is empty");
-                return;
-            }
-
-            var response = await LeagueService.GetGuestStandingsAsync(LeagueKey);
-
+            var response = await LeagueService.GetLeagueByKeyAsync(LeagueKey!);
             if (response?.Success == true && response.Data != null)
             {
-                standings = response.Data;
-                Logger.LogInformation("Loaded standings for league: {LeagueKey}", LeagueKey);
+                var league = response.Data;
+                leagueName = league.Name;
+                logoUrl = league.LogoUrl;
+                AppState.UpdateCurrentLeagueLogoUrl(league.LogoUrl);
+
+                if (!string.IsNullOrEmpty(league.ActiveSeasonKey))
+                {
+                    Navigation.NavigateTo(
+                        $"/league/{LeagueKey}/season/{league.ActiveSeasonKey}/standings",
+                        replace: true);
+                    return;
+                }
             }
-            else
-            {
-                Logger.LogWarning("Failed to load standings. Response: {@Response}", response);
-            }
+
+            noSeason = true;
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error loading standings for league: {LeagueKey}", LeagueKey);
+            Logger.LogError(ex, "Error resolving league standings for {LeagueKey}", LeagueKey);
+            noSeason = true;
         }
         finally
         {
             isLoading = false;
         }
-    }
-
-    private async Task HandleSignIn()
-    {
-        await AuthService.LogoutAsync();
-        Navigation.NavigateTo("/login");
     }
 }

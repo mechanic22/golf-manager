@@ -1,3 +1,6 @@
+using System.Net.Http.Json;
+using GolfManager.Shared.DTOs.Common;
+using GolfManager.Shared.DTOs.Course;
 using GolfManager.Shared.DTOs.Event;
 using GolfManager.Shared.DTOs.Player;
 using GolfManager.Shared.DTOs.Season;
@@ -11,6 +14,7 @@ public partial class PrintScorecards : ComponentBase
     [Inject] private ISeasonService SeasonService { get; set; } = null!;
     [Inject] private IEventService EventService { get; set; } = null!;
     [Inject] private IPlayerService PlayerService { get; set; } = null!;
+    [Inject] private HttpClient Http { get; set; } = null!;
     [Inject] private NavigationManager Navigation { get; set; } = null!;
     [Inject] private ILogger<PrintScorecards> Logger { get; set; } = null!;
 
@@ -23,11 +27,14 @@ public partial class PrintScorecards : ComponentBase
     private LeagueResponse? league;
     private SeasonResponse? season;
     private EventResponse? seasonEvent;
+    private TeeResponse? tee;
     private List<EventMatchupResponse> matchups = new();
     private List<PlayerResponse> seasonPlayers = new();
     private List<SeasonTeamResponse> seasonTeams = new();
     private bool accessDenied;
     private bool isLoading = true;
+
+    private static readonly TimeSpan TargetSideTime = TimeSpan.FromMinutes(165);
 
     private int HoleCount => seasonEvent?.HolesPlayed == Core.Enums.HolesPlayed.Eighteen ? 18 : 9;
 
@@ -70,6 +77,14 @@ public partial class PrintScorecards : ComponentBase
             var playersResponse = await PlayerService.GetSeasonPlayersAsync(league.Id, season.Id);
             if (playersResponse?.Success == true && playersResponse.Data != null)
                 seasonPlayers = playersResponse.Data;
+
+            if (!string.IsNullOrEmpty(seasonEvent.CourseId) && !string.IsNullOrEmpty(seasonEvent.TeeId))
+            {
+                var teeResp = await Http.GetFromJsonAsync<ApiResponse<TeeResponse>>(
+                    $"api/v1/courses/{seasonEvent.CourseId}/tees/{seasonEvent.TeeId}?includeHoles=true");
+                if (teeResp?.Success == true)
+                    tee = teeResp.Data;
+            }
         }
         catch (Exception ex)
         {
@@ -93,6 +108,15 @@ public partial class PrintScorecards : ComponentBase
         return team?.Name ?? "TBD";
     }
 
+    private IEnumerable<SeasonTeamMemberResponse> GetTeamMembers(string? teamId)
+    {
+        if (string.IsNullOrWhiteSpace(teamId)) return [];
+        return seasonTeams
+            .FirstOrDefault(t => string.Equals(t.Id, teamId, StringComparison.OrdinalIgnoreCase))
+            ?.Members.OrderBy(m => m.DisplayName)
+            ?? (IEnumerable<SeasonTeamMemberResponse>)[];
+    }
+
     private string GetSubName(string? seasonGolferId)
     {
         if (string.IsNullOrWhiteSpace(seasonGolferId))
@@ -101,4 +125,57 @@ public partial class PrintScorecards : ComponentBase
         var player = seasonPlayers.FirstOrDefault(p => string.Equals(p.SeasonGolferId, seasonGolferId, StringComparison.OrdinalIgnoreCase));
         return player?.DisplayName ?? "Unknown";
     }
+
+    private static string DigitToLetter(int digit) =>
+        digit <= 0 ? string.Empty : ((char)('A' + digit - 1)).ToString();
+
+    private Dictionary<int, TimeSpan> BuildPaceTimeline(EventMatchupResponse match)
+    {
+        if (tee?.Holes == null)
+            return Enumerable.Range(1, 18).ToDictionary(x => x, _ => TimeSpan.Zero);
+
+        var startHole = match.StartingHole ?? 1;
+        var sideStart = startHole <= 9 ? 1 : 10;
+        var sideEnd = startHole <= 9 ? 9 : 18;
+
+        var holes = tee.Holes
+            .Where(x => x.HoleNumber >= sideStart && x.HoleNumber <= sideEnd)
+            .OrderBy(x => x.HoleNumber < startHole ? 1 : 0)
+            .ThenBy(x => x.HoleNumber)
+            .ToArray();
+
+        if (holes.Length == 0)
+            return Enumerable.Range(1, 18).ToDictionary(x => x, _ => TimeSpan.Zero);
+
+        var eventStart = seasonEvent?.EventDate ?? DateTime.MinValue;
+        var flight = Math.Max(match.StartingFlight ?? 1, 1);
+        var sideFlights = GetSideFlightCount(startHole);
+        var holeWeights = holes.Select(x => Math.Max(x.Yardage, 1)).ToArray();
+        var totalWeight = holeWeights.Sum();
+        if (totalWeight <= 0) totalWeight = Math.Max(holeWeights.Length, 1);
+
+        var elapsedMinutes = 0.0;
+        var timeline = new Dictionary<int, TimeSpan>();
+        for (var i = 0; i < holes.Length; i++)
+        {
+            var holeMinutes = TargetSideTime.TotalMinutes * holeWeights[i] / totalWeight;
+            var flightOffset = (flight - 1) * (holeMinutes / sideFlights);
+            timeline[holes[i].HoleNumber] = eventStart.TimeOfDay + TimeSpan.FromMinutes(elapsedMinutes + flightOffset);
+            elapsedMinutes += holeMinutes;
+        }
+        return timeline;
+    }
+
+    private int GetSideFlightCount(int startHole)
+    {
+        var isFront = startHole <= 9;
+        return matchups
+            .Where(x => x.StartingHole.HasValue && ((x.StartingHole.Value <= 9) == isFront))
+            .Select(x => Math.Max(x.StartingFlight ?? 1, 1))
+            .DefaultIfEmpty(1)
+            .Max();
+    }
+
+    private static string FormatPace(TimeSpan pace) =>
+        DateTime.Today.Add(pace).ToString("h:mm tt");
 }

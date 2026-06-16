@@ -3,16 +3,16 @@
 @if (Items?.Any() == true)
 {
     <div class="rt-table-wrap">
-        <table class="min-w-full divide-y divide-gray-200">
+        <table class="min-w-full">
             @if (Headers != null)
             {
                 <thead>
-                    <tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <tr class="text-left text-xs font-medium uppercase tracking-wider bg-gray-50 border-b border-gray-200">
                         @Headers
                     </tr>
                 </thead>
             }
-            <tbody class="divide-y divide-gray-100">
+            <tbody>
                 @foreach (var item in Items)
                 {
                     @Row(item)

@@ -1,4 +1,5 @@
 using GolfManager.Shared.DTOs.Common;
+using GolfManager.Shared.DTOs.Event;
 using GolfManager.Shared.DTOs.League;
 
 namespace GolfManager.Web.Features.League;
@@ -72,5 +73,20 @@ public interface ILeagueService
     /// Get guest standings for a league (read-only access)
     /// </summary>
     Task<ApiResponse<GuestStandingsResponse>?> GetGuestStandingsAsync(string leagueKey);
+
+    /// <summary>
+    /// Get season events list (read-only access)
+    /// </summary>
+    Task<ApiResponse<GuestEventsResponse>?> GetGuestEventsAsync(string leagueKey);
+
+    /// <summary>
+    /// Get matchups for a single event (read-only access)
+    /// </summary>
+    Task<ApiResponse<GuestEventRow>?> GetGuestEventDetailAsync(string eventId);
+
+    /// <summary>
+    /// Get hole-by-hole match detail (read-only access)
+    /// </summary>
+    Task<ApiResponse<MatchDetailResponse>?> GetGuestMatchDetailAsync(string matchupId);
 }
 

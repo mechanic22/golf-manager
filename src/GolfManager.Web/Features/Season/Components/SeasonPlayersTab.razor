@@ -29,7 +29,7 @@ else
         </Headers>
         <Row Context="entry">
             @{ var g = entry.Golfer; var st = standingsByGolferId.TryGetValue(g.SeasonGolferId ?? "", out var sv) ? sv : null; }
-            <tr class="hover:bg-gray-50 cursor-pointer" @onclick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/player/{g.Id}"))">
+            <tr class="hover:bg-gray-50 cursor-pointer" @onclick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/player/{g.Id}"))">
                 <td class="py-3 pr-4 text-sm text-gray-400">@(entry.DisplayRank > 0 ? entry.DisplayRank : null)</td>
                 <td class="py-3 pr-6 text-sm font-medium text-primary-700 hover:underline">
                     @g.DisplayName

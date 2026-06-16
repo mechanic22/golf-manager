@@ -8,28 +8,29 @@
 }
 else
 {
+    <MaterialCard class="rounded-none">
     <ResponsiveTable TItem="RankedStanding" Items="@RankedStandings">
         <Empty>
             <p class="text-gray-500 py-6">No players in this season yet.</p>
         </Empty>
         <Headers>
-            <th class="py-3 pr-4 w-10">#</th>
-            <th class="py-3 pr-6">Player</th>
-            <th class="py-3 pr-6">Points</th>
-            <th class="py-3 pr-6">Handicap</th>
-            <th class="py-3 pr-6">Rounds</th>
-            <th class="py-3 pr-6">Avg Net</th>
-            <th class="py-3 pr-6">Best</th>
+            <th class="py-2 pl-5 pr-3 w-10">#</th>
+            <th class="py-2 px-3 text-left">Player</th>
+            <th class="py-2 px-3 text-center">Points</th>
+            <th class="py-2 px-3 text-center">Handicap</th>
+            <th class="py-2 px-3 text-center">Rounds</th>
+            <th class="py-2 px-3 text-center">Avg Net</th>
+            <th class="py-2 pl-3 pr-5 text-center">Best</th>
         </Headers>
         <Row Context="entry">
             <tr class="hover:bg-gray-50">
-                <td class="py-3 pr-4 text-sm text-gray-500">@(entry.DisplayRank > 0 ? entry.DisplayRank : null)</td>
-                <td class="py-3 pr-6 text-sm font-medium text-gray-900">@entry.Standing.DisplayName</td>
-                <td class="py-3 pr-6 text-sm text-gray-700">@(entry.Standing.SeasonPoints?.ToString("F1") ?? "—")</td>
-                <td class="py-3 pr-6 text-sm text-gray-700">@(entry.Standing.LeagueHandicap?.ToString("F1") ?? "—")</td>
-                <td class="py-3 pr-6 text-sm text-gray-700">@entry.Standing.RoundCount</td>
-                <td class="py-3 pr-6 text-sm text-gray-700">@(entry.Standing.AverageNetScore?.ToString("F1") ?? "—")</td>
-                <td class="py-3 pr-6 text-sm text-gray-700">@(entry.Standing.BestRawScore?.ToString() ?? "—")</td>
+                <td class="py-3 pl-5 pr-3 text-gray-500 text-center">@(entry.DisplayRank > 0 ? entry.DisplayRank : null)</td>
+                <td class="py-3 px-3 font-medium text-gray-900">@entry.Standing.DisplayName</td>
+                <td class="py-3 px-3 text-center text-gray-700">@(entry.Standing.SeasonPoints?.ToString("F1") ?? "—")</td>
+                <td class="py-3 px-3 text-center text-gray-500">@(entry.Standing.LeagueHandicap?.ToString("F1") ?? "—")</td>
+                <td class="py-3 px-3 text-center text-gray-500">@entry.Standing.RoundCount</td>
+                <td class="py-3 px-3 text-center text-gray-500">@(entry.Standing.AverageNetScore?.ToString("F1") ?? "—")</td>
+                <td class="py-3 pl-3 pr-5 text-center text-gray-500">@(entry.Standing.BestRawScore?.ToString() ?? "—")</td>
             </tr>
         </Row>
         <Card Context="entry">
@@ -51,4 +52,5 @@ else
             </div>
         </Card>
     </ResponsiveTable>
+    </MaterialCard>
 }

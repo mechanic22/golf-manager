@@ -1,0 +1,88 @@
+@using GolfManager.Shared.DTOs.Season
+@using Microsoft.JSInterop
+@using System.Text.Json
+@inject IJSRuntime JS
+
+@if (!seasonHoles.Any(h => h.HolesPlayed > 0))
+{
+    <div class="text-center py-8 text-gray-500 text-sm">
+        <p>@EmptyMessage</p>
+    </div>
+}
+else
+{
+    <div style="position:relative; height:@(MaxHeightPx)px;">
+        <canvas id="@_chartId"></canvas>
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired] public List<HoleStatEntry> seasonHoles { get; set; } = [];
+    [Parameter] public List<HoleStatEntry>? CareerHoles { get; set; }
+    [Parameter] public string EmptyMessage { get; set; } = "No hole data available";
+    [Parameter] public int MaxHeightPx { get; set; } = 220;
+
+    private readonly string _chartId = $"hole-chart-{Guid.NewGuid():N}";
+    private List<HoleStatEntry> _lastSeasonHoles = [];
+    private List<HoleStatEntry>? _lastCareerHoles;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!seasonHoles.Any(h => h.HolesPlayed > 0)) return;
+        if (!firstRender && seasonHoles == _lastSeasonHoles && CareerHoles == _lastCareerHoles) return;
+
+        _lastSeasonHoles = seasonHoles;
+        _lastCareerHoles = CareerHoles;
+
+        var labels = Enumerable.Range(1, 18).Select(i => i.ToString()).ToList();
+
+        var datasets = new List<object>();
+
+        // Current season dataset
+        var seasonData = Enumerable.Range(1, 18)
+            .Select(h => seasonHoles.FirstOrDefault(x => x.HoleNumber == h && x.HolesPlayed > 0)?.AverageOverPar)
+            .ToList();
+
+        datasets.Add(new
+        {
+            label = "This Season",
+            data = seasonData,
+            borderColor = "#2563eb",
+            backgroundColor = "rgba(37,99,235,0.08)",
+            borderWidth = 2,
+            pointRadius = 4,
+            pointHoverRadius = 6,
+            tension = 0.28,
+            spanGaps = true,
+            fill = true
+        });
+
+        // Career overlay dataset
+        if (CareerHoles != null && CareerHoles.Any(h => h.HolesPlayed > 0))
+        {
+            var careerData = Enumerable.Range(1, 18)
+                .Select(h => CareerHoles.FirstOrDefault(x => x.HoleNumber == h && x.HolesPlayed > 0)?.AverageOverPar)
+                .ToList();
+
+            datasets.Add(new
+            {
+                label = "Career",
+                data = careerData,
+                borderColor = "rgba(220,38,38,0.65)",
+                backgroundColor = "transparent",
+                borderWidth = 2,
+                borderDash = new[] { 5, 4 },
+                pointRadius = 3,
+                pointHoverRadius = 5,
+                tension = 0.28,
+                spanGaps = true,
+                fill = false
+            });
+        }
+
+        var labelsJson = JsonSerializer.Serialize(labels);
+        var datasetsJson = JsonSerializer.Serialize(datasets);
+
+        await JS.InvokeVoidAsync("initializeHoleTrendChart", _chartId, labelsJson, datasetsJson);
+    }
+}

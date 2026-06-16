@@ -6,6 +6,8 @@ namespace GolfManager.Web.Features.Events;
 
 public partial class TeamDetail : ComponentBase
 {
+    private record TeamMatchRow(DateTime EventDate, string EventId, EventMatchScoreResponse Match);
+
     [Inject] private ILeagueService LeagueService { get; set; } = null!;
     [Inject] private ISeasonService SeasonService { get; set; } = null!;
     [Inject] private IPlayerService PlayerService { get; set; } = null!;
@@ -21,7 +23,8 @@ public partial class TeamDetail : ComponentBase
     private SeasonTeamResponse? team;
     private List<PlayerStandingResponse> standings = new();
     private Dictionary<string, string> leagueGolferIdBySeasonGolferId = new(StringComparer.OrdinalIgnoreCase);
-    private IReadOnlyList<(DateTime EventDate, EventMatchScoreResponse Match)> teamMatches = Array.Empty<(DateTime, EventMatchScoreResponse)>();
+    private Dictionary<string, string> teamNameById = new(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<TeamMatchRow> teamMatches = Array.Empty<TeamMatchRow>();
     private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
@@ -57,6 +60,7 @@ public partial class TeamDetail : ComponentBase
             var allTeams = teamsTask.Result?.Success == true && teamsTask.Result.Data != null
                 ? teamsTask.Result.Data : new();
             team = allTeams.FirstOrDefault(t => t.Id == TeamId);
+            teamNameById = allTeams.ToDictionary(t => t.Id, t => t.Name, StringComparer.OrdinalIgnoreCase);
 
             standings = standingsTask.Result?.Success == true && standingsTask.Result.Data != null
                 ? standingsTask.Result.Data : new();
@@ -81,7 +85,7 @@ public partial class TeamDetail : ComponentBase
                 .SelectMany(r => r!.Data!.Matches
                     .Where(m => string.Equals(m.HomeTeamId, TeamId, StringComparison.OrdinalIgnoreCase)
                              || string.Equals(m.AwayTeamId, TeamId, StringComparison.OrdinalIgnoreCase))
-                    .Select(m => (r.Data!.EventDate, m)))
+                    .Select(m => new TeamMatchRow(r.Data!.EventDate, r.Data!.EventId, m)))
                 .OrderBy(x => x.EventDate)
                 .ToList();
         }
@@ -100,4 +104,9 @@ public partial class TeamDetail : ComponentBase
 
     private string? GetLeagueGolferId(string seasonGolferId) =>
         leagueGolferIdBySeasonGolferId.TryGetValue(seasonGolferId, out var id) ? id : null;
+
+    private string ResolveTeamName(string? teamId, string? teamName) =>
+        !string.IsNullOrEmpty(teamName) ? teamName
+        : teamId != null && teamNameById.TryGetValue(teamId, out var n) ? n
+        : "—";
 }

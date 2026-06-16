@@ -292,5 +292,24 @@ public class SeasonService : ISeasonService
             return null;
         }
     }
+
+    public async Task<ApiResponse<PlayerSeasonHoleStatsResponse>?> GetPlayerHoleStatsAsync(string leagueId, string seasonId, string leagueGolferId)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"api/v1/seasons/{seasonId}/golfers/{leagueGolferId}/hole-stats");
+
+            if (response.IsSuccessStatusCode)
+                return await response.Content.ReadFromJsonAsync<ApiResponse<PlayerSeasonHoleStatsResponse>>();
+
+            _logger.LogWarning("Failed to get player hole stats: {StatusCode}", response.StatusCode);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting player hole stats for golfer {LeagueGolferId}", leagueGolferId);
+            return null;
+        }
+    }
 }
 

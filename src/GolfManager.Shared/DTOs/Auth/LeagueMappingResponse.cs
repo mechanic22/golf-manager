@@ -36,4 +36,9 @@ public class LeagueMappingResponse
     /// User's role in this league.
     /// </summary>
     public LeagueMemberRole Role { get; set; } = LeagueMemberRole.Member;
+
+    /// <summary>
+    /// League logo URL (local path or absolute URL)
+    /// </summary>
+    public string? LogoUrl { get; set; }
 }

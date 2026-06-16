@@ -1,5 +1,5 @@
 @page "/league/{LeagueKey}/season/{SeasonKey}/team/{TeamId}"
-@layout AppLayout
+@layout SeasonLayout
 @using GolfManager.Shared.DTOs.Season
 @using GolfManager.Shared.DTOs.Event
 
@@ -33,6 +33,7 @@ else if (team == null)
 else
 {
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
         <!-- Back nav -->
         <div class="mb-6">
             <MaterialButton Style="MaterialButtonStyle.Text"
@@ -42,46 +43,54 @@ else
             </MaterialButton>
         </div>
 
-        <!-- Team Header -->
-        <MaterialCard Class="mb-6">
-            <div class="p-6">
-                <div class="flex items-center gap-4 mb-4">
-                    <div class="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center shrink-0">
-                        <MaterialIcon Icon="MaterialIcons.Groups" Class="text-primary-700 text-3xl" />
-                    </div>
-                    <div>
-                        <h1 class="text-2xl font-bold text-gray-900">@team.Name</h1>
-                        <p class="text-sm text-gray-500">@team.Members.Count member@(team.Members.Count == 1 ? "" : "s")</p>
-                    </div>
-                </div>
+        <!-- Hero Card -->
+        <div class="relative overflow-hidden rounded-xl bg-linear-to-br from-primary-600 to-primary-800 text-white mb-8">
+            <div class="absolute -top-12 -right-12 w-64 h-64 rounded-full bg-white/10 blur-3xl pointer-events-none"></div>
+            <div class="absolute -bottom-8 -left-8 w-48 h-48 rounded-full bg-white/5 blur-2xl pointer-events-none"></div>
 
-                <!-- W/L/T Record -->
-                <div class="grid grid-cols-4 gap-4 border-t border-gray-100 pt-4">
-                    <div class="text-center">
-                        <div class="text-2xl font-bold text-gray-900">@team.Wins</div>
-                        <div class="text-xs text-gray-500 uppercase tracking-wide">Wins</div>
+            <div class="relative p-6 md:p-8">
+                <div class="flex flex-col md:flex-row items-start md:items-center gap-6">
+
+                    <!-- Identity -->
+                    <div class="flex items-center gap-4 flex-1 min-w-0">
+                        <div class="w-16 h-16 md:w-20 md:h-20 rounded-full bg-white/20 border-2 border-white/30 flex items-center justify-center shrink-0">
+                            <MaterialIcon Icon="MaterialIcons.Groups" Class="text-white text-3xl" />
+                        </div>
+                        <div class="min-w-0">
+                            <p class="text-primary-200 text-xs uppercase tracking-widest mb-0.5">Team</p>
+                            <h1 class="text-2xl md:text-3xl font-bold leading-tight truncate">@team.Name</h1>
+                            <p class="text-primary-300 text-xs mt-1">@team.Members.Count member@(team.Members.Count == 1 ? "" : "s")</p>
+                        </div>
                     </div>
-                    <div class="text-center">
-                        <div class="text-2xl font-bold text-gray-900">@team.Losses</div>
-                        <div class="text-xs text-gray-500 uppercase tracking-wide">Losses</div>
-                    </div>
-                    <div class="text-center">
-                        <div class="text-2xl font-bold text-gray-900">@team.Ties</div>
-                        <div class="text-xs text-gray-500 uppercase tracking-wide">Ties</div>
-                    </div>
-                    <div class="text-center">
-                        <div class="text-2xl font-bold text-primary-700">@(team.SeasonPoints?.ToString("F1") ?? "—")</div>
-                        <div class="text-xs text-gray-500 uppercase tracking-wide">Points</div>
+
+                    <!-- Stat tiles -->
+                    <div class="grid grid-cols-4 gap-3 w-full md:w-auto shrink-0">
+                        <div class="bg-green-500/20 rounded-lg p-3 text-center min-w-14">
+                            <div class="text-2xl font-bold text-green-200">@team.Wins</div>
+                            <div class="text-green-300 text-xs mt-0.5">Wins</div>
+                        </div>
+                        <div class="bg-red-500/20 rounded-lg p-3 text-center min-w-14">
+                            <div class="text-2xl font-bold text-red-200">@team.Losses</div>
+                            <div class="text-red-300 text-xs mt-0.5">Losses</div>
+                        </div>
+                        <div class="bg-white/10 rounded-lg p-3 text-center min-w-14">
+                            <div class="text-2xl font-bold">@team.Ties</div>
+                            <div class="text-primary-200 text-xs mt-0.5">Ties</div>
+                        </div>
+                        <div class="bg-white/10 rounded-lg p-3 text-center min-w-14">
+                            <div class="text-2xl font-bold">@(team.SeasonPoints?.ToString("F1") ?? "—")</div>
+                            <div class="text-primary-200 text-xs mt-0.5">Points</div>
+                        </div>
                     </div>
                 </div>
             </div>
-        </MaterialCard>
+        </div>
 
         <!-- Members -->
         <h2 class="text-lg font-semibold text-gray-900 mb-3">Members</h2>
         @if (team.Members.Count == 0)
         {
-            <MaterialCard>
+            <MaterialCard Class="mb-6">
                 <div class="p-6 text-center py-10">
                     <p class="text-gray-500">No members assigned to this team.</p>
                 </div>
@@ -89,89 +98,121 @@ else
         }
         else
         {
-            <MaterialCard>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead>
-                            <tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                <th class="px-6 py-3 w-full">Player</th>
-                                <th class="px-6 py-3">Handicap</th>
-                                <th class="px-6 py-3">Points</th>
-                                <th class="px-6 py-3">Rounds</th>
-                                <th class="px-6 py-3">Avg Net</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100 bg-white">
-                            @foreach (var member in team.Members)
-                            {
-                                var standing = GetStanding(member.SeasonGolferId);
-                                <tr class="hover:bg-gray-50 @(GetLeagueGolferId(member.SeasonGolferId) != null ? "cursor-pointer" : "")"
-                                    @onclick="@(() => { var lgId = GetLeagueGolferId(member.SeasonGolferId); if (lgId != null) Navigation.NavigateTo($"/league/{LeagueKey}/player/{lgId}"); })">
-                                    <td class="px-6 py-4 text-sm font-medium text-primary-700 hover:underline">
-                                        @member.DisplayName
-                                    </td>
-                                    <td class="px-6 py-4 text-sm text-gray-600">
-                                        @(member.LeagueHandicap?.ToString("F1") ?? "—")
-                                    </td>
-                                    <td class="px-6 py-4 text-sm font-medium text-gray-900">
-                                        @(standing?.SeasonPoints?.ToString("F1") ?? "—")
-                                    </td>
-                                    <td class="px-6 py-4 text-sm text-gray-600">
-                                        @(standing?.RoundCount > 0 ? standing.RoundCount.ToString() : "—")
-                                    </td>
-                                    <td class="px-6 py-4 text-sm text-gray-600">
-                                        @(standing?.AverageNetScore?.ToString("F1") ?? "—")
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+            <MaterialCard Class="mb-6">
+                <ResponsiveTable TItem="SeasonTeamMemberResponse" Items="@team.Members">
+                    <Headers>
+                        <th class="px-6 py-3 w-full">Player</th>
+                        <th class="px-6 py-3">Handicap</th>
+                        <th class="px-6 py-3">Points</th>
+                        <th class="px-6 py-3">Rounds</th>
+                        <th class="px-6 py-3">Avg Net</th>
+                    </Headers>
+                    <Row Context="member">
+                        @{
+                            var standing = GetStanding(member.SeasonGolferId);
+                            var lgId = GetLeagueGolferId(member.SeasonGolferId);
+                        }
+                        <tr class="hover:bg-gray-50 @(lgId != null ? "cursor-pointer" : "")"
+                            @onclick="@(() => { if (lgId != null) Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/player/{lgId}"); })">
+                            <td class="px-6 py-4 text-sm font-medium text-primary-700 hover:underline">@member.DisplayName</td>
+                            <td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">@(member.LeagueHandicap?.ToString("F1") ?? "—")</td>
+                            <td class="px-6 py-4 text-sm font-medium text-gray-900 whitespace-nowrap">@(standing?.SeasonPoints?.ToString("F1") ?? "—")</td>
+                            <td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">@(standing?.RoundCount > 0 ? standing.RoundCount.ToString() : "—")</td>
+                            <td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">@(standing?.AverageNetScore?.ToString("F1") ?? "—")</td>
+                        </tr>
+                    </Row>
+                    <Card Context="member">
+                        @{
+                            var standing = GetStanding(member.SeasonGolferId);
+                            var lgId = GetLeagueGolferId(member.SeasonGolferId);
+                        }
+                        <div class="border border-gray-200 rounded-lg p-4 bg-white @(lgId != null ? "cursor-pointer" : "")"
+                             @onclick="@(() => { if (lgId != null) Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/player/{lgId}"); })">
+                            <div class="font-medium text-primary-700 mb-2">@member.DisplayName</div>
+                            <div class="grid grid-cols-2 gap-2 text-sm text-gray-600">
+                                <span>HCP: @(member.LeagueHandicap?.ToString("F1") ?? "—")</span>
+                                <span>Pts: @(standing?.SeasonPoints?.ToString("F1") ?? "—")</span>
+                                <span>Rounds: @(standing?.RoundCount > 0 ? standing.RoundCount.ToString() : "—")</span>
+                                <span>Avg Net: @(standing?.AverageNetScore?.ToString("F1") ?? "—")</span>
+                            </div>
+                        </div>
+                    </Card>
+                </ResponsiveTable>
             </MaterialCard>
         }
 
         <!-- Match Results -->
         @if (teamMatches.Any())
         {
-            <h2 class="text-lg font-semibold text-gray-900 mb-3 mt-6">Match Results</h2>
+            <h2 class="text-lg font-semibold text-gray-900 mb-3">Match Results</h2>
             <MaterialCard>
-                <div class="overflow-x-auto">
-                    <table class="min-w-full divide-y divide-gray-200">
-                        <thead>
-                            <tr class="text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                <th class="px-6 py-3">Date</th>
-                                <th class="px-6 py-3">Opponent</th>
-                                <th class="px-6 py-3">Score</th>
-                                <th class="px-6 py-3">Result</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-100 bg-white">
-                            @foreach (var (eventDate, match) in teamMatches)
-                            {
-                                var isHome = string.Equals(match.HomeTeamId, TeamId, StringComparison.OrdinalIgnoreCase);
-                                var ourPoints = isHome ? match.HomePoints : match.AwayPoints;
-                                var theirPoints = isHome ? match.AwayPoints : match.HomePoints;
-                                var opponentName = isHome ? match.AwayTeamName : match.HomeTeamName;
-                                var result = ourPoints.HasValue && theirPoints.HasValue
-                                    ? (ourPoints > theirPoints ? "W" : ourPoints < theirPoints ? "L" : "T")
-                                    : "—";
-                                var resultClass = result == "W" ? "text-green-700 bg-green-50"
-                                               : result == "L" ? "text-red-700 bg-red-50"
-                                               : "text-gray-700 bg-gray-100";
-                                <tr>
-                                    <td class="px-6 py-4 text-sm text-gray-600">@eventDate.ToString("MMM d, yyyy")</td>
-                                    <td class="px-6 py-4 text-sm font-medium text-gray-900">@(opponentName ?? "—")</td>
-                                    <td class="px-6 py-4 text-sm text-gray-600">
-                                        @(ourPoints?.ToString("F1") ?? "—") – @(theirPoints?.ToString("F1") ?? "—")
-                                    </td>
-                                    <td class="px-6 py-4">
-                                        <span class="px-2 py-1 text-xs font-semibold rounded-full @resultClass">@result</span>
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
+                <ResponsiveTable TItem="TeamMatchRow" Items="@teamMatches">
+                    <Headers>
+                        <th class="px-6 py-3">Date</th>
+                        <th class="px-6 py-3 w-full">Opponent</th>
+                        <th class="px-6 py-3">Score</th>
+                        <th class="px-6 py-3">Result</th>
+                    </Headers>
+                    <Row Context="row">
+                        @{
+                            var isHome = string.Equals(row.Match.HomeTeamId, TeamId, StringComparison.OrdinalIgnoreCase);
+                            var ourPoints = isHome ? row.Match.HomePoints : row.Match.AwayPoints;
+                            var theirPoints = isHome ? row.Match.AwayPoints : row.Match.HomePoints;
+                            var opponentId = isHome ? row.Match.AwayTeamId : row.Match.HomeTeamId;
+                            var opponentName = ResolveTeamName(opponentId, isHome ? row.Match.AwayTeamName : row.Match.HomeTeamName);
+                            var result = ourPoints.HasValue && theirPoints.HasValue
+                                ? (ourPoints > theirPoints ? "W" : ourPoints < theirPoints ? "L" : "T") : "—";
+                            var resultClass = result == "W" ? "text-green-700 bg-green-50"
+                                           : result == "L" ? "text-red-700 bg-red-50"
+                                           : "text-gray-700 bg-gray-100";
+                            var matchUrl = $"/league/{LeagueKey}/season/{SeasonKey}/event/{row.EventId}/match/{row.Match.MatchupId}";
+                        }
+                        <tr class="hover:bg-gray-50 cursor-pointer" @onclick="@(() => Navigation.NavigateTo(matchUrl))">
+                            <td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">@row.EventDate.ToString("MMM d, yyyy")</td>
+                            <td class="px-6 py-4 text-sm font-medium text-primary-700 hover:underline"
+                                @onclick:stopPropagation="true"
+                                @onclick="@(() => { if (!string.IsNullOrEmpty(opponentId)) Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/team/{opponentId}"); })">
+                                @opponentName
+                            </td>
+                            <td class="px-6 py-4 text-sm text-gray-600 whitespace-nowrap">
+                                @(ourPoints?.ToString("F1") ?? "—") – @(theirPoints?.ToString("F1") ?? "—")
+                            </td>
+                            <td class="px-6 py-4 text-sm whitespace-nowrap">
+                                <span class="px-2 py-1 text-xs font-semibold rounded-full @resultClass">@result</span>
+                            </td>
+                        </tr>
+                    </Row>
+                    <Card Context="row">
+                        @{
+                            var isHome = string.Equals(row.Match.HomeTeamId, TeamId, StringComparison.OrdinalIgnoreCase);
+                            var ourPoints = isHome ? row.Match.HomePoints : row.Match.AwayPoints;
+                            var theirPoints = isHome ? row.Match.AwayPoints : row.Match.HomePoints;
+                            var opponentId = isHome ? row.Match.AwayTeamId : row.Match.HomeTeamId;
+                            var opponentName = ResolveTeamName(opponentId, isHome ? row.Match.AwayTeamName : row.Match.HomeTeamName);
+                            var result = ourPoints.HasValue && theirPoints.HasValue
+                                ? (ourPoints > theirPoints ? "W" : ourPoints < theirPoints ? "L" : "T") : "—";
+                            var resultClass = result == "W" ? "text-green-700 bg-green-50"
+                                           : result == "L" ? "text-red-700 bg-red-50"
+                                           : "text-gray-700 bg-gray-100";
+                            var matchUrl = $"/league/{LeagueKey}/season/{SeasonKey}/event/{row.EventId}/match/{row.Match.MatchupId}";
+                        }
+                        <div class="border border-gray-200 rounded-lg p-4 bg-white cursor-pointer hover:bg-gray-50"
+                             @onclick="@(() => Navigation.NavigateTo(matchUrl))">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-sm text-gray-500">@row.EventDate.ToString("MMM d, yyyy")</span>
+                                <span class="px-2 py-1 text-xs font-semibold rounded-full @resultClass">@result</span>
+                            </div>
+                            <div class="text-sm font-medium text-primary-700 mb-1"
+                                 @onclick:stopPropagation="true"
+                                 @onclick="@(() => { if (!string.IsNullOrEmpty(opponentId)) Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/team/{opponentId}"); })">
+                                vs @opponentName
+                            </div>
+                            <div class="text-sm text-gray-600">
+                                @(ourPoints?.ToString("F1") ?? "—") – @(theirPoints?.ToString("F1") ?? "—")
+                            </div>
+                        </div>
+                    </Card>
+                </ResponsiveTable>
             </MaterialCard>
         }
     </div>

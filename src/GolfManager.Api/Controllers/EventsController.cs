@@ -41,7 +41,7 @@ public class EventsController : BaseLeagueController
     /// Get all events for a season
     /// </summary>
     [HttpGet]
-    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<PagedResponse<EventResponse>>>> GetSeasonEvents(
         string seasonId, [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
     {
@@ -57,7 +57,7 @@ public class EventsController : BaseLeagueController
     /// Get an event by ID
     /// </summary>
     [HttpGet("{eventId}")]
-    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<EventResponse>>> GetEventById(string seasonId, string eventId)
     {
         var leagueId = LeagueId;
@@ -80,7 +80,7 @@ public class EventsController : BaseLeagueController
     /// Get calculated team and individual scoreboard for an event.
     /// </summary>
     [HttpGet("{eventId}/scoreboard")]
-    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<EventScoreboardResponse>>> GetEventScoreboard(string seasonId, string eventId)
     {
         var leagueId = LeagueId;
@@ -149,7 +149,7 @@ public class EventsController : BaseLeagueController
     /// Get hole-by-hole match detail for a specific matchup
     /// </summary>
     [HttpGet("{eventId}/matchups/{matchupId}/detail")]
-    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<MatchDetailResponse?>>> GetMatchDetail(string seasonId, string eventId, string matchupId)
     {
         var leagueId = LeagueId;
@@ -167,7 +167,7 @@ public class EventsController : BaseLeagueController
     /// Get event matchups
     /// </summary>
     [HttpGet("{eventId}/matchups")]
-    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<List<EventMatchupResponse>>>> GetEventMatchups(string seasonId, string eventId)
     {
         var leagueId = LeagueId;

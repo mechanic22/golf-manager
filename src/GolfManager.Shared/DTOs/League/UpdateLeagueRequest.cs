@@ -20,9 +20,8 @@ public class UpdateLeagueRequest
     public string? Description { get; set; }
 
     /// <summary>
-    /// League logo URL
+    /// League logo URL (absolute URL or local path, e.g. /img/logo.png)
     /// </summary>
-    [Url]
     [StringLength(500)]
     public string? LogoUrl { get; set; }
 

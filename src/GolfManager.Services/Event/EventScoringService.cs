@@ -76,6 +76,18 @@ public class EventScoringService : IEventScoringService
             .ToDictionary(sg => sg.Id, sg => roundByLeagueGolferId[sg.LeagueGolferId], StringComparer.OrdinalIgnoreCase);
 
         var playerScores = BuildPlayerScores(seasonGolfers, teamLookup, roundByLeagueGolferId, seasonSettings, seasonEvent, holeTees, activeHoleNumbers);
+
+        if (playerScores.Any(p => p.MissCount.HasValue))
+        {
+            var priorMissCounts = await GetCumulativeMissCountsAsync(
+                seasonEvent.SeasonId, leagueId, seasonEvent.EventDate, excludeEventId: seasonEvent.Id);
+            foreach (var player in playerScores.Where(p => p.MissCount.HasValue))
+            {
+                var prior = priorMissCounts.TryGetValue(player.SeasonGolferId, out var c) ? c : 0;
+                player.MissCount = prior + 1;
+            }
+        }
+
         var playerLookup = playerScores.ToDictionary(p => p.SeasonGolferId, StringComparer.OrdinalIgnoreCase);
         var matchScores = BuildMatchScores(matchups, seasonGolfers, playerLookup, roundBySeasonGolferId, teamLookup, seasonSettings, holeTees, activeHoleNumbers);
 
@@ -244,6 +256,9 @@ public class EventScoringService : IEventScoringService
             standingPoints -= group.Count();
         }
 
+        var cumulativeMissCounts = await GetCumulativeMissCountsAsync(
+            seasonEvent.SeasonId, leagueId, seasonEvent.EventDate);
+
         var playerResponses = storedPlayers
             .Select(ps =>
             {
@@ -261,7 +276,9 @@ public class EventScoringService : IEventScoringService
                     NetScore = ps.NetScore,
                     EventPoints = ps.EventPoints,
                     EventPosition = positions.TryGetValue(ps.SeasonGolferId, out var pos) ? pos : null,
-                    MissCount = ps.IsMissing ? 1 : null,
+                    MissCount = ps.IsMissing
+                        ? (cumulativeMissCounts.TryGetValue(ps.SeasonGolferId, out var mc) ? mc : 1)
+                        : null,
                     MissScore = ps.MissScore
                 };
             })
@@ -405,6 +422,8 @@ public class EventScoringService : IEventScoringService
 
         foreach (var seasonEvent in seasonEvents)
         {
+            if (seasonEvent.EventType == SeasonEventType.Playoff) continue;
+
             var eventMatchups = matchupsByEventId.GetValueOrDefault(seasonEvent.Id, new List<SeasonEventMatch>());
             if (eventMatchups.Count == 0) continue;
 
@@ -1026,6 +1045,25 @@ public class EventScoringService : IEventScoringService
             .OrderBy(sg => sg.LeagueGolfer.DisplayName)
             .Select(sg => sg.Id)
             .ToList();
+    }
+
+    private async Task<Dictionary<string, int>> GetCumulativeMissCountsAsync(
+        string seasonId,
+        string leagueId,
+        DateTime upToEventDate,
+        string? excludeEventId = null)
+    {
+        return await _context.SeasonEventPlayerScores
+            .IgnoreQueryFilters()
+            .Where(ps => ps.SeasonEvent!.SeasonId == seasonId
+                         && ps.LeagueId == leagueId
+                         && ps.SeasonEvent.EventDate <= upToEventDate
+                         && (excludeEventId == null || ps.SeasonEventId != excludeEventId)
+                         && ps.IsMissing)
+            .GroupBy(ps => ps.SeasonGolferId)
+            .Select(g => new { SeasonGolferId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.SeasonGolferId, x => x.Count,
+                StringComparer.OrdinalIgnoreCase);
     }
 
     private sealed class TeamAggregate

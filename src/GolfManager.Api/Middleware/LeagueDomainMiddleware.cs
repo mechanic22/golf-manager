@@ -1,3 +1,4 @@
+using GolfManager.Api.Authorization;
 using GolfManager.Core.Entities;
 using GolfManager.Data;
 using GolfManager.Core.Enums;
@@ -66,6 +67,38 @@ public class LeagueContextMiddleware
             if (!string.IsNullOrEmpty(userId))
             {
                 var normalizedLeagueKey = leagueKey.ToLowerInvariant();
+
+                // Guest sessions carry their permitted league in claims — validate without a DB lookup.
+                var isGuest = context.User.FindFirst(AuthorizationConstants.Claims.IsGuest)?.Value == "true";
+                if (isGuest)
+                {
+                    var guestLeagueKey = context.User.FindFirst(AuthorizationConstants.Claims.LeagueKey)?.Value;
+                    var guestLeagueId = context.User.FindFirst(AuthorizationConstants.Claims.LeagueId)?.Value;
+
+                    if (!string.IsNullOrEmpty(guestLeagueKey) &&
+                        !string.IsNullOrEmpty(guestLeagueId) &&
+                        string.Equals(guestLeagueKey, normalizedLeagueKey, StringComparison.OrdinalIgnoreCase))
+                    {
+                        context.Items["LeagueId"] = guestLeagueId;
+                        context.Items["LeagueKey"] = guestLeagueKey;
+                        context.Items["IsLeagueAdmin"] = false;
+                        _logger.LogDebug("Guest session allowed for league {LeagueKey}", guestLeagueKey);
+                    }
+                    else if (leagueContextHeaderProvided && !isAuthEndpoint)
+                    {
+                        context.Response.StatusCode = 403;
+                        await context.Response.WriteAsJsonAsync(new
+                        {
+                            error = "Forbidden",
+                            message = "You are not a member of this league"
+                        });
+                        return;
+                    }
+
+                    await _next(context);
+                    return;
+                }
+
                 var membership = await dbContext.UserLeagues
                     .IgnoreQueryFilters()
                     .Include(ul => ul.League)

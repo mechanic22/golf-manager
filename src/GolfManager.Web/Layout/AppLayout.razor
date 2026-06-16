@@ -10,11 +10,14 @@
 
 <div class="min-h-screen bg-gray-50">
     <!-- App Navigation Bar (Always Solid) -->
-    <nav class="w-full fixed top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
+    <nav class="no-print w-full fixed top-0 z-50 bg-white border-b border-gray-200 shadow-sm">
         <div class="container max-w-7xl mx-auto px-4 md:px-8 flex items-center justify-between h-16">
             <!-- Logo -->
             <a href="/dashboard" class="flex items-center no-underline h-full py-2">
-                <img src="/img/pinzo-green.png" alt="Pinzo Golf" class="max-h-full w-auto" />
+                @if (NavLogoSrc != null)
+                {
+                    <img src="@NavLogoSrc" alt="@NavLogoAlt" class="max-h-full w-auto" />
+                }
             </a>
 
             <!-- Desktop Navigation - Context Aware -->
@@ -22,14 +25,6 @@
                 @if (AuthService.IsGuest)
                 {
                     <!-- Guest Mode Navigation -->
-                    <NavLink href="@($"/league/{AuthService.GuestLeagueKey}")" class="app-nav-link"
-                             ActiveClass="app-nav-link-active">
-                        Home
-                    </NavLink>
-                    <NavLink href="@($"/league/{AuthService.GuestLeagueKey}/events")" class="app-nav-link"
-                             ActiveClass="app-nav-link-active">
-                        Events
-                    </NavLink>
                     <NavLink href="@($"/league/{AuthService.GuestLeagueKey}/standings")" class="app-nav-link"
                              Match="NavLinkMatch.All" ActiveClass="app-nav-link-active">
                         Standings
@@ -179,16 +174,8 @@
                     <div class="flex flex-col gap-2">
                         @if (AuthService.IsGuest)
                         {
-                            <NavLink href="@($"/league/{AuthService.GuestLeagueKey}")" @onclick="ToggleNavMenu"
-                                     class="app-nav-link" ActiveClass="app-nav-link-active">
-                                Home
-                            </NavLink>
-                            <NavLink href="@($"/league/{AuthService.GuestLeagueKey}/events")" @onclick="ToggleNavMenu"
-                                     class="app-nav-link" ActiveClass="app-nav-link-active">
-                                Events
-                            </NavLink>
                             <NavLink href="@($"/league/{AuthService.GuestLeagueKey}/standings")" @onclick="ToggleNavMenu"
-                                     class="app-nav-link" ActiveClass="app-nav-link-active">
+                                     class="app-nav-link" Match="NavLinkMatch.All" ActiveClass="app-nav-link-active">
                                 Standings
                             </NavLink>
                         }
@@ -302,7 +289,7 @@
     </nav>
 
     <!-- Spacer to prevent content from going under fixed navbar -->
-    <div class="h-16"></div>
+    <div class="no-print h-16"></div>
 
     <!-- Main Content -->
     <main class="container max-w-7xl mx-auto px-4 md:px-8 py-8">
@@ -347,6 +334,14 @@
     private bool IsInSeasonContext => currentUrl.StartsWith("league/") && currentUrl.Contains("/season/") && !IsInEventContext;
     private bool IsInLeagueContext => currentUrl.StartsWith("league/") && !currentUrl.Contains("/season/");
     private bool IsInAdminContext => currentUrl.StartsWith("admin");
+    private bool IsInAnyLeagueContext => IsInLeagueContext || IsInSeasonContext || IsInEventContext;
+
+    // Null while the league is loading (renders nothing). After load, always a real src.
+    // Outside a league context, always returns the pinzo logo.
+    private string? NavLogoSrc => IsInAnyLeagueContext ? AppState.CurrentLeagueNavLogoSrc : "/img/pinzo-green.png";
+    private string NavLogoAlt => NavLogoSrc != null && NavLogoSrc != "/img/pinzo-green.png"
+        ? (AppState.CurrentLeagueName ?? "League")
+        : "Pinzo Golf";
 
     // URL builders
     private string GetLeagueUrl()

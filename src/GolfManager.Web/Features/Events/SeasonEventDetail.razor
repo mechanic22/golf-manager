@@ -38,69 +38,60 @@ else
     }
     else
     {
-        <!-- Desktop: scoreboard style — pts | home team | hole/flight | away team | pts -->
-        <div class="hidden md:block bg-white border border-gray-200 rounded-xl overflow-hidden">
-            <table class="w-full">
-                <tbody>
-                    @foreach (var m in matchups)
-                    {
-                        <tr class="border-b border-gray-100 last:border-0 hover:bg-gray-50 cursor-pointer"
-                            @onclick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/event/{EventKey}/match/{m.Id}"))">
-                            <td class="py-3 pl-5 pr-3 text-sm font-semibold text-gray-700 text-right w-14">
-                                @(m.HomePoints.HasValue || m.AwayPoints.HasValue ? (m.HomePoints ?? 0.0).ToString("F1") : "—")
-                            </td>
-                            <td class="py-3 pr-6 text-sm text-right w-1/2">
-                                <div class="font-medium text-gray-900">@(m.HomeTeamName ?? GetTeamName(m.HomeTeamId))</div>
-                            </td>
-                            <td class="py-3 px-4 text-sm text-center text-gray-500 whitespace-nowrap">
-                                <div>@MatchupLabel(m)</div>
-                                @if (m.IsComplete)
-                                {
-                                    <div class="text-xs text-gray-400">Complete</div>
-                                }
-                            </td>
-                            <td class="py-3 pl-6 text-sm text-left w-1/2">
-                                <div class="font-medium text-gray-900">@(m.AwayTeamName ?? GetTeamName(m.AwayTeamId))</div>
-                            </td>
-                            <td class="py-3 pl-3 pr-5 text-sm font-semibold text-gray-700 text-left w-14">
-                                @(m.HomePoints.HasValue || m.AwayPoints.HasValue ? (m.AwayPoints ?? 0.0).ToString("F1") : "—")
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Mobile: stacked centered cards -->
-        <div class="md:hidden space-y-3">
-            @foreach (var m in matchups)
-            {
-                <a href="/league/@LeagueKey/season/@SeasonKey/event/@EventKey/match/@m.Id" class="block">
-                    <div class="border border-gray-200 rounded-lg p-4 bg-white text-center hover:border-primary-300 hover:bg-gray-50 transition-colors">
-                        <div>
-                            <div class="text-sm font-medium text-gray-900">@(m.HomeTeamName ?? GetTeamName(m.HomeTeamId))</div>
-                            @if (m.HomePoints.HasValue || m.AwayPoints.HasValue)
-                            {
-                                <div class="text-sm font-bold text-gray-700 mt-0.5">@((m.HomePoints ?? 0.0).ToString("F1"))</div>
-                            }
-                        </div>
-                        <div class="my-3 text-sm text-gray-500">
+        <MaterialCard>
+            <ResponsiveTable TItem="EventMatchupResponse" Items="@matchups">
+                <Row Context="m">
+                    <tr class="hover:bg-gray-50 cursor-pointer"
+                        @onclick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/event/{EventKey}/match/{m.Id}"))">
+                        <td class="py-3 pl-5 pr-3 text-sm font-semibold text-gray-700 text-right w-14">
+                            @(m.HomePoints.HasValue || m.AwayPoints.HasValue ? (m.HomePoints ?? 0.0).ToString("F1") : "—")
+                        </td>
+                        <td class="py-3 pr-6 text-sm text-right w-1/2">
+                            <div class="font-medium text-gray-900">@(m.HomeTeamName ?? GetTeamName(m.HomeTeamId))</div>
+                        </td>
+                        <td class="py-3 px-4 text-sm text-center text-gray-500 whitespace-nowrap">
                             <div>@MatchupLabel(m)</div>
                             @if (m.IsComplete)
                             {
-                                <div class="text-xs text-gray-400 mt-0.5">Complete</div>
+                                <div class="text-xs text-gray-400">Complete</div>
                             }
+                        </td>
+                        <td class="py-3 pl-6 text-sm text-left w-1/2">
+                            <div class="font-medium text-gray-900">@(m.AwayTeamName ?? GetTeamName(m.AwayTeamId))</div>
+                        </td>
+                        <td class="py-3 pl-3 pr-5 text-sm font-semibold text-gray-700 text-left w-14">
+                            @(m.HomePoints.HasValue || m.AwayPoints.HasValue ? (m.AwayPoints ?? 0.0).ToString("F1") : "—")
+                        </td>
+                    </tr>
+                </Row>
+                <Card Context="m">
+                    <a href="/league/@LeagueKey/season/@SeasonKey/event/@EventKey/match/@m.Id" class="block">
+                        <div class="border border-gray-200 rounded-lg p-4 bg-white text-center hover:border-primary-300 hover:bg-gray-50 transition-colors">
+                            <div>
+                                <div class="text-sm font-medium text-gray-900">@(m.HomeTeamName ?? GetTeamName(m.HomeTeamId))</div>
+                                @if (m.HomePoints.HasValue || m.AwayPoints.HasValue)
+                                {
+                                    <div class="text-sm font-bold text-gray-700 mt-0.5">@((m.HomePoints ?? 0.0).ToString("F1"))</div>
+                                }
+                            </div>
+                            <div class="my-3 text-sm text-gray-500">
+                                <div>@MatchupLabel(m)</div>
+                                @if (m.IsComplete)
+                                {
+                                    <div class="text-xs text-gray-400 mt-0.5">Complete</div>
+                                }
+                            </div>
+                            <div>
+                                <div class="text-sm font-medium text-gray-900">@(m.AwayTeamName ?? GetTeamName(m.AwayTeamId))</div>
+                                @if (m.HomePoints.HasValue || m.AwayPoints.HasValue)
+                                {
+                                    <div class="text-sm font-bold text-gray-700 mt-0.5">@((m.AwayPoints ?? 0.0).ToString("F1"))</div>
+                                }
+                            </div>
                         </div>
-                        <div>
-                            <div class="text-sm font-medium text-gray-900">@(m.AwayTeamName ?? GetTeamName(m.AwayTeamId))</div>
-                            @if (m.HomePoints.HasValue || m.AwayPoints.HasValue)
-                            {
-                                <div class="text-sm font-bold text-gray-700 mt-0.5">@((m.AwayPoints ?? 0.0).ToString("F1"))</div>
-                            }
-                        </div>
-                    </div>
-                </a>
-            }
-        </div>
+                    </a>
+                </Card>
+            </ResponsiveTable>
+        </MaterialCard>
     }
 }

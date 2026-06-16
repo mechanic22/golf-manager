@@ -123,7 +123,7 @@ public partial class SeasonLayout : LayoutComponentBase, IDisposable
             new() { Value = "overview",  Label = "Overview"  },
             new() { Value = "events",    Label = "Events"    },
             new() { Value = "teams",     Label = "Teams"     },
-            new() { Value = "standings", Label = "Standings" }
+            new() { Value = "standings", Label = "Individual" }
         };
 
         if (context?.IsAdmin == true)

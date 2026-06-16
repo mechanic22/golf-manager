@@ -1,0 +1,103 @@
+@page "/league/{LeagueKey}/event/{EventId}"
+@layout AppLayout
+
+<PageTitle>@(ev?.Name ?? "Event") - Pinzo Golf</PageTitle>
+
+<div class="mb-6">
+    <button @onclick='() => Navigation.NavigateTo($"/league/{LeagueKey}/standings")'
+            class="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+        ‹ Back
+    </button>
+</div>
+
+@if (isLoading)
+{
+    <div class="flex items-center justify-center py-16">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600"></div>
+    </div>
+}
+else if (errorMessage != null)
+{
+    <div class="bg-white rounded-lg border border-gray-200 p-8 text-center">
+        <p class="text-gray-600">@errorMessage</p>
+    </div>
+}
+else if (ev != null)
+{
+    <!-- Event header -->
+    <div class="mb-6">
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-900">@(ev.Name ?? ev.EventDate.ToString("MMMM d, yyyy"))</h1>
+                <p class="text-gray-500 text-sm mt-1">@ev.EventDate.ToString("dddd, MMMM d, yyyy")</p>
+            </div>
+            <span class="text-sm font-medium px-3 py-1.5 rounded-full @(ev.IsComplete ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700")">
+                @(ev.IsComplete ? "Complete" : "In Progress")
+            </span>
+        </div>
+    </div>
+
+    @if (ev.Matchups.Count == 0)
+    {
+        <div class="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-500 text-sm">
+            No matchups scheduled for this event.
+        </div>
+    }
+    else
+    {
+        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
+            @foreach (var matchup in ev.Matchups)
+            {
+                <button class="w-full px-6 py-5 text-left border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors group"
+                        @onclick="() => NavigateToMatch(matchup.Id)">
+                    <div class="flex items-center gap-4">
+                        <!-- Home side -->
+                        <div class="flex-1 min-w-0">
+                            <p class="text-sm font-semibold text-gray-900 truncate">@(matchup.HomeTeamName ?? "Home")</p>
+                            @if (matchup.HomeMembers.Count > 0)
+                            {
+                                <p class="text-xs text-gray-500 mt-0.5 truncate">
+                                    @string.Join(", ", matchup.HomeMembers.Select(m => m.DisplayName))
+                                </p>
+                            }
+                        </div>
+
+                        <!-- Score -->
+                        <div class="text-center shrink-0 min-w-20">
+                            @if (matchup.HomePoints.HasValue || matchup.AwayPoints.HasValue)
+                            {
+                                <div class="flex items-center justify-center gap-2">
+                                    <span class="text-xl font-bold @(matchup.HomePoints > matchup.AwayPoints ? "text-primary-600" : "text-gray-400")">
+                                        @(matchup.HomePoints?.ToString("F1") ?? "—")
+                                    </span>
+                                    <span class="text-gray-300">–</span>
+                                    <span class="text-xl font-bold @(matchup.AwayPoints > matchup.HomePoints ? "text-primary-600" : "text-gray-400")">
+                                        @(matchup.AwayPoints?.ToString("F1") ?? "—")
+                                    </span>
+                                </div>
+                            }
+                            else
+                            {
+                                <span class="text-xs text-gray-400">vs</span>
+                            }
+                        </div>
+
+                        <!-- Away side -->
+                        <div class="flex-1 min-w-0 text-right">
+                            <p class="text-sm font-semibold text-gray-900 truncate">@(matchup.AwayTeamName ?? "Away")</p>
+                            @if (matchup.AwayMembers.Count > 0)
+                            {
+                                <p class="text-xs text-gray-500 mt-0.5 truncate">
+                                    @string.Join(", ", matchup.AwayMembers.Select(m => m.DisplayName))
+                                </p>
+                            }
+                        </div>
+
+                        <!-- Arrow -->
+                        <span class="text-gray-300 group-hover:text-gray-400 transition-colors shrink-0">›</span>
+                    </div>
+                </button>
+            }
+        </div>
+    }
+}

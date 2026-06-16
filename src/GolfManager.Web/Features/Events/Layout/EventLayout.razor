@@ -31,7 +31,7 @@ else if (context == null)
 else
 {
     <!-- Event Header — rendered once, persists across all event tab navigations -->
-    <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8 py-6">
+    <div class="no-print bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8 py-6">
         <div class="flex items-start justify-between flex-wrap gap-4">
             <div>
                 <div class="flex items-center gap-2 text-sm text-gray-600 mb-3">
@@ -59,14 +59,14 @@ else
     </div>
 
     <!-- Tab Navigation — persists; only @Body below changes on tab switch -->
-    <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8">
+    <div class="no-print bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8">
         <MaterialTabs @bind-ActiveTab="activeTab"
                       Tabs="@GetNavigationTabs()"
                       ShowContent="false"
                       OnTabChange="HandleTabChange" />
     </div>
 
-    <div class="mt-8"></div>
+    <div class="no-print mt-8"></div>
 
     <CascadingValue Value="context" IsFixed="false">
         @Body

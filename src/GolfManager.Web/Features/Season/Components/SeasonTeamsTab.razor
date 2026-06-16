@@ -12,21 +12,18 @@ else if (teams.Count == 0)
 }
 else
 {
+    <MaterialCard class="rounded-none">
     <ResponsiveTable TItem="TeamStandingView" Items="@RankedTeams">
         <Headers>
-            <th class="py-3 pr-6 w-full">Team</th>
-            <th class="py-3 pr-6">Players</th>
-            <th class="py-3 pr-6">W</th>
-            <th class="py-3 pr-6">L</th>
-            <th class="py-3 pr-6">T</th>
-            <th class="py-3 pr-6">Points</th>
+            <th class="py-2 pl-5 pr-3 text-left w-full">Team</th>
+            <th class="py-2 pl-3 pr-5 text-right">Points</th>
         </Headers>
         <Row Context="standing">
             @{ var team = standing.Team; }
             <tr class="hover:bg-gray-50">
-                <td class="py-3 pr-6">
+                <td class="py-3 pl-5 pr-3">
                     <a href="/league/@LeagueKey/season/@SeasonKey/team/@team.Id"
-                       class="text-sm font-medium text-primary-700 hover:underline">@team.Name</a>
+                       class="font-medium text-primary-700 hover:underline">@team.Name</a>
                     @if (team.Members.Count > 0)
                     {
                         <div class="text-xs text-gray-400 mt-0.5">
@@ -34,11 +31,7 @@ else
                         </div>
                     }
                 </td>
-                <td class="py-3 pr-6 text-sm text-gray-600">@team.Members.Count</td>
-                <td class="py-3 pr-6 text-sm text-gray-700">@standing.Wins</td>
-                <td class="py-3 pr-6 text-sm text-gray-700">@standing.Losses</td>
-                <td class="py-3 pr-6 text-sm text-gray-700">@standing.Ties</td>
-                <td class="py-3 pr-6 text-sm font-medium text-gray-900">@standing.PointsFor.ToString("F1")</td>
+                <td class="py-3 pl-3 pr-5 text-right font-medium text-gray-900">@standing.PointsFor.ToString("F1")</td>
             </tr>
         </Row>
         <Card Context="standing">
@@ -55,13 +48,8 @@ else
                     </div>
                     <span class="text-sm font-bold text-gray-900">@standing.PointsFor.ToString("F1") pts</span>
                 </div>
-                <div class="flex gap-4 text-xs text-gray-500">
-                    <span>W: @standing.Wins</span>
-                    <span>L: @standing.Losses</span>
-                    <span>T: @standing.Ties</span>
-                    <span>@cardTeam.Members.Count players</span>
-                </div>
             </div>
         </Card>
     </ResponsiveTable>
+    </MaterialCard>
 }

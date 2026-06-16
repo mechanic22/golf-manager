@@ -41,6 +41,22 @@ public class AppState
     /// Is user a league admin for current league
     /// </summary>
     public bool IsCurrentLeagueAdmin { get; private set; }
+
+    /// <summary>
+    /// Nav logo src for the current league context. Null while the league is loading (render nothing).
+    /// After load, always a real src: the league's logo URL if configured, otherwise the default pinzo logo.
+    /// </summary>
+    public string? CurrentLeagueNavLogoSrc { get; private set; }
+
+    /// <summary>
+    /// Called after the full LeagueResponse is loaded. Sets the nav logo to the league's logo if configured,
+    /// or falls back to the default pinzo logo — so the src is always resolved after this point.
+    /// </summary>
+    public void UpdateCurrentLeagueLogoUrl(string? logoUrl)
+    {
+        CurrentLeagueNavLogoSrc = !string.IsNullOrEmpty(logoUrl) ? logoUrl : "/img/pinzo-green.png";
+        NotifyStateChanged();
+    }
     
     /// <summary>
     /// Set league mappings (called after login)
@@ -98,13 +114,24 @@ public class AppState
         
         if (!string.IsNullOrEmpty(normalizedInput))
         {
-                var league = UserLeagues.FirstOrDefault(l => 
+            var league = UserLeagues.FirstOrDefault(l =>
                 l.LeagueKey.ToLowerInvariant() == normalizedInput);
             if (league != null)
             {
                 CurrentLeagueId = league.LeagueId;
                 CurrentLeagueName = league.LeagueName;
                 IsCurrentLeagueAdmin = league.IsLeagueAdmin;
+                // Use the logo cached in UserLeagues so the navbar renders immediately
+                // on direct links without waiting for a full league API fetch.
+                CurrentLeagueNavLogoSrc = !string.IsNullOrEmpty(league.LogoUrl)
+                    ? league.LogoUrl
+                    : "/img/pinzo-green.png";
+            }
+            else
+            {
+                // Guest sessions or unrecognised league — logo stays null until
+                // UpdateCurrentLeagueLogoUrl is called with the value from the API.
+                CurrentLeagueNavLogoSrc = null;
             }
         }
         else
@@ -112,6 +139,7 @@ public class AppState
             CurrentLeagueId = null;
             CurrentLeagueName = null;
             IsCurrentLeagueAdmin = false;
+            CurrentLeagueNavLogoSrc = null;
         }
         
         NotifyStateChanged();
@@ -141,6 +169,7 @@ public class AppState
         CurrentLeagueId = null;
         CurrentLeagueName = null;
         IsCurrentLeagueAdmin = false;
+        CurrentLeagueNavLogoSrc = null;
         NotifyStateChanged();
     }
     

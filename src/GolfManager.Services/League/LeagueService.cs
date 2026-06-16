@@ -96,7 +96,15 @@ public class LeagueService : ILeagueService
             && league.RequireAnonymousPassword
             && !IsAnonymousAccessAllowed(league, anonymousAccessPassword))
         {
-            return null;
+            // Return only public branding so guest login page can show the league logo/name
+            // before the user has entered the password.
+            return new LeagueResponse
+            {
+                Id = league.Id,
+                Key = league.Key,
+                Name = league.Name,
+                LogoUrl = league.LogoUrl,
+            };
         }
 
         return await MapToResponseAsync(league, userId);
@@ -739,6 +747,29 @@ public class LeagueService : ILeagueService
             .IgnoreQueryFilters()
             .CountAsync(s => s.LeagueId == league.Id && s.IsActive);
 
+        string? activeSeasonKey = null;
+        if (!string.IsNullOrEmpty(league.ActiveSeasonId))
+        {
+            activeSeasonKey = await _context.Seasons
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(s => s.Id == league.ActiveSeasonId && !s.IsDeleted)
+                .Select(s => s.Key)
+                .FirstOrDefaultAsync();
+        }
+
+        // Fall back to most recent season when no active season is pinned
+        if (string.IsNullOrEmpty(activeSeasonKey))
+        {
+            activeSeasonKey = await _context.Seasons
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(s => s.LeagueId == league.Id && !s.IsDeleted)
+                .OrderByDescending(s => s.StartDate)
+                .Select(s => s.Key)
+                .FirstOrDefaultAsync();
+        }
+
         bool isCurrentUserAdmin = false;
         double? currentUserLeagueHandicap = null;
         int? currentUserRoundsInLeague = null;
@@ -782,6 +813,7 @@ public class LeagueService : ILeagueService
             AnnouncementTitle = league.AnnouncementTitle,
             AnnouncementBody = league.AnnouncementBody,
             ActiveSeasonId = league.ActiveSeasonId,
+            ActiveSeasonKey = activeSeasonKey,
             MemberCount = memberCount,
             PlayerCount = playerCount,
             SeasonCount = seasonCount,

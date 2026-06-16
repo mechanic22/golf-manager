@@ -1,15 +1,23 @@
 @page "/league/{LeagueKey}/guest"
 
-<PageTitle>Guest Access - Pinzo Golf</PageTitle>
+<PageTitle>Guest Access - @(leagueName ?? "League") - Pinzo Golf</PageTitle>
 
 <div
     style="min-height: 100vh; display: flex; align-items: center; justify-content: center; background-color: #f9fafb; padding: 2rem;">
     <div class="card" style="max-width: 28rem; width: 100%; padding: 2.5rem;">
         <div style="text-align: center; margin-bottom: 2rem;">
-            <img src="/img/pinzo-green.png" alt="Pinzo Golf" style="height: 2.5rem; margin-bottom: 1rem;" />
-            <h1 style="font-size: 1.875rem; font-weight: 700; color: #111827; margin-bottom: 0.5rem;">League Standings
+            @if (!string.IsNullOrEmpty(leagueLogoUrl))
+            {
+                <img src="@leagueLogoUrl" alt="@(leagueName ?? LeagueKey)" style="height: 4rem; margin: 0 auto 1rem; object-fit: contain;" />
+            }
+            else
+            {
+                <img src="/img/pinzo-green.png" alt="Pinzo Golf" style="height: 2.5rem; margin-bottom: 1rem;" />
+            }
+            <h1 style="font-size: 1.875rem; font-weight: 700; color: #111827; margin-bottom: 0.5rem;">
+                @(leagueName ?? LeagueKey) Standings
             </h1>
-            <p style="color: #6b7280; font-size: 0.875rem;">Enter the password to view @LeagueKey standings</p>
+            <p style="color: #6b7280; font-size: 0.875rem;">Enter the password to view standings</p>
         </div>
 
         @if (!string.IsNullOrEmpty(errorMessage))

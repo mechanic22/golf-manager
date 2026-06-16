@@ -1,3 +1,4 @@
+using GolfManager.Web.Features.League;
 using Microsoft.AspNetCore.Components;
 
 namespace GolfManager.Web.Features.Auth;
@@ -8,6 +9,7 @@ public partial class GuestLogin : ComponentBase
     public string? LeagueKey { get; set; }
 
     [Inject] private IAuthService AuthService { get; set; } = null!;
+    [Inject] private ILeagueService LeagueService { get; set; } = null!;
     [Inject] private NavigationManager Navigation { get; set; } = null!;
     [Inject] private ILogger<GuestLogin> Logger { get; set; } = null!;
 
@@ -16,20 +18,45 @@ public partial class GuestLogin : ComponentBase
     private bool isLoading = false;
     private bool loginSuccessful = false;
 
+    private string? leagueLogoUrl;
+    private string? leagueName;
+
     protected override async Task OnInitializedAsync()
     {
         await AuthService.InitializeAsync();
 
         if (AuthService.IsAuthenticated && !AuthService.IsGuest)
         {
-            // Regular authenticated user doesn't need guest login
             Navigation.NavigateTo($"/league/{LeagueKey}", true);
             return;
         }
 
         if (AuthService.IsGuest && AuthService.GuestLeagueKey == LeagueKey)
         {
-            Navigation.NavigateTo($"/league/{LeagueKey}", true);
+            Navigation.NavigateTo($"/league/{LeagueKey}/standings", true);
+            return;
+        }
+
+        await LoadLeagueMetadata();
+    }
+
+    private async Task LoadLeagueMetadata()
+    {
+        if (string.IsNullOrWhiteSpace(LeagueKey))
+            return;
+
+        try
+        {
+            var response = await LeagueService.GetLeagueByKeyAsync(LeagueKey);
+            if (response?.Success == true && response.Data != null)
+            {
+                leagueLogoUrl = response.Data.LogoUrl;
+                leagueName = response.Data.Name;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not load league metadata for guest login page");
         }
     }
 
@@ -51,9 +78,8 @@ public partial class GuestLogin : ComponentBase
             if (result)
             {
                 loginSuccessful = true;
-                // Give the user a moment to see the success message before redirecting
                 await Task.Delay(500);
-                Navigation.NavigateTo($"/league/{LeagueKey}", true);
+                Navigation.NavigateTo($"/league/{LeagueKey}/standings", true);
             }
             else
             {

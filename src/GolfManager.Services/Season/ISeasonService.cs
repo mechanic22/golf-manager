@@ -54,5 +54,9 @@ public interface ISeasonService
 
     Task<bool> RemovePlayerFromSeasonAsync(string seasonId, string seasonGolferId, string leagueId, string userId);
     Task UpdateSeasonPlayerPaymentAsync(string seasonId, string seasonGolferId, UpdateSeasonPlayerPaymentRequest request, string leagueId, string userId);
+
+    // ── Stats ─────────────────────────────────────────────────────────────────
+
+    Task<PlayerSeasonHoleStatsResponse?> GetPlayerSeasonHoleStatsAsync(string seasonId, string leagueGolferId, string leagueId);
 }
 

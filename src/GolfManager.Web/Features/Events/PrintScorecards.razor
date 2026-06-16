@@ -1,6 +1,7 @@
 @page "/league/{LeagueKey}/season/{SeasonKey}/event/{EventKey}/scorecards"
 @layout EventLayout
 @using GolfManager.Core.Enums
+@using GolfManager.Shared.DTOs.Course
 @using GolfManager.Shared.DTOs.Event
 @using GolfManager.Shared.DTOs.Player
 @using GolfManager.Shared.DTOs.Season
@@ -9,18 +10,112 @@
 
 <style>
     @@media print {
-        .print-hide {
+        @@page {
+            margin: 0.2in;
+            padding: 0;
+        }
+
+        .no-print, .no-print * {
             display: none !important;
         }
 
-        .print-card {
-            break-inside: avoid;
-            page-break-inside: avoid;
+        /* Strip AppLayout main container padding so cards fill the page */
+        main {
+            max-width: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        .container {
+            max-width: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
         }
 
         .page-break {
+            display: block !important;
+            height: 0;
+            break-before: page;
             page-break-before: always;
+            break-inside: avoid;
         }
+
+        .scorecard-print-card {
+            overflow: visible !important;
+            break-inside: avoid-page;
+            page-break-inside: avoid;
+            margin-top: 6px !important;
+            border: 1px solid #aaa !important;
+            border-radius: 0 !important;
+            padding: 4px !important;
+        }
+
+        .scorecard-print-card.page-break {
+            break-before: page;
+            page-break-before: always;
+            margin-top: 0 !important;
+        }
+
+        .summary-print-card {
+            break-after: page;
+            page-break-after: always;
+            break-inside: avoid-page;
+            page-break-inside: avoid;
+            border: 1px solid #aaa !important;
+            border-radius: 0 !important;
+        }
+
+        table.scorecard {
+            break-inside: avoid-page;
+            page-break-inside: avoid;
+            font-size: 0.62rem !important;
+        }
+
+        table.scorecard td, table.scorecard th {
+            padding: 2px 3px !important;
+            border-left: 1px solid #000 !important;
+        }
+
+        .highlight {
+            background-color: rgb(254 240 138) !important;
+            print-color-adjust: exact;
+            -webkit-print-color-adjust: exact;
+        }
+    }
+
+    .highlight {
+        background-color: #fef08a;
+    }
+
+    .scorecard-print-card {
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        background: white;
+        padding: 8px;
+    }
+
+    .summary-print-card {
+        background: white;
+    }
+
+    table.scorecard {
+        border-collapse: collapse;
+        width: 100%;
+        font-size: 0.72rem;
+    }
+
+    table.scorecard th, table.scorecard td {
+        border: 1px solid #d1d5db;
+        padding: 3px 4px;
+    }
+
+    tr.no-border th, tr.no-border td {
+        border: none;
+    }
+
+    tr.spacer td, tr.spacer th {
+        border-top: none;
+        border-bottom: none;
     }
 </style>
 
@@ -40,7 +135,7 @@ else if (accessDenied)
             <div class="md-card__content text-center py-16">
                 <MaterialIcon Icon="MaterialIcons.Lock" Class="text-red-600 text-5xl mb-4" />
                 <h2 class="text-2xl font-semibold text-gray-900 mb-3">Access Denied</h2>
-                <p class="text-gray-600 mb-8">You must be a league member to view scorecards.</p>
+                <p class="text-gray-600 mb-8">You must be a league admin to view scorecards.</p>
                 <MaterialButton Style="MaterialButtonStyle.Filled" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/events"))">
                     Back to Events
                 </MaterialButton>
@@ -65,95 +160,234 @@ else if (seasonEvent == null)
 }
 else
 {
-    <div class="max-w-6xl mx-auto px-4 py-6">
-        <div class="print-hide bg-white border border-gray-200 rounded-lg p-4 mb-6 flex flex-wrap items-center justify-between gap-3">
-            <div>
-                <h1 class="text-2xl font-bold text-gray-900">Print Scorecards</h1>
-                <p class="text-sm text-gray-600 mt-1">@seasonEvent.Name • @seasonEvent.EventDate.ToString("MMMM d, yyyy")</p>
-            </div>
-            <div class="flex gap-2">
-                <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/events"))">
-                    Back
-                </MaterialButton>
-                <button type="button" class="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700" onclick="window.print()">
-                    Print Now
-                </button>
-            </div>
+    <div class="container m-auto">
+
+        @* Summary page — all matchups with starting holes, prints as page 1 *@
+        <div class="summary-print-card mt-4 border border-gray-300 p-4 bg-white">
+            <table class="w-full">
+                <thead>
+                    <tr class="no-print">
+                        <th colspan="3" class="pb-4">
+                            <div class="flex gap-2">
+                                <button type="button"
+                                        class="px-4 py-2 rounded-lg bg-primary-600 text-white text-sm font-semibold hover:bg-primary-700"
+                                        onclick="window.print()">
+                                    Print Now
+                                </button>
+                                <MaterialButton Style="MaterialButtonStyle.Outlined"
+                                               OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/events"))">
+                                    Back
+                                </MaterialButton>
+                            </div>
+                        </th>
+                    </tr>
+                    <tr>
+                        <th colspan="3" class="text-lg text-center pb-2">
+                            @league?.Name<br />
+                            @seasonEvent.EventDate.ToString("MMMM d, yyyy")
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="text-xs lg:text-sm">
+                    @if (matchups.Count == 0)
+                    {
+                        <tr>
+                            <td colspan="3" class="text-center py-8 text-gray-500">
+                                No matchups found. Generate matchups first, then return here to print scorecards.
+                            </td>
+                        </tr>
+                    }
+                    else
+                    {
+                        @foreach (var m in matchups.OrderBy(x => x.StartingHole).ThenBy(x => x.StartingFlight))
+                        {
+                            <tr>
+                                <td class="text-right py-1" style="width:45%">
+                                    <div class="text-xl">@GetTeamName(m.HomeTeamId, m.HomeTeamName)</div>
+                                    <div class="text-xs text-gray-600">@string.Join(" / ", GetTeamMembers(m.HomeTeamId).Select(x => x.DisplayName))</div>
+                                </td>
+                                <td class="text-center font-bold text-xl py-1" style="width:10%">
+                                    @m.StartingHole@DigitToLetter(m.StartingFlight ?? 0)
+                                </td>
+                                <td class="text-left py-1" style="width:45%">
+                                    <div class="text-xl">@GetTeamName(m.AwayTeamId, m.AwayTeamName)</div>
+                                    <div class="text-xs text-gray-600">@string.Join(" / ", GetTeamMembers(m.AwayTeamId).Select(x => x.DisplayName))</div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
         </div>
 
-        @if (matchups.Count == 0)
+        @if (tee == null)
         {
-            <MaterialCard Variant="MaterialCardVariant.Outlined">
-                <div class="md-card__content text-center py-16">
-                    <MaterialIcon Icon="MaterialIcons.Description" Class="text-gray-400 text-5xl mb-4" />
-                    <h3 class="text-lg font-semibold text-gray-900 mb-2">No Matchups Found</h3>
-                    <p class="text-gray-600">Generate weekly matchups first, then return here to print scorecards.</p>
-                </div>
-            </MaterialCard>
-        }
-        else
-        {
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                @foreach (var matchup in matchups.OrderBy(m => m.StartingFlight ?? int.MaxValue).ThenBy(m => m.StartingHole ?? int.MaxValue))
-                {
-                    <div class="print-card border border-gray-300 rounded-lg bg-white p-4">
-                        <div class="flex items-center justify-between border-b border-gray-200 pb-3 mb-3">
-                            <div>
-                                <h2 class="text-lg font-semibold text-gray-900">@GetTeamName(matchup.HomeTeamId, matchup.HomeTeamName) vs @GetTeamName(matchup.AwayTeamId, matchup.AwayTeamName)</h2>
-                                <p class="text-sm text-gray-600">Flight @(matchup.StartingFlight?.ToString() ?? "-") • Hole @(matchup.StartingHole?.ToString() ?? "-")</p>
-                            </div>
-                            <div class="text-right text-xs text-gray-600">
-                                <div>@seasonEvent.EventDate.ToString("MM/dd/yyyy")</div>
-                                <div>@(seasonEvent.HolesPlayed == HolesPlayed.Eighteen ? "18 Holes" : "9 Holes")</div>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div class="border border-gray-200 rounded p-3">
-                                <div class="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">Home</div>
-                                <div class="font-semibold text-gray-900">@GetTeamName(matchup.HomeTeamId, matchup.HomeTeamName)</div>
-                                <div class="text-sm text-gray-600 mt-1">Sub: @GetSubName(matchup.HomeSubSeasonGolferId)</div>
-                            </div>
-                            <div class="border border-gray-200 rounded p-3">
-                                <div class="text-xs font-semibold uppercase tracking-wide text-gray-600 mb-2">Away</div>
-                                <div class="font-semibold text-gray-900">@GetTeamName(matchup.AwayTeamId, matchup.AwayTeamName)</div>
-                                <div class="text-sm text-gray-600 mt-1">Sub: @GetSubName(matchup.AwaySubSeasonGolferId)</div>
-                            </div>
-                        </div>
-
-                        <table class="w-full border border-gray-200 text-sm">
-                            <thead>
-                                <tr class="bg-gray-50">
-                                    <th class="text-left px-2 py-1 border-b border-gray-200">Hole</th>
-                                    @for (var hole = 1; hole <= HoleCount; hole++)
-                                    {
-                                        <th class="text-center px-1 py-1 border-b border-gray-200">@hole</th>
-                                    }
-                                    <th class="text-center px-2 py-1 border-b border-gray-200">Tot</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td class="px-2 py-2 border-t border-gray-200 font-medium">Home</td>
-                                    @for (var hole = 1; hole <= HoleCount; hole++)
-                                    {
-                                        <td class="px-1 py-2 border-t border-gray-200 text-center">____</td>
-                                    }
-                                    <td class="px-2 py-2 border-t border-gray-200 text-center">____</td>
-                                </tr>
-                                <tr>
-                                    <td class="px-2 py-2 border-t border-gray-200 font-medium">Away</td>
-                                    @for (var hole = 1; hole <= HoleCount; hole++)
-                                    {
-                                        <td class="px-1 py-2 border-t border-gray-200 text-center">____</td>
-                                    }
-                                    <td class="px-2 py-2 border-t border-gray-200 text-center">____</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                }
+            <div class="no-print mt-4 p-4 bg-amber-100 border border-amber-300 rounded text-amber-800">
+                No course/tee configured for this event — scorecards will not show hole data.
             </div>
         }
+
+        @{
+            const string highlight = " highlight";
+            var index = 0;
+
+            foreach (var match in matchups.OrderBy(x => x.StartingHole).ThenBy(x => x.StartingFlight))
+            {
+                bool isFront = (match.StartingHole ?? 1) <= 9;
+                var paceTimeline = BuildPaceTimeline(match);
+                var breakClass = (index % 2 == 0) ? " page-break" : string.Empty;
+                var homeMembers = GetTeamMembers(match.HomeTeamId).ToList();
+                var awayMembers = GetTeamMembers(match.AwayTeamId).ToList();
+
+                <div class="mt-4 scorecard-print-card@breakClass">
+                    <table class="scorecard">
+                        <thead>
+                            <tr class="no-border">
+                                <td colspan="4" class="text-sm">
+                                    @league?.Name @seasonEvent.EventDate.ToString("MMMM d, yyyy h:mm tt")
+                                </td>
+                                <td colspan="7" class="text-sm text-right">
+                                    @GetTeamName(match.HomeTeamId, match.HomeTeamName) vs @GetTeamName(match.AwayTeamId, match.AwayTeamName)
+                                </td>
+                            </tr>
+                            <tr>
+                                <th style="width:25%" class="text-left">Hole</th>
+                                @for (int i = isFront ? 1 : 10; i <= (isFront ? 9 : 18); i++)
+                                {
+                                    var isStart = match.StartingHole == i;
+                                    var hlClass = isStart ? highlight : string.Empty;
+                                    <th style="width:7.5%" class="text-center@hlClass">
+                                        @i@(isStart && match.StartingFlight.HasValue ? DigitToLetter(match.StartingFlight.Value) : string.Empty)
+                                    </th>
+                                }
+                                <th style="width:7.5%"></th>
+                            </tr>
+                            <tr>
+                                <th class="text-left">Par</th>
+                                @{int par = 0;}
+                                @for (int i = isFront ? 1 : 10; i <= (isFront ? 9 : 18); i++)
+                                {
+                                    var hole = tee?.Holes?.FirstOrDefault(x => x.HoleNumber == i);
+                                    var isStart = match.StartingHole == i;
+                                    par += hole?.Par ?? 0;
+                                    <th class="text-center@(isStart ? highlight : string.Empty)">@(hole?.Par.ToString() ?? "-")</th>
+                                }
+                                <th class="text-center">@(tee != null ? par.ToString() : "-")</th>
+                            </tr>
+                            <tr>
+                                <th class="text-left">@(tee?.Name ?? "Yards")</th>
+                                @{int yards = 0;}
+                                @for (int i = isFront ? 1 : 10; i <= (isFront ? 9 : 18); i++)
+                                {
+                                    var hole = tee?.Holes?.FirstOrDefault(x => x.HoleNumber == i);
+                                    var isStart = match.StartingHole == i;
+                                    yards += hole?.Yardage ?? 0;
+                                    <th class="text-center@(isStart ? highlight : string.Empty)">@(hole?.Yardage.ToString() ?? "-")</th>
+                                }
+                                <th class="text-center">@(tee != null ? yards.ToString() : "-")</th>
+                            </tr>
+                            <tr style="border-bottom-width:2px;">
+                                <th class="text-left">Hdcp</th>
+                                @for (int i = isFront ? 1 : 10; i <= (isFront ? 9 : 18); i++)
+                                {
+                                    var hole = tee?.Holes?.FirstOrDefault(x => x.HoleNumber == i);
+                                    var isStart = match.StartingHole == i;
+                                    <th class="text-center@(isStart ? highlight : string.Empty)">@(hole?.Handicap.ToString() ?? "-")</th>
+                                }
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @for (int golferIndex = 0; golferIndex < 3; golferIndex++)
+                            {
+                                var golfer = homeMembers.ElementAtOrDefault(golferIndex);
+                                <tr>
+                                    <td>
+                                        <div class="text-sm font-bold">
+                                            @if (golfer == null)
+                                            {
+                                                @((MarkupString)"&nbsp;")
+                                            }
+                                            else
+                                            {
+                                                @golfer.DisplayName
+                                            }
+                                        </div>
+                                        <div class="text-xs">Hdcp:
+                                            @if (golfer?.LeagueHandicap.HasValue ?? false)
+                                            {
+                                                if (golfer.LeagueHandicap.Value < 0)
+                                                {
+                                                    <text>+</text>
+                                                }
+                                                @Math.Abs(Math.Floor(golfer.LeagueHandicap.Value))
+                                            }
+                                        </div>
+                                    </td>
+                                    @for (int i = isFront ? 1 : 10; i <= (isFront ? 9 : 18); i++)
+                                    {
+                                        var isStart = match.StartingHole == i;
+                                        <td class="text-center@(isStart ? highlight : string.Empty)"></td>
+                                    }
+                                    <td></td>
+                                </tr>
+                            }
+
+                            <tr class="spacer">
+                                <td style="padding-top:0; padding-bottom:0; font-size:.55rem; line-height:.65rem;">Pace</td>
+                                @for (int i = isFront ? 1 : 10; i <= (isFront ? 9 : 18); i++)
+                                {
+                                    var isStart = match.StartingHole == i;
+                                    var paceTime = paceTimeline.TryGetValue(i, out var t) ? t : TimeSpan.Zero;
+                                    <td class="text-center@(isStart ? highlight : string.Empty)"
+                                        style="padding-top:0; padding-bottom:0; font-size:.55rem; line-height:.65rem;">
+                                        @FormatPace(paceTime)
+                                    </td>
+                                }
+                                <td></td>
+                            </tr>
+
+                            @for (int golferIndex = 0; golferIndex < 3; golferIndex++)
+                            {
+                                var golfer = awayMembers.ElementAtOrDefault(golferIndex);
+                                <tr>
+                                    <td>
+                                        <div class="text-sm font-bold">
+                                            @if (golfer == null)
+                                            {
+                                                @((MarkupString)"&nbsp;")
+                                            }
+                                            else
+                                            {
+                                                @golfer.DisplayName
+                                            }
+                                        </div>
+                                        <div class="text-xs">Hdcp:
+                                            @if (golfer?.LeagueHandicap.HasValue ?? false)
+                                            {
+                                                if (golfer.LeagueHandicap.Value < 0)
+                                                {
+                                                    <text>+</text>
+                                                }
+                                                @Math.Abs(Math.Floor(golfer.LeagueHandicap.Value))
+                                            }
+                                        </div>
+                                    </td>
+                                    @for (int i = isFront ? 1 : 10; i <= (isFront ? 9 : 18); i++)
+                                    {
+                                        var isStart = match.StartingHole == i;
+                                        <td class="text-center@(isStart ? highlight : string.Empty)"></td>
+                                    }
+                                    <td></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                index++;
+            }
+        }
+
     </div>
 }

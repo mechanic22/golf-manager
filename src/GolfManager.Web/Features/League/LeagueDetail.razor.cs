@@ -67,6 +67,12 @@ public partial class LeagueDetail : ComponentBase, IDisposable
             return;
         }
 
+        if (AuthService.IsGuest)
+        {
+            Navigation.NavigateTo($"/league/{LeagueKey}/standings", replace: true);
+            return;
+        }
+
         Navigation.LocationChanged += OnLocationChanged;
 
         await AuthorizationService.InitializeAsync();
@@ -148,6 +154,7 @@ public partial class LeagueDetail : ComponentBase, IDisposable
             if (response?.Success == true && response.Data != null)
             {
                 league = response.Data;
+                AppState.UpdateCurrentLeagueLogoUrl(league.LogoUrl);
                 Logger.LogInformation("Loaded league: {LeagueName}", league.Name);
             }
             else if (response != null && !response.Success && string.Equals(response.Message, "Forbidden", StringComparison.OrdinalIgnoreCase))

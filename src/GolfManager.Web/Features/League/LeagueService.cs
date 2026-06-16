@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using GolfManager.Shared.DTOs.Common;
+using GolfManager.Shared.DTOs.Event;
 using GolfManager.Shared.DTOs.League;
 
 namespace GolfManager.Web.Features.League;
@@ -409,11 +410,65 @@ public class LeagueService : ILeagueService
         }
     }
 
+    public async Task<ApiResponse<GuestEventsResponse>?> GetGuestEventsAsync(string leagueKey)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync("api/v1/leagues/guest/events");
+            if (response.IsSuccessStatusCode)
+                return await response.Content.ReadFromJsonAsync<ApiResponse<GuestEventsResponse>>();
+
+            _logger.LogError("Failed to get guest events. Status: {Status}", response.StatusCode);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception getting guest events");
+            return null;
+        }
+    }
+
+    public async Task<ApiResponse<GuestEventRow>?> GetGuestEventDetailAsync(string eventId)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"api/v1/leagues/guest/events/{Uri.EscapeDataString(eventId)}");
+            if (response.IsSuccessStatusCode)
+                return await response.Content.ReadFromJsonAsync<ApiResponse<GuestEventRow>>();
+
+            _logger.LogError("Failed to get guest event detail {EventId}. Status: {Status}", eventId, response.StatusCode);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception getting guest event detail {EventId}", eventId);
+            return null;
+        }
+    }
+
+    public async Task<ApiResponse<MatchDetailResponse>?> GetGuestMatchDetailAsync(string matchupId)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"api/v1/leagues/guest/matchups/{Uri.EscapeDataString(matchupId)}");
+            if (response.IsSuccessStatusCode)
+                return await response.Content.ReadFromJsonAsync<ApiResponse<MatchDetailResponse>>();
+
+            _logger.LogError("Failed to get match detail {MatchupId}. Status: {Status}", matchupId, response.StatusCode);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Exception getting match detail {MatchupId}", matchupId);
+            return null;
+        }
+    }
+
     public async Task<ApiResponse<GuestStandingsResponse>?> GetGuestStandingsAsync(string leagueKey)
     {
         try
         {
-            var response = await _httpClient.GetAsync($"api/v1/leagues/guest/standings/{leagueKey}");
+            var response = await _httpClient.GetAsync("api/v1/leagues/guest/standings");
 
             if (response.IsSuccessStatusCode)
             {

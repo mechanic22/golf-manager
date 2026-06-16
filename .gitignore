@@ -59,6 +59,7 @@ _ReSharper*/
 
 # NuGet Packages
 *.nupkg
+.nuget-docker-cache/
 *.snupkg
 **/packages/*
 !**/packages/build/

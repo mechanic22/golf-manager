@@ -1,0 +1,366 @@
+@page "/league/{LeagueKey}/settings/custom-domain"
+@layout AppLayout
+@using GolfManager.Shared.DTOs.League
+@using MaterialComponents.Models
+@inject ILeagueService LeagueService
+@inject IAuthService AuthService
+@inject NavigationManager Navigation
+@inject ILogger<CustomDomainSettings> Logger
+
+<PageTitle>Custom Domain - @(league?.Name ?? "League")</PageTitle>
+
+<LeaguePageShell League="@league"
+                 LeagueKey="@LeagueKey"
+                 ActiveTab="settings"
+                 ShowSettingsTab="true"
+                 ShowLeagueIcon="true"
+                 IsLoading="@isLoading"
+                 LoadingMessage="Loading league...">
+    <HeaderActions>
+        <MaterialButton Style="MaterialButtonStyle.Outlined" OnClick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/settings"))">
+            <MaterialIcon Icon="MaterialIcons.ArrowBack" Class="mr-1" />
+            Back to Settings
+        </MaterialButton>
+    </HeaderActions>
+    <ChildContent>
+        @if (league != null)
+        {
+            <div class="mb-6">
+                <h2 class="text-xl font-semibold text-gray-900">Custom Domain</h2>
+                <p class="text-gray-600 text-sm">Serve your league from your own domain (e.g. golf.yourclub.com)</p>
+            </div>
+
+            @if (!string.IsNullOrEmpty(errorMessage))
+            {
+                <div class="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded mb-6">@errorMessage</div>
+            }
+            @if (!string.IsNullOrEmpty(successMessage))
+            {
+                <div class="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded mb-6">@successMessage</div>
+            }
+
+            <!-- Current Status -->
+            <MaterialCard Variant="MaterialCardVariant.Outlined" Class="mb-6">
+                <div class="md-card__content">
+                    <h3 class="text-base font-semibold text-gray-900 mb-4">Current Status</h3>
+                    @if (league.UseCustomDomain && !string.IsNullOrEmpty(league.CustomDomain))
+                    {
+                        <div class="flex items-start gap-4">
+                            <div class="flex-1">
+                                <p class="text-sm font-medium text-gray-700">Domain</p>
+                                <p class="font-mono text-gray-900">@league.CustomDomain</p>
+                            </div>
+                            <div>
+                                @if (league.CustomDomainVerifiedAt.HasValue)
+                                {
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                        <MaterialIcon Icon="MaterialIcons.CheckCircle" Class="text-sm" />
+                                        Verified
+                                    </span>
+                                }
+                                else
+                                {
+                                    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                        <MaterialIcon Icon="MaterialIcons.Schedule" Class="text-sm" />
+                                        Pending DNS
+                                    </span>
+                                }
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-sm text-gray-500">No custom domain configured. Your league is accessible at the default Pinzo URL.</p>
+                    }
+                </div>
+            </MaterialCard>
+
+            <!-- Configure Domain -->
+            <MaterialCard Variant="MaterialCardVariant.Outlined" Class="mb-6">
+                <div class="md-card__content">
+                    <h3 class="text-base font-semibold text-gray-900 mb-1">Configure Domain</h3>
+                    <p class="text-sm text-gray-600 mb-4">Enter the hostname you want to point at this league.</p>
+
+                    <div class="space-y-4">
+                        <MaterialInput @bind-Value="domainInput"
+                                       Label="Custom Domain"
+                                       Variant="MaterialInputVariant.Outlined"
+                                       Placeholder="golf.yourclub.com"
+                                       SupportingText="Hostname only — no https:// or trailing slash" />
+
+                        <div class="flex gap-3">
+                            <MaterialButton Style="MaterialButtonStyle.Filled"
+                                            OnClick="SaveDomain"
+                                            Disabled="isSaving">
+                                @(isSaving ? "Saving..." : "Save Domain")
+                            </MaterialButton>
+
+                            @if (league.UseCustomDomain && !string.IsNullOrEmpty(league.CustomDomain))
+                            {
+                                <MaterialButton Style="MaterialButtonStyle.Outlined"
+                                                Class="text-red-600 border-red-300 hover:bg-red-50"
+                                                OnClick="RemoveDomain"
+                                                Disabled="isSaving">
+                                    Remove Domain
+                                </MaterialButton>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </MaterialCard>
+
+            <!-- DNS Setup Instructions -->
+            @if (league.UseCustomDomain && !string.IsNullOrEmpty(league.CustomDomain) && !string.IsNullOrEmpty(league.CustomDomainVerificationToken))
+            {
+                <MaterialCard Variant="MaterialCardVariant.Outlined" Class="mb-6">
+                    <div class="md-card__content">
+                        <h3 class="text-base font-semibold text-gray-900 mb-1">DNS Setup Instructions</h3>
+                        <p class="text-sm text-gray-600 mb-5">Add both records to your DNS provider (Cloudflare, Namecheap, GoDaddy, etc.), then click Verify.</p>
+
+                        <div class="space-y-5">
+                            <!-- Step 1: CNAME -->
+                            <div>
+                                <p class="text-sm font-semibold text-gray-700 mb-2">Step 1 — Point your domain at Pinzo</p>
+                                <div class="overflow-x-auto rounded-lg border border-gray-200">
+                                    <table class="w-full text-sm font-mono">
+                                        <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                                            <tr>
+                                                <th class="px-4 py-2 text-left">Type</th>
+                                                <th class="px-4 py-2 text-left">Name</th>
+                                                <th class="px-4 py-2 text-left">Value</th>
+                                                <th class="px-4 py-2 text-left">TTL</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-100">
+                                            <tr class="bg-white">
+                                                <td class="px-4 py-3 font-semibold text-blue-700">CNAME</td>
+                                                <td class="px-4 py-3">@GetDnsName()</td>
+                                                <td class="px-4 py-3">app.pinzogolf.com</td>
+                                                <td class="px-4 py-3 text-gray-500">3600</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            <!-- Step 2: TXT verification -->
+                            <div>
+                                <p class="text-sm font-semibold text-gray-700 mb-2">Step 2 — Add verification record</p>
+                                <div class="overflow-x-auto rounded-lg border border-gray-200">
+                                    <table class="w-full text-sm font-mono">
+                                        <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                                            <tr>
+                                                <th class="px-4 py-2 text-left">Type</th>
+                                                <th class="px-4 py-2 text-left">Name</th>
+                                                <th class="px-4 py-2 text-left">Value</th>
+                                                <th class="px-4 py-2 text-left">TTL</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody class="divide-y divide-gray-100">
+                                            <tr class="bg-white">
+                                                <td class="px-4 py-3 font-semibold text-purple-700">TXT</td>
+                                                <td class="px-4 py-3">_pinzo-verify.@GetDnsName()</td>
+                                                <td class="px-4 py-3 break-all">pinzo-verify=@league.CustomDomainVerificationToken</td>
+                                                <td class="px-4 py-3 text-gray-500">3600</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-2">DNS changes can take up to 48 hours to propagate, though usually just a few minutes.</p>
+                            </div>
+                        </div>
+
+                        <!-- Verify button -->
+                        @if (!league.CustomDomainVerifiedAt.HasValue)
+                        {
+                            <div class="mt-6 pt-5 border-t border-gray-200">
+                                <MaterialButton Style="MaterialButtonStyle.Filled"
+                                                OnClick="VerifyDomain"
+                                                Disabled="isVerifying">
+                                    <MaterialIcon Icon="MaterialIcons.CheckCircle" Class="mr-1" />
+                                    @(isVerifying ? "Checking..." : "Verify DNS")
+                                </MaterialButton>
+                                <p class="text-xs text-gray-500 mt-2">Make sure both DNS records are in place before verifying.</p>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="mt-6 pt-5 border-t border-gray-200 flex items-center gap-2 text-green-700">
+                                <MaterialIcon Icon="MaterialIcons.CheckCircle" />
+                                <span class="text-sm font-medium">Domain verified on @league.CustomDomainVerifiedAt.Value.ToString("MMMM d, yyyy")</span>
+                            </div>
+                        }
+                    </div>
+                </MaterialCard>
+            }
+        }
+    </ChildContent>
+</LeaguePageShell>
+
+@code {
+    [Parameter] public string LeagueKey { get; set; } = string.Empty;
+
+    private LeagueResponse? league;
+    private bool isLoading = true;
+    private bool isSaving;
+    private bool isVerifying;
+    private string? errorMessage;
+    private string? successMessage;
+    private string domainInput = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!AuthService.IsAuthenticated)
+        {
+            Navigation.NavigateTo("/login");
+            return;
+        }
+
+        await LoadLeague();
+
+        if (league != null && !league.IsCurrentUserAdmin)
+        {
+            Navigation.NavigateTo($"/league/{LeagueKey}/settings");
+            return;
+        }
+
+        domainInput = league?.CustomDomain ?? string.Empty;
+    }
+
+    private async Task LoadLeague()
+    {
+        isLoading = true;
+        try
+        {
+            var response = await LeagueService.GetLeagueByKeyAsync(LeagueKey);
+            if (response?.Success == true && response.Data != null)
+                league = response.Data;
+            else
+                Navigation.NavigateTo($"/league/{LeagueKey}/settings");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading league");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SaveDomain()
+    {
+        if (league == null) return;
+
+        var cleaned = domainInput.Trim().TrimStart('/').TrimEnd('/').ToLowerInvariant();
+        if (cleaned.StartsWith("https://")) cleaned = cleaned["https://".Length..];
+        if (cleaned.StartsWith("http://")) cleaned = cleaned["http://".Length..];
+
+        errorMessage = null;
+        successMessage = null;
+        isSaving = true;
+
+        try
+        {
+            var request = new UpdateLeagueRequest
+            {
+                CustomDomain = string.IsNullOrWhiteSpace(cleaned) ? null : cleaned,
+                UseCustomDomain = !string.IsNullOrWhiteSpace(cleaned)
+            };
+
+            var response = await LeagueService.UpdateLeagueAsync(league.Id, request);
+            if (response?.Success == true && response.Data != null)
+            {
+                league = response.Data;
+                domainInput = league.CustomDomain ?? string.Empty;
+                successMessage = "Domain saved. Follow the DNS instructions below to complete setup.";
+            }
+            else
+            {
+                errorMessage = response?.Message ?? "Failed to save domain.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving custom domain");
+            errorMessage = "An error occurred. Please try again.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task RemoveDomain()
+    {
+        if (league == null) return;
+
+        errorMessage = null;
+        successMessage = null;
+        isSaving = true;
+
+        try
+        {
+            var request = new UpdateLeagueRequest { CustomDomain = null, UseCustomDomain = false };
+            var response = await LeagueService.UpdateLeagueAsync(league.Id, request);
+            if (response?.Success == true && response.Data != null)
+            {
+                league = response.Data;
+                domainInput = string.Empty;
+                successMessage = "Custom domain removed.";
+            }
+            else
+            {
+                errorMessage = response?.Message ?? "Failed to remove domain.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error removing custom domain");
+            errorMessage = "An error occurred. Please try again.";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task VerifyDomain()
+    {
+        if (league == null) return;
+
+        errorMessage = null;
+        successMessage = null;
+        isVerifying = true;
+
+        try
+        {
+            var response = await LeagueService.VerifyLeagueCustomDomainAsync(league.Id);
+            if (response?.Success == true && response.Data != null)
+            {
+                league = response.Data;
+                successMessage = "Domain verified successfully!";
+            }
+            else
+            {
+                errorMessage = response?.Message ?? "Verification failed. Make sure both DNS records are in place and try again.";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error verifying custom domain");
+            errorMessage = "An error occurred during verification. Please try again.";
+        }
+        finally
+        {
+            isVerifying = false;
+        }
+    }
+
+    private string GetDnsName()
+    {
+        if (string.IsNullOrEmpty(league?.CustomDomain)) return "@";
+        var parts = league.CustomDomain.Split('.');
+        return parts.Length > 2 ? parts[0] : "@";
+    }
+}

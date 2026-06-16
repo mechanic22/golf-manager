@@ -56,5 +56,8 @@ public interface ISeasonService
 
     // ── Standings ─────────────────────────────────────────────────────────────
     Task<ApiResponse<List<PlayerStandingResponse>>?> GetSeasonStandingsAsync(string leagueId, string seasonId);
+
+    // ── Stats ─────────────────────────────────────────────────────────────────
+    Task<ApiResponse<PlayerSeasonHoleStatsResponse>?> GetPlayerHoleStatsAsync(string leagueId, string seasonId, string leagueGolferId);
 }
 

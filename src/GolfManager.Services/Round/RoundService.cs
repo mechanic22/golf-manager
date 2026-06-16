@@ -12,7 +12,7 @@ namespace GolfManager.Services.Round;
 /// </summary>
 public class RoundService : IRoundService
 {
-    private sealed record SeasonEventLookup(string Id, DateTime EventDate, string? CourseId, string? TeeId);
+    private sealed record SeasonEventLookup(string Id, DateTime EventDate, string? CourseId, string? TeeId, string SeasonId);
 
     private readonly GolfManagerDbContext _context;
     private readonly ILogger<RoundService> _logger;
@@ -58,7 +58,7 @@ public class RoundService : IRoundService
         var seasonEvents = await _context.SeasonEvents
             .IgnoreQueryFilters()
             .Where(e => e.LeagueId == leagueId)
-            .Select(e => new SeasonEventLookup(e.Id, e.EventDate, e.CourseId, e.TeeId))
+            .Select(e => new SeasonEventLookup(e.Id, e.EventDate, e.CourseId, e.TeeId, e.SeasonId))
             .ToListAsync();
 
         var items = rounds.Select(r =>
@@ -67,7 +67,7 @@ public class RoundService : IRoundService
                 e.EventDate.Date == r.RoundDate.Date &&
                 e.CourseId == r.CourseId &&
                 e.TeeId == r.TeeId);
-            return MapToResponse(r, evt?.Id, evt?.EventDate);
+            return MapToResponse(r, evt?.Id, evt?.EventDate, evt?.SeasonId);
         }).ToList();
         return PagedResponse<RoundResponse>.From(items, page, pageSize, totalCount);
     }
@@ -379,7 +379,7 @@ public class RoundService : IRoundService
             ?.Id;
     }
 
-    private RoundResponse MapToResponse(Core.Entities.Round round, string? seasonEventId = null, DateTime? fallbackEventDate = null)
+    private RoundResponse MapToResponse(Core.Entities.Round round, string? seasonEventId = null, DateTime? fallbackEventDate = null, string? seasonId = null)
     {
         return new RoundResponse
         {
@@ -388,6 +388,7 @@ public class RoundService : IRoundService
             LeagueGolferId = round.LeagueGolferId,
             LeagueId = round.LeagueId,
             SeasonEventId = seasonEventId,
+            SeasonId = seasonId,
             CourseId = round.CourseId,
             CourseName = round.Course?.Name ?? string.Empty,
             TeeId = round.TeeId,

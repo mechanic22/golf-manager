@@ -13,10 +13,14 @@ public partial class MatchDetail : ComponentBase
     [Inject] private NavigationManager Navigation { get; set; } = null!;
     [Inject] private ILogger<MatchDetail> Logger { get; set; } = null!;
 
+    // Full-context route params
     [Parameter] public string LeagueKey { get; set; } = string.Empty;
     [Parameter] public string SeasonKey { get; set; } = string.Empty;
     [Parameter] public string EventKey { get; set; } = string.Empty;
     [Parameter] public string MatchupKey { get; set; } = string.Empty;
+
+    // Simplified route param (guests / direct links)
+    [Parameter] public string? MatchupId { get; set; }
 
     private LeagueResponse? league;
     private SeasonResponse? season;
@@ -25,23 +29,28 @@ public partial class MatchDetail : ComponentBase
     private EventMatchScoreResponse? matchScore;
     private MatchDetailResponse? matchDetail;
     private bool isLoading = true;
+    private bool showGolferDetails = false;
 
     private string MatchupLabel
     {
         get
         {
-            if (matchup?.StartingHole == null) return string.Empty;
-            var flightLetter = matchup.StartingFlight is > 1
-                ? ((char)('A' + matchup.StartingFlight.Value - 1)).ToString()
+            var startingHole = matchup?.StartingHole ?? matchDetail?.StartingHole;
+            var startingFlight = matchup?.StartingFlight ?? matchDetail?.StartingFlight;
+            if (startingHole == null) return string.Empty;
+            var flightLetter = startingFlight is > 1
+                ? ((char)('A' + startingFlight.Value - 1)).ToString()
                 : string.Empty;
             return string.IsNullOrEmpty(flightLetter)
-                ? $"Starting Hole: {matchup.StartingHole}"
-                : $"Starting Hole: {matchup.StartingHole}{flightLetter}";
+                ? $"Starting Hole: {startingHole}"
+                : $"Starting Hole: {startingHole}{flightLetter}";
         }
     }
 
     protected override async Task OnInitializedAsync()
     {
+        await AuthService.InitializeAsync();
+
         if (!AuthService.IsAuthenticated)
         {
             Navigation.NavigateTo("/login");
@@ -56,6 +65,16 @@ public partial class MatchDetail : ComponentBase
         isLoading = true;
         try
         {
+            // Simplified route: only MatchupId provided
+            if (!string.IsNullOrEmpty(MatchupId) && string.IsNullOrEmpty(SeasonKey))
+            {
+                var detailResponse = await LeagueService.GetGuestMatchDetailAsync(MatchupId);
+                if (detailResponse?.Success == true)
+                    matchDetail = detailResponse.Data;
+                return;
+            }
+
+            // Full-context route: resolve league → season → event → matchup
             var leagueResponse = await LeagueService.GetLeagueByKeyAsync(LeagueKey);
             if (leagueResponse?.Success != true || leagueResponse.Data == null) return;
             league = leagueResponse.Data;
@@ -87,7 +106,7 @@ public partial class MatchDetail : ComponentBase
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error loading match detail for {MatchupKey}", MatchupKey);
+            Logger.LogError(ex, "Error loading match detail for {MatchupKey}/{MatchupId}", MatchupKey, MatchupId);
         }
         finally
         {

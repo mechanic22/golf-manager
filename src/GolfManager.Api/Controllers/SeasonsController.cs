@@ -44,7 +44,7 @@ public class SeasonsController : BaseLeagueController
     /// Get all seasons for a league
     /// </summary>
     [HttpGet]
-    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<List<SeasonResponse>>>> GetLeagueSeasons()
     {
         var leagueId = LeagueId;
@@ -61,7 +61,7 @@ public class SeasonsController : BaseLeagueController
     /// Get a season by ID
     /// </summary>
     [HttpGet("{seasonId}")]
-    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<SeasonResponse>>> GetSeasonById(string seasonId)
     {
         var leagueId = LeagueId;
@@ -84,7 +84,7 @@ public class SeasonsController : BaseLeagueController
     /// Get a season by key
     /// </summary>
     [HttpGet("by-key/{seasonKey}")]
-    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<SeasonResponse>>> GetSeasonByKey(string seasonKey)
     {
         var leagueId = LeagueId;
@@ -304,7 +304,7 @@ public class SeasonsController : BaseLeagueController
     /// Get all players participating in a season
     /// </summary>
     [HttpGet("{seasonId}/players")]
-    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<List<PlayerResponse>>>> GetSeasonPlayers(string seasonId)
     {
         var leagueId = LeagueId;
@@ -419,7 +419,7 @@ public class SeasonsController : BaseLeagueController
     /// Get all teams in a season
     /// </summary>
     [HttpGet("{seasonId}/teams")]
-    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<List<SeasonTeamResponse>>>> GetSeasonTeams(string seasonId)
     {
         var leagueId = LeagueId;
@@ -503,10 +503,26 @@ public class SeasonsController : BaseLeagueController
 
     #endregion
 
+    #region Stats
+
+    [HttpGet("{seasonId}/golfers/{leagueGolferId}/hole-stats")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<PlayerSeasonHoleStatsResponse>>> GetPlayerSeasonHoleStats(string seasonId, string leagueGolferId)
+    {
+        var leagueId = LeagueId;
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<PlayerSeasonHoleStatsResponse>.ErrorResponse("League context required"));
+
+        var result = await _seasonService.GetPlayerSeasonHoleStatsAsync(seasonId, leagueGolferId, leagueId);
+        return Ok(ApiResponse<PlayerSeasonHoleStatsResponse>.SuccessResponse(result ?? new PlayerSeasonHoleStatsResponse()));
+    }
+
+    #endregion
+
     #region Standings
 
     [HttpGet("{seasonId}/standings")]
-    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<List<PlayerStandingResponse>>>> GetSeasonStandings(string seasonId)
     {
         var leagueId = LeagueId;

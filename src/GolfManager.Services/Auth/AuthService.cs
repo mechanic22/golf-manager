@@ -131,7 +131,8 @@ public class AuthService : IAuthService
                 LeagueName = ul.League.Name,
                 CustomDomain = ul.League.CustomDomain,
                 IsLeagueAdmin = ul.Role == LeagueMemberRole.Owner || ul.Role == LeagueMemberRole.Admin,
-                Role = ul.Role
+                Role = ul.Role,
+                LogoUrl = ul.League.LogoUrl
             })
             .ToListAsync(cancellationToken);
 
@@ -175,7 +176,8 @@ public class AuthService : IAuthService
                 LeagueName = ul.League.Name,
                 CustomDomain = ul.League.CustomDomain,
                 IsLeagueAdmin = ul.Role == LeagueMemberRole.Owner || ul.Role == LeagueMemberRole.Admin,
-                Role = ul.Role
+                Role = ul.Role,
+                LogoUrl = ul.League.LogoUrl
             })
             .ToListAsync(cancellationToken);
 

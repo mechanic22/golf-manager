@@ -1,9 +1,15 @@
 using System.Security.Claims;
 using GolfManager.Api.Authorization;
 using GolfManager.Data;
+using GolfManager.Services.Event;
 using GolfManager.Services.League;
+using GolfManager.Services.Player;
+using GolfManager.Core.Entities;
 using GolfManager.Shared.DTOs.Common;
+using GolfManager.Shared.DTOs.Event;
 using GolfManager.Shared.DTOs.League;
+using GolfManager.Shared.DTOs.Player;
+using GolfManager.Shared.DTOs.Season;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -19,15 +25,21 @@ namespace GolfManager.Api.Controllers;
 public class LeaguesController : ControllerBase
 {
     private readonly ILeagueService _leagueService;
+    private readonly IPlayerService _playerService;
+    private readonly IEventService _eventService;
     private readonly GolfManagerDbContext _context;
     private readonly ILogger<LeaguesController> _logger;
 
     public LeaguesController(
         ILeagueService leagueService,
+        IPlayerService playerService,
+        IEventService eventService,
         GolfManagerDbContext context,
         ILogger<LeaguesController> logger)
     {
         _leagueService = leagueService;
+        _playerService = playerService;
+        _eventService = eventService;
         _context = context;
         _logger = logger;
     }
@@ -104,16 +116,29 @@ public class LeaguesController : ControllerBase
     }
 
     /// <summary>
-    /// Get read-only team standings for a guest session.
-    /// League context is derived from the guest cookie claims — no route parameter needed.
+    /// Get team and individual standings for the active season.
+    /// Accepts both guest sessions (league from cookie claims) and regular league members
+    /// (league from X-League-Context middleware).
     /// </summary>
     [HttpGet("guest/standings")]
-    [Authorize(Policy = AuthorizationConstants.Policies.GuestLeagueViewer)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<GuestStandingsResponse>>> GetGuestStandings()
     {
-        var leagueId = User.FindFirst(AuthorizationConstants.Claims.LeagueId)?.Value;
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var isGuest = User.FindFirst(AuthorizationConstants.Claims.IsGuest)?.Value == "true";
+
+        string? leagueId;
+        if (isGuest)
+        {
+            leagueId = User.FindFirst(AuthorizationConstants.Claims.LeagueId)?.Value;
+        }
+        else
+        {
+            leagueId = HttpContext.Items["LeagueId"]?.ToString();
+        }
+
         if (string.IsNullOrEmpty(leagueId))
-            return BadRequest(ApiResponse<GuestStandingsResponse>.ErrorResponse("No league context in guest session"));
+            return BadRequest(ApiResponse<GuestStandingsResponse>.ErrorResponse("No league context"));
 
         var league = await _context.Leagues
             .IgnoreQueryFilters()
@@ -123,7 +148,20 @@ public class LeaguesController : ControllerBase
         if (league == null)
             return NotFound(ApiResponse<GuestStandingsResponse>.ErrorResponse("League not found"));
 
-        if (string.IsNullOrEmpty(league.ActiveSeasonId))
+        // Prefer the league's pinned active season; fall back to the most recent season.
+        var seasonId = league.ActiveSeasonId;
+        if (string.IsNullOrEmpty(seasonId))
+        {
+            seasonId = await _context.Seasons
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(s => s.LeagueId == leagueId && !s.IsDeleted)
+                .OrderByDescending(s => s.StartDate)
+                .Select(s => s.Id)
+                .FirstOrDefaultAsync();
+        }
+
+        if (string.IsNullOrEmpty(seasonId))
         {
             return Ok(ApiResponse<GuestStandingsResponse>.SuccessResponse(new GuestStandingsResponse
             {
@@ -135,36 +173,330 @@ public class LeaguesController : ControllerBase
         var season = await _context.Seasons
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == league.ActiveSeasonId && !s.IsDeleted);
+            .FirstOrDefaultAsync(s => s.Id == seasonId && !s.IsDeleted);
 
-        var teams = await _context.SeasonTeams
+        var teamsTask = _context.SeasonTeams
             .IgnoreQueryFilters()
             .AsNoTracking()
-            .Where(t => t.SeasonId == league.ActiveSeasonId && t.LeagueId == leagueId && !t.IsDeleted)
+            .Where(t => t.SeasonId == seasonId && t.LeagueId == leagueId && !t.IsDeleted)
+            .ToListAsync();
+
+        // Compute all standings from live scoreboard data (not stale denormalized fields).
+        var playersTask = _playerService.GetSeasonPlayersAsync(seasonId, leagueId);
+        var eventsTask = _eventService.GetSeasonEventsAsync(seasonId, leagueId, pageSize: 100);
+
+        await Task.WhenAll(teamsTask, playersTask, eventsTask);
+
+        var players = playersTask.Result;
+        var events = eventsTask.Result.Items;
+
+        var scoreboardTasks = events
+            .Select(e => _eventService.GetEventScoreboardAsync(seasonId, e.Id, leagueId));
+        var scoreboards = await Task.WhenAll(scoreboardTasks);
+
+        // Aggregate team wins/losses/ties/points from completed match results.
+        var teamPts = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        var teamWins = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var teamLosses = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var teamTies = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var match in scoreboards.SelectMany(s => s.Matches).Where(m => m.IsComplete))
+        {
+            var hp = match.HomePoints ?? 0;
+            var ap = match.AwayPoints ?? 0;
+
+            if (!string.IsNullOrEmpty(match.HomeTeamId))
+            {
+                teamPts[match.HomeTeamId] = teamPts.GetValueOrDefault(match.HomeTeamId) + hp;
+                if (hp > ap) teamWins[match.HomeTeamId] = teamWins.GetValueOrDefault(match.HomeTeamId) + 1;
+                else if (hp < ap) teamLosses[match.HomeTeamId] = teamLosses.GetValueOrDefault(match.HomeTeamId) + 1;
+                else teamTies[match.HomeTeamId] = teamTies.GetValueOrDefault(match.HomeTeamId) + 1;
+            }
+            if (!string.IsNullOrEmpty(match.AwayTeamId))
+            {
+                teamPts[match.AwayTeamId] = teamPts.GetValueOrDefault(match.AwayTeamId) + ap;
+                if (ap > hp) teamWins[match.AwayTeamId] = teamWins.GetValueOrDefault(match.AwayTeamId) + 1;
+                else if (ap < hp) teamLosses[match.AwayTeamId] = teamLosses.GetValueOrDefault(match.AwayTeamId) + 1;
+                else teamTies[match.AwayTeamId] = teamTies.GetValueOrDefault(match.AwayTeamId) + 1;
+            }
+        }
+
+        var teamRows = teamsTask.Result
+            .Select(t =>
+            {
+                var livePts = teamPts.GetValueOrDefault(t.Id);
+                return new GuestTeamStandingRow
+                {
+                    Name = t.Name,
+                    Wins = teamWins.GetValueOrDefault(t.Id),
+                    Losses = teamLosses.GetValueOrDefault(t.Id),
+                    Ties = teamTies.GetValueOrDefault(t.Id),
+                    // Fall back to denormalized SeasonPoints if no live scoreboard data yet.
+                    SeasonPoints = livePts > 0 ? livePts : t.SeasonPoints
+                };
+            })
             .OrderByDescending(t => t.SeasonPoints ?? 0)
             .ThenByDescending(t => t.Wins)
             .ThenBy(t => t.Losses)
-            .ToListAsync();
+            .ToList();
+        var scoreboardPlayers = scoreboards.SelectMany(s => s.Players).ToList();
 
-        var rows = teams.Select((t, i) => new GuestTeamStandingRow
+        var playerRows = players.Select(player =>
         {
-            Rank = i + 1,
-            Name = t.Name,
-            Wins = t.Wins,
-            Losses = t.Losses,
-            Ties = t.Ties,
-            SeasonPoints = t.SeasonPoints
-        }).ToList();
+            var playerScores = scoreboardPlayers
+                .Where(sp => string.Equals(sp.SeasonGolferId, player.SeasonGolferId, StringComparison.OrdinalIgnoreCase))
+                .ToList();
 
-        _logger.LogInformation("Guest standings served for league {LeagueId}", leagueId);
+            var completedRounds = playerScores.Where(sp => sp.RawScore.HasValue).ToList();
+            var hasPoints = playerScores.Any(sp => sp.EventPoints.HasValue);
+            var totalPoints = hasPoints ? playerScores.Sum(sp => sp.EventPoints ?? 0) : (double?)null;
+
+            return new PlayerStandingResponse
+            {
+                SeasonGolferId = player.SeasonGolferId ?? player.Id,
+                DisplayName = player.DisplayName,
+                LeagueHandicap = player.LeagueHandicap,
+                SeasonPoints = totalPoints,
+                RoundCount = completedRounds.Count,
+                AverageNetScore = completedRounds.Count > 0
+                    ? completedRounds.Average(sp => sp.NetScore ?? sp.RawScore ?? 0)
+                    : null,
+                BestRawScore = completedRounds.Count > 0
+                    ? completedRounds.Min(sp => sp.RawScore ?? int.MaxValue)
+                    : null
+            };
+        })
+        .OrderByDescending(s => s.SeasonPoints ?? double.MinValue)
+        .ThenBy(s => s.AverageNetScore ?? double.MaxValue)
+        .ThenBy(s => s.DisplayName)
+        .ToList();
+
+        // For logged-in members, resolve their SeasonGolferId for row highlighting in the UI.
+        string? currentUserSeasonGolferId = null;
+        if (!isGuest && !string.IsNullOrEmpty(userId))
+        {
+            var golfer = await _context.Golfers
+                .AsNoTracking()
+                .FirstOrDefaultAsync(g => g.UserId == userId);
+
+            if (golfer != null)
+            {
+                currentUserSeasonGolferId = players
+                    .FirstOrDefault(p => string.Equals(p.GolferId, golfer.Id, StringComparison.OrdinalIgnoreCase))
+                    ?.SeasonGolferId;
+            }
+        }
+
+        _logger.LogInformation("Standings served for league {LeagueId} (guest={IsGuest})", leagueId, isGuest);
 
         return Ok(ApiResponse<GuestStandingsResponse>.SuccessResponse(new GuestStandingsResponse
         {
             LeagueName = league.Name,
             LogoUrl = league.LogoUrl,
             SeasonName = season?.Name,
-            Teams = rows
+            Teams = teamRows,
+            Players = playerRows,
+            CurrentUserSeasonGolferId = currentUserSeasonGolferId
         }));
+    }
+
+    /// <summary>
+    /// Get season events with matchup scores for guests and league members.
+    /// </summary>
+    [HttpGet("guest/events")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<GuestEventsResponse>>> GetGuestEvents()
+    {
+        var isGuest = User.FindFirst(AuthorizationConstants.Claims.IsGuest)?.Value == "true";
+        string? leagueId = isGuest
+            ? User.FindFirst(AuthorizationConstants.Claims.LeagueId)?.Value
+            : HttpContext.Items["LeagueId"]?.ToString();
+
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<GuestEventsResponse>.ErrorResponse("No league context"));
+
+        var league = await _context.Leagues
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(l => l.Id == leagueId && !l.IsDeleted);
+
+        if (league == null)
+            return NotFound(ApiResponse<GuestEventsResponse>.ErrorResponse("League not found"));
+
+        var seasonId = league.ActiveSeasonId;
+        if (string.IsNullOrEmpty(seasonId))
+        {
+            seasonId = await _context.Seasons
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(s => s.LeagueId == leagueId && !s.IsDeleted)
+                .OrderByDescending(s => s.StartDate)
+                .Select(s => s.Id)
+                .FirstOrDefaultAsync();
+        }
+
+        if (string.IsNullOrEmpty(seasonId))
+        {
+            return Ok(ApiResponse<GuestEventsResponse>.SuccessResponse(new GuestEventsResponse
+            {
+                LeagueName = league.Name
+            }));
+        }
+
+        var season = await _context.Seasons
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == seasonId && !s.IsDeleted);
+
+        var eventsResult = await _eventService.GetSeasonEventsAsync(seasonId, leagueId, pageSize: 100);
+        var eventItems = eventsResult.Items.OrderByDescending(e => e.EventDate).ToList();
+
+        var scoreboardTasks = eventItems
+            .Select(e => _eventService.GetEventScoreboardAsync(seasonId, e.Id, leagueId));
+        var scoreboards = await Task.WhenAll(scoreboardTasks);
+
+        var eventRows = eventItems.Select((ev, idx) =>
+        {
+            var scoreboard = scoreboards[idx];
+            var matchups = scoreboard.Matches.Select(m => new GuestMatchupRow
+            {
+                Id = m.MatchupId,
+                HomeTeamName = m.HomeTeamName,
+                AwayTeamName = m.AwayTeamName,
+                HomePoints = m.HomePoints,
+                AwayPoints = m.AwayPoints,
+                IsComplete = m.IsComplete,
+                HomeMembers = m.HomeMembers.Select(p => new GuestMatchupMemberRow
+                {
+                    DisplayName = p.DisplayName,
+                    Handicap = p.Handicap,
+                    RawScore = p.RawScore,
+                    NetScore = p.NetScore,
+                    IsSubstitute = p.IsSubstitute
+                }).ToList(),
+                AwayMembers = m.AwayMembers.Select(p => new GuestMatchupMemberRow
+                {
+                    DisplayName = p.DisplayName,
+                    Handicap = p.Handicap,
+                    RawScore = p.RawScore,
+                    NetScore = p.NetScore,
+                    IsSubstitute = p.IsSubstitute
+                }).ToList()
+            }).ToList();
+
+            return new GuestEventRow
+            {
+                Id = ev.Id,
+                Name = ev.Name,
+                EventDate = ev.EventDate,
+                IsComplete = ev.IsLocked,
+                Matchups = matchups
+            };
+        }).ToList();
+
+        return Ok(ApiResponse<GuestEventsResponse>.SuccessResponse(new GuestEventsResponse
+        {
+            LeagueName = league.Name,
+            SeasonName = season?.Name,
+            Events = eventRows
+        }));
+    }
+
+    /// <summary>
+    /// Get matchup details for a single event — accessible to guests and members.
+    /// </summary>
+    [HttpGet("guest/events/{eventId}")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<GuestEventRow>>> GetGuestEventDetail(string eventId)
+    {
+        var isGuest = User.FindFirst(AuthorizationConstants.Claims.IsGuest)?.Value == "true";
+        string? leagueId = isGuest
+            ? User.FindFirst(AuthorizationConstants.Claims.LeagueId)?.Value
+            : HttpContext.Items["LeagueId"]?.ToString();
+
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<GuestEventRow>.ErrorResponse("No league context"));
+
+        var ev = await _context.SeasonEvents
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(e => e.Id == eventId && e.LeagueId == leagueId && !e.IsDeleted);
+
+        if (ev == null)
+            return NotFound(ApiResponse<GuestEventRow>.ErrorResponse("Event not found"));
+
+        var scoreboard = await _eventService.GetEventScoreboardAsync(ev.SeasonId, eventId, leagueId);
+
+        var matchups = scoreboard.Matches.Select(m => new GuestMatchupRow
+        {
+            Id = m.MatchupId,
+            HomeTeamName = m.HomeTeamName,
+            AwayTeamName = m.AwayTeamName,
+            HomePoints = m.HomePoints,
+            AwayPoints = m.AwayPoints,
+            IsComplete = m.IsComplete,
+            HomeMembers = m.HomeMembers.Select(p => new GuestMatchupMemberRow
+            {
+                DisplayName = p.DisplayName,
+                Handicap = p.Handicap,
+                RawScore = p.RawScore,
+                NetScore = p.NetScore,
+                IsSubstitute = p.IsSubstitute
+            }).ToList(),
+            AwayMembers = m.AwayMembers.Select(p => new GuestMatchupMemberRow
+            {
+                DisplayName = p.DisplayName,
+                Handicap = p.Handicap,
+                RawScore = p.RawScore,
+                NetScore = p.NetScore,
+                IsSubstitute = p.IsSubstitute
+            }).ToList()
+        }).ToList();
+
+        return Ok(ApiResponse<GuestEventRow>.SuccessResponse(new GuestEventRow
+        {
+            Id = ev.Id,
+            Name = ev.Name,
+            EventDate = ev.EventDate,
+            IsComplete = ev.IsLocked,
+            Matchups = matchups
+        }));
+    }
+
+    /// <summary>
+    /// Get hole-by-hole match detail for a specific matchup — accessible to guests and members.
+    /// </summary>
+    [HttpGet("guest/matchups/{matchupId}")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<MatchDetailResponse>>> GetGuestMatchDetail(string matchupId)
+    {
+        var isGuest = User.FindFirst(AuthorizationConstants.Claims.IsGuest)?.Value == "true";
+        string? leagueId = isGuest
+            ? User.FindFirst(AuthorizationConstants.Claims.LeagueId)?.Value
+            : HttpContext.Items["LeagueId"]?.ToString();
+
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<MatchDetailResponse>.ErrorResponse("No league context"));
+
+        var match = await _context.Set<SeasonEventMatch>()
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Include(m => m.SeasonEvent)
+            .FirstOrDefaultAsync(m => m.Id == matchupId && m.LeagueId == leagueId && !m.IsDeleted);
+
+        if (match == null)
+            return NotFound(ApiResponse<MatchDetailResponse>.ErrorResponse("Matchup not found"));
+
+        var detail = await _eventService.GetMatchDetailAsync(
+            match.SeasonEvent.SeasonId,
+            match.SeasonEventId,
+            matchupId,
+            leagueId);
+
+        if (detail == null)
+            return NotFound(ApiResponse<MatchDetailResponse>.ErrorResponse("Match detail not found"));
+
+        return Ok(ApiResponse<MatchDetailResponse>.SuccessResponse(detail));
     }
 
     /// <summary>

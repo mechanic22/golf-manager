@@ -45,7 +45,7 @@ else
                                             <span class="text-xs font-bold text-gray-300 w-4 shrink-0">@(idx + 1)</span>
                                             <span class="font-medium text-gray-800 truncate">@score.DisplayName</span>
                                         </div>
-                                        <span class="font-semibold text-primary-700 shrink-0 ml-4">@score.NetScore</span>
+                                        <span class="font-semibold text-primary-700 shrink-0 ml-4">@string.Format("{0:F2}", score.NetScore)</span>
                                     </div>
                                 }
                             </div>
@@ -62,38 +62,7 @@ else
         </div>
     </div>
 
-    <!-- Row 2: Season Stat Tiles -->
-    <div class="grid grid-cols-2 @(teams.Count > 0 ? "md:grid-cols-4" : "md:grid-cols-3") gap-4 mb-8">
-        <StatTile Label="Events Played"
-                  Value="@CompletedEventCount.ToString()"
-                  Unit="@($"/ {events.Count}")"
-                  Icon="@GolfIcons.Calendar"
-                  IconColor="text-blue-600"
-                  IconBgGradient="from-blue-100 to-blue-50"
-                  Footer="@(events.Count - CompletedEventCount > 0 ? $"{events.Count - CompletedEventCount} remaining" : "Season complete")" />
-
-        <StatTile Label="Players"
-                  Value="@SeasonCtx!.Season.GolferCount.ToString()"
-                  Icon="@GolfIcons.People"
-                  IconColor="text-green-600"
-                  IconBgGradient="from-green-100 to-green-50" />
-
-        @if (teams.Count > 0)
-        {
-            <StatTile Label="Teams"
-                      Value="@teams.Count.ToString()"
-                      Icon="@GolfIcons.Building"
-                      IconColor="text-purple-600"
-                      IconBgGradient="from-purple-100 to-purple-50" />
-        }
-
-        <StatTile Label="Season Status"
-                  Value="@(SeasonCtx.Season.IsLocked ? "Locked" : "Active")"
-                  Icon="@(SeasonCtx.Season.IsLocked ? GolfIcons.Lock : GolfIcons.GolfFlag)"
-                  IconColor="@(SeasonCtx.Season.IsLocked ? "text-gray-500" : "text-primary-600")"
-                  IconBgGradient="@(SeasonCtx.Season.IsLocked ? "from-gray-100 to-gray-50" : "from-primary-100 to-primary-50")"
-                  Footer="@(SeasonCtx.Season.StartDate != default ? SeasonCtx.Season.StartDate.ToString("MMM d, yyyy") : null)" />
-    </div>
+    <!-- Row 2: Season Stat Tiles not used for now -->
 
     <!-- Row 3: Leaderboards -->
     <div class="grid grid-cols-1 @(teams.Count > 0 ? "md:grid-cols-2" : "") gap-6 mb-8">
@@ -149,10 +118,7 @@ else
                             <div class="flex items-center gap-3 px-5 py-3">
                                 <span class="text-sm font-bold text-gray-300 w-5 shrink-0">@rank</span>
                                 <span class="text-sm font-medium text-gray-900 flex-1 truncate">@standing.Team.Name</span>
-                                <span class="text-xs text-gray-400 shrink-0">
-                                    @standing.Wins–@standing.Losses–@standing.Ties
-                                </span>
-                                <span class="text-sm font-semibold text-primary-700 shrink-0 w-16 text-right">
+                                <span class="text-sm font-semibold text-primary-700 shrink-0 w-16 text-right text-nowrap">
                                     @standing.PointsFor.ToString("F1") pts
                                 </span>
                             </div>
@@ -189,17 +155,6 @@ else
                               Icon="@GolfIcons.Star"
                               IconColor="text-yellow-500"
                               IconBgGradient="from-yellow-100 to-yellow-50" />
-                }
-
-                @if (MostRoundsPlayer != null)
-                {
-                    <StatTile Label="Iron Man"
-                              Description="@MostRoundsPlayer.DisplayName"
-                              Value="@MostRoundsPlayer.RoundCount.ToString()"
-                              Unit="rounds"
-                              Icon="@GolfIcons.Leaderboard"
-                              IconColor="text-blue-600"
-                              IconBgGradient="from-blue-100 to-blue-50" />
                 }
 
                 @if (SharpestNetPlayer != null)

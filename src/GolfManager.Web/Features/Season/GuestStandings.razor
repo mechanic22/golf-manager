@@ -1,115 +1,26 @@
 @page "/league/{LeagueKey}/standings"
 @layout AppLayout
-@using GolfManager.Shared.DTOs.League
 
-<PageTitle>Standings - @(leagueKey ?? "League") - Pinzo Golf</PageTitle>
+<PageTitle>@(leagueName ?? LeagueKey) - Pinzo Golf</PageTitle>
 
-<div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8 py-6">
-    <div class="flex items-center justify-between flex-wrap gap-4">
-        <div>
-            <div class="flex items-center gap-2 text-sm text-gray-600 mb-3">
-                <a href="/discover" class="hover:text-primary-600">Browse Leagues</a>
-                <span class="text-gray-300">›</span>
-                <span class="text-gray-900">Standings</span>
-            </div>
-            <h1 class="text-3xl font-bold text-gray-900">@(standings?.LeagueName ?? "Loading...")</h1>
-            <p class="text-gray-600 text-sm mt-2">@(standings?.SeasonName ?? "")</p>
-        </div>
-        <div class="flex gap-2">
-            <a href="/discover"
-               class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
-                Back to Browse
-            </a>
-        </div>
-    </div>
-</div>
-
-<div class="mt-8 max-w-4xl mx-auto">
+<div class="flex items-center justify-center py-16">
     @if (isLoading)
     {
-        <div class="flex items-center justify-center py-16">
-            <div class="text-center">
-                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
-                <p class="text-gray-600">Loading standings...</p>
-            </div>
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mb-4"></div>
+            <p class="text-gray-500 text-sm">Loading...</p>
         </div>
     }
-    else if (standings == null)
+    else if (noSeason)
     {
-        <div class="bg-white rounded-lg border border-gray-200 p-8 text-center">
-            <p class="text-gray-600">Unable to load standings. Please try again.</p>
-            <a href="/discover" class="inline-block mt-4 px-4 py-2 text-primary-600 font-medium hover:underline">
-                Back to Browse
-            </a>
-        </div>
-    }
-    else
-    {
-        <!-- Standings Table -->
-        <div class="bg-white rounded-lg border border-gray-200 overflow-hidden">
-            <table class="w-full">
-                <thead>
-                    <tr class="border-b border-gray-200 bg-gray-50">
-                        <th class="px-6 py-4 text-left text-sm font-semibold text-gray-900">#</th>
-                        <th class="px-6 py-4 text-left text-sm font-semibold text-gray-900">Team</th>
-                        <th class="px-6 py-4 text-right text-sm font-semibold text-gray-900 hidden sm:table-cell">Points
-                        </th>
-                        <th class="px-6 py-4 text-center text-sm font-semibold text-gray-900 hidden md:table-cell">W</th>
-                        <th class="px-6 py-4 text-center text-sm font-semibold text-gray-900 hidden md:table-cell">L</th>
-                        <th class="px-6 py-4 text-center text-sm font-semibold text-gray-900 hidden md:table-cell">T</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @for (int i = 0; i < standings.Teams.Count; i++)
-                    {
-                        var team = standings.Teams[i];
-                        <tr class="border-b border-gray-200 hover:bg-gray-50 transition">
-                            <td class="px-6 py-4 text-sm text-gray-900 font-semibold">@(i + 1)</td>
-                            <td class="px-6 py-4 text-sm text-gray-900 font-medium">@team.Name</td>
-                            <td class="px-6 py-4 text-right text-sm text-gray-900 font-semibold hidden sm:table-cell">
-                                @if (team.SeasonPoints.HasValue)
-                                {
-                                    @team.SeasonPoints.Value.ToString("F1")
-                                }
-                            </td>
-                            <td class="px-6 py-4 text-center text-sm text-gray-600 hidden md:table-cell">@team.Wins</td>
-                            <td class="px-6 py-4 text-center text-sm text-gray-600 hidden md:table-cell">@team.Losses</td>
-                            <td class="px-6 py-4 text-center text-sm text-gray-600 hidden md:table-cell">@team.Ties</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Season Info -->
-        <div class="mt-8 p-6 bg-blue-50 border border-blue-200 rounded-lg">
-            <h3 class="font-semibold text-blue-900 mb-3">About This View</h3>
-            <p class="text-sm text-blue-800 mb-2">
-                This is a guest view showing team standings for <strong>@standings.LeagueName</strong>
-                in the <strong>@standings.SeasonName</strong> season.
-            </p>
-            <p class="text-sm text-blue-800">
-                Personal stats and detailed match information are not visible in guest mode.
-            </p>
-        </div>
-
-        <!-- Individual Standings Placeholder -->
-        <div class="mt-8 bg-gray-50 border border-gray-200 rounded-lg p-6">
-            <h3 class="font-semibold text-gray-900 mb-2">Individual Player Standings</h3>
-            <p class="text-sm text-gray-500">Individual standings are not available in guest view.
-                Sign in or create an account to see player-level standings and statistics.</p>
-        </div>
-
-        <!-- CTA / Exit -->
-        <div class="mt-6 flex flex-wrap gap-3">
-            <button
-                class="px-5 py-2 text-sm font-medium text-white bg-primary-600 border border-primary-600 rounded-lg hover:bg-primary-700 transition-colors"
-                @onclick="HandleSignIn">
-                Sign In to Join
-            </button>
-            <a href="/discover" class="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
-                Browse Other Leagues
-            </a>
+        <div class="bg-white rounded-lg border border-gray-200 p-12 text-center max-w-md">
+            @if (!string.IsNullOrEmpty(logoUrl))
+            {
+                <img src="@logoUrl" alt="@leagueName" class="h-16 w-16 mx-auto mb-4 rounded-lg object-contain border border-gray-200 p-1" />
+            }
+            <div class="text-4xl mb-4">⛳</div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">No Active Season</h3>
+            <p class="text-gray-500 text-sm">@(leagueName ?? LeagueKey) doesn't have an active season yet. Check back once the season begins.</p>
         </div>
     }
 </div>

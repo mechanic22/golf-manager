@@ -813,5 +813,97 @@ public class SeasonService : ISeasonService
             }).ToList() ?? new()
         };
     }
+
+    public async Task<PlayerSeasonHoleStatsResponse?> GetPlayerSeasonHoleStatsAsync(string seasonId, string leagueGolferId, string leagueId)
+    {
+        // Find all season events for this season/league to identify which rounds belong to this season
+        var seasonEvents = await _context.SeasonEvents
+            .IgnoreQueryFilters()
+            .Where(e => e.SeasonId == seasonId && e.LeagueId == leagueId)
+            .Select(e => new { e.EventDate, e.CourseId, e.TeeId })
+            .ToListAsync();
+
+        if (seasonEvents.Count == 0)
+            return new PlayerSeasonHoleStatsResponse();
+
+        // Get all rounds for this league golfer with their hole scores
+        var rounds = await _context.Rounds
+            .IgnoreQueryFilters()
+            .Where(r => r.LeagueGolferId == leagueGolferId && r.LeagueId == leagueId)
+            .Include(r => r.Holes)
+            .ToListAsync();
+
+        // Filter rounds that match a season event (by date + course + tee)
+        var seasonRounds = rounds.Where(r =>
+            seasonEvents.Any(e =>
+                e.EventDate.Date == r.RoundDate.Date &&
+                e.CourseId == r.CourseId &&
+                e.TeeId == r.TeeId &&
+                r.TeeId != null)).ToList();
+
+        if (seasonRounds.Count == 0)
+            return new PlayerSeasonHoleStatsResponse();
+
+        // Load HoleTees for all unique tees used in season rounds
+        var teeIds = seasonRounds.Select(r => r.TeeId!).Distinct().ToList();
+        var holeTees = await _context.HoleTees
+            .IgnoreQueryFilters()
+            .Where(ht => teeIds.Contains(ht.TeeId))
+            .ToListAsync();
+
+        var holeTeesByTeeAndHole = holeTees
+            .GroupBy(ht => ht.TeeId)
+            .ToDictionary(g => g.Key, g => g.ToDictionary(ht => ht.HoleNumber, ht => ht.Par));
+
+        // Aggregate per hole
+        var holeAggregates = new Dictionary<int, (int Par, List<int> Scores)>();
+
+        foreach (var round in seasonRounds)
+        {
+            if (round.TeeId == null) continue;
+            if (!holeTeesByTeeAndHole.TryGetValue(round.TeeId, out var parByHole)) continue;
+
+            foreach (var hole in round.Holes)
+            {
+                if (!hole.GrossScore.HasValue) continue;
+                if (!parByHole.TryGetValue(hole.HoleNumber, out var par)) continue;
+
+                if (!holeAggregates.TryGetValue(hole.HoleNumber, out var agg))
+                {
+                    agg = (par, new List<int>());
+                    holeAggregates[hole.HoleNumber] = agg;
+                }
+                agg.Scores.Add(hole.GrossScore.Value);
+            }
+        }
+
+        var holeEntries = holeAggregates
+            .OrderBy(kvp => kvp.Key)
+            .Select(kvp =>
+            {
+                var (par, scores) = kvp.Value;
+                var relScores = scores.Select(s => s - par).ToList();
+                return new HoleStatEntry
+                {
+                    HoleNumber = kvp.Key,
+                    Par = par,
+                    HolesPlayed = scores.Count,
+                    AverageOverPar = scores.Count > 0 ? relScores.Average() : null,
+                    EagleOrBetter = relScores.Count(s => s <= -2),
+                    Birdies = relScores.Count(s => s == -1),
+                    Pars = relScores.Count(s => s == 0),
+                    Bogeys = relScores.Count(s => s == 1),
+                    DoubleBogeys = relScores.Count(s => s == 2),
+                    TriplePlus = relScores.Count(s => s >= 3)
+                };
+            })
+            .ToList();
+
+        return new PlayerSeasonHoleStatsResponse
+        {
+            TotalHolesPlayed = holeEntries.Sum(h => h.HolesPlayed),
+            Holes = holeEntries
+        };
+    }
 }
 

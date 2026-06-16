@@ -85,9 +85,6 @@ public partial class SeasonOverviewTab : ComponentBase
     private PlayerStandingResponse? BestRoundPlayer =>
         standings.Where(s => s.BestRawScore.HasValue).MinBy(s => s.BestRawScore);
 
-    private PlayerStandingResponse? MostRoundsPlayer =>
-        standings.Where(s => s.RoundCount > 0).MaxBy(s => s.RoundCount);
-
     private PlayerStandingResponse? SharpestNetPlayer =>
         standings.Where(s => s.AverageNetScore.HasValue).MinBy(s => s.AverageNetScore);
 
