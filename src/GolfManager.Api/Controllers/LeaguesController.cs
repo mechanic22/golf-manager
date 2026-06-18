@@ -254,6 +254,7 @@ public class LeaguesController : ControllerBase
             return new PlayerStandingResponse
             {
                 SeasonGolferId = player.SeasonGolferId ?? player.Id,
+                LeagueGolferId = player.Id,
                 DisplayName = player.DisplayName,
                 LeagueHandicap = player.LeagueHandicap,
                 SeasonPoints = totalPoints,

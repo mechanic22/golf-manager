@@ -1,21 +1,11 @@
 @using GolfManager.Shared.DTOs.Event
 
-<div class="mb-4 flex items-center gap-1 bg-gray-100 rounded-lg p-1 text-sm w-fit">
-    @foreach (var (label, value) in new[] { ("All", "all"), ("Upcoming", "upcoming"), ("Completed", "completed") })
-    {
-        <button @onclick="@(() => statusFilter = value)"
-                class="px-3 py-1.5 rounded-md font-medium transition-colors @(statusFilter == value ? "bg-white shadow text-gray-900" : "text-gray-600 hover:text-gray-900")">
-            @label
-        </button>
-    }
-</div>
-
 <ResponsiveTable TItem="EventResponse" Items="@FilteredEvents">
     <Empty>
         <p class="text-gray-500 py-6">@(statusFilter == "all" ? "No events yet." : "No events match this filter.")</p>
     </Empty>
     <Headers>
-        <th class="py-3 pr-6">Date</th>
+        <th class="py-3 px-6">Date</th>
         <th class="py-3 pr-6 w-full">Name</th>
         <th class="py-3 pr-6">Format</th>
         <th class="py-3 pr-6">Holes</th>
@@ -23,8 +13,8 @@
     </Headers>
     <Row Context="evt">
         <tr class="hover:bg-gray-50 cursor-pointer" @onclick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/event/{evt.Id}"))">
-            <td class="py-3 pr-6 text-sm text-gray-700 whitespace-nowrap">@evt.EventDate.ToString("MMM d, yyyy")</td>
-            <td class="py-3 pr-6 text-sm font-medium text-gray-900 hover:text-primary-600">@(evt.Name ?? $"Event {events.IndexOf(evt) + 1}")</td>
+            <td class="py-3 px-6 text-sm text-gray-700 whitespace-nowrap">@evt.EventDate.ToString("MMM d, yyyy")</td>
+            <td class="py-3 pr-6 text-sm font-medium text-gray-900 hover:text-primary-600">@(evt.Name + $" Week {events.IndexOf(evt) + 1}")</td>
             <td class="py-3 pr-6 text-sm text-gray-600 whitespace-nowrap">@evt.ScoringFormat</td>
             <td class="py-3 pr-6 text-sm text-gray-600 whitespace-nowrap">@evt.HolesPlayed</td>
             <td class="py-3 pr-6 text-sm whitespace-nowrap">@EventStatusBadge(evt)</td>

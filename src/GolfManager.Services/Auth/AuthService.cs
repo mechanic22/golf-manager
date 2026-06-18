@@ -286,6 +286,70 @@ public class AuthService : IAuthService
         return true;
     }
 
+    public async Task<AuthResponse?> LoginWithOAuthAsync(string email, string firstName, string lastName, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(email)) return null;
+
+        var user = await _context.Users
+            .Include(u => u.UserLeagues)
+            .FirstOrDefaultAsync(u => u.Email == email, cancellationToken);
+
+        if (user == null)
+        {
+            user = new User
+            {
+                Id = _shortIdService.GenerateId(),
+                Email = email,
+                PasswordHash = string.Empty,
+                FirstName = firstName,
+                LastName = lastName,
+                IsGlobalAdmin = false,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = email,
+                IsActive = true
+            };
+            _context.Users.Add(user);
+            _logger.LogInformation("Created new user from Google OAuth: {Email}", email);
+        }
+
+        user.LastLoginAt = DateTime.UtcNow;
+
+        var refreshToken = CreateRefreshToken(user.Id);
+        _context.RefreshTokens.Add(refreshToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var leagueIds = user.UserLeagues.Select(ul => ul.LeagueId).ToList();
+        var accessToken = _jwtTokenService.GenerateAccessToken(user, leagueIds);
+
+        var leagueMappings = await _context.UserLeagues
+            .Where(ul => ul.UserId == user.Id && ul.IsActive)
+            .Include(ul => ul.League)
+            .Select(ul => new LeagueMappingResponse
+            {
+                LeagueId = ul.LeagueId,
+                LeagueKey = ul.League.Key,
+                LeagueName = ul.League.Name,
+                CustomDomain = ul.League.CustomDomain,
+                IsLeagueAdmin = ul.Role == LeagueMemberRole.Owner || ul.Role == LeagueMemberRole.Admin,
+                Role = ul.Role,
+                LogoUrl = ul.League.LogoUrl
+            })
+            .ToListAsync(cancellationToken);
+
+        return new AuthResponse
+        {
+            UserId = user.Id,
+            Email = user.Email,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            IsGlobalAdmin = user.IsGlobalAdmin,
+            AccessToken = accessToken,
+            RefreshToken = refreshToken.Token,
+            ExpiresAt = refreshToken.ExpiresAt,
+            LeagueMappings = leagueMappings
+        };
+    }
+
     private RefreshToken CreateRefreshToken(string userId)
     {
         return new RefreshToken

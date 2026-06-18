@@ -10,6 +10,7 @@ public partial class SeasonLayout : LayoutComponentBase, IDisposable
     [Inject] private ILeagueService LeagueService { get; set; } = null!;
     [Inject] private ISeasonService SeasonService { get; set; } = null!;
     [Inject] private IAuthService AuthService { get; set; } = null!;
+    [Inject] private AppState AppState { get; set; } = null!;
     [Inject] private NavigationManager Navigation { get; set; } = null!;
     [Inject] private ILogger<SeasonLayout> Logger { get; set; } = null!;
 
@@ -74,6 +75,9 @@ public partial class SeasonLayout : LayoutComponentBase, IDisposable
 
             var league = leagueResponse.Data;
 
+            AppState.SetCurrentLeague(leagueKey);
+            AppState.UpdateCurrentLeagueLogoUrl(league.LogoUrl);
+
             var seasonResponse = await SeasonService.GetSeasonByKeyAsync(league.Id, seasonKey);
             if (seasonResponse?.Success != true || seasonResponse.Data == null)
             {
@@ -109,7 +113,9 @@ public partial class SeasonLayout : LayoutComponentBase, IDisposable
         {
             "events"    => "events",
             "teams"     => "teams",
+            "team"      => "teams",
             "standings" => "standings",
+            "player"    => "standings",
             "settings"  => "settings",
             "overview"  => "overview",
             _           => "overview"

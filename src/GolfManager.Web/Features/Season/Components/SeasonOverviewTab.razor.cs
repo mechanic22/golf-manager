@@ -98,7 +98,7 @@ public partial class SeasonOverviewTab : ComponentBase
         EventDate: evt.EventDate,
         CourseName: null,
         FormatLabel: evt.ScoringFormat.ToString(),
-        Url: $"/league/{LeagueKey}/season/{SeasonKey}/events/{evt.Id}",
+        Url: $"/league/{LeagueKey}/season/{SeasonKey}/event/{evt.Id}",
         LeagueName: null,
         IsCompleted: evt.IsLocked,
         IsLocked: evt.IsLocked

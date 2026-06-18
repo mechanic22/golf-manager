@@ -1,6 +1,7 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication.Google;
 using GolfManager.Api.Authorization;
 using GolfManager.Api.Authorization.Handlers;
 using GolfManager.Api.Authorization.Requirements;
@@ -153,6 +154,7 @@ var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "GolfManager";
 var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "GolfManager";
 const string SmartAuthScheme = "SmartAuth";
 const string LocalCookieScheme = "GolfManager.LocalCookie";
+const string ExternalCookieScheme = "GolfManager.External";
 
 builder.Services.AddAuthentication(options =>
 {
@@ -169,6 +171,11 @@ builder.Services.AddAuthentication(options =>
             ? JwtBearerDefaults.AuthenticationScheme
             : LocalCookieScheme;
     };
+})
+.AddCookie(ExternalCookieScheme, options =>
+{
+    // Temporary cookie to hold the Google OAuth result during the callback roundtrip
+    options.ExpireTimeSpan = TimeSpan.FromMinutes(10);
 })
 .AddCookie(LocalCookieScheme, options =>
 {
@@ -245,6 +252,16 @@ builder.Services.AddAuthentication(options =>
             return Task.CompletedTask;
         }
     };
+})
+.AddGoogle(GoogleDefaults.AuthenticationScheme, options =>
+{
+    options.ClientId = builder.Configuration["Google:ClientId"]
+        ?? throw new InvalidOperationException("Google:ClientId not configured");
+    options.ClientSecret = builder.Configuration["Google:ClientSecret"]
+        ?? throw new InvalidOperationException("Google:ClientSecret not configured");
+    // Store the Google result temporarily until we exchange it for our own JWT
+    options.SignInScheme = ExternalCookieScheme;
+    options.SaveTokens = true;
 });
 
 // Configure authorization policies

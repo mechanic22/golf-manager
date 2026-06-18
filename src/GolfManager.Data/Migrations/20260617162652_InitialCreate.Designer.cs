@@ -11,8 +11,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace GolfManager.Data.Migrations
 {
     [DbContext(typeof(GolfManagerDbContext))]
-    [Migration("20260608193820_Initial")]
-    partial class Initial
+    [Migration("20260617162652_InitialCreate")]
+    partial class InitialCreate
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -372,22 +372,13 @@ namespace GolfManager.Data.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("TEXT");
 
-                    b.Property<double?>("GreenBackLatitude")
-                        .HasColumnType("REAL");
-
-                    b.Property<double?>("GreenBackLongitude")
-                        .HasColumnType("REAL");
-
-                    b.Property<double?>("GreenFrontLatitude")
-                        .HasColumnType("REAL");
-
-                    b.Property<double?>("GreenFrontLongitude")
-                        .HasColumnType("REAL");
-
                     b.Property<double?>("GreenLatitude")
                         .HasColumnType("REAL");
 
                     b.Property<double?>("GreenLongitude")
+                        .HasColumnType("REAL");
+
+                    b.Property<double?>("GreenRadius")
                         .HasColumnType("REAL");
 
                     b.Property<int>("HoleNumber")
@@ -1114,9 +1105,6 @@ namespace GolfManager.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("TEXT");
-
-                    b.Property<double?>("HandicapUsed")
-                        .HasColumnType("REAL");
 
                     b.Property<int>("HolesPlayed")
                         .HasColumnType("INTEGER");

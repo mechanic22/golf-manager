@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell x:Class="GolfManager.Mobile.AppShell"
+       xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+       xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+       xmlns:views="clr-namespace:GolfManager.Mobile.Views"
+       Shell.NavBarIsVisible="True"
+       Shell.BackgroundColor="#1B5E20"
+       Shell.TitleColor="White"
+       Shell.ForegroundColor="White">
+
+    <ShellContent Route="login"
+                  ContentTemplate="{DataTemplate views:LoginPage}" />
+
+</Shell>

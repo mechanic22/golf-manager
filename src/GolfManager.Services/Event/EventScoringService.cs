@@ -88,6 +88,13 @@ public class EventScoringService : IEventScoringService
             }
         }
 
+        var subSeasonGolferIds = matchups
+            .SelectMany(m => new[] { m.HomeSubSeasonGolferId, m.AwaySubSeasonGolferId })
+            .Where(id => id != null)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase)!;
+        foreach (var p in playerScores.Where(p => subSeasonGolferIds.Contains(p.SeasonGolferId)))
+            p.IsSubstitute = true;
+
         var playerLookup = playerScores.ToDictionary(p => p.SeasonGolferId, StringComparer.OrdinalIgnoreCase);
         var matchScores = BuildMatchScores(matchups, seasonGolfers, playerLookup, roundBySeasonGolferId, teamLookup, seasonSettings, holeTees, activeHoleNumbers);
 
@@ -163,7 +170,7 @@ public class EventScoringService : IEventScoringService
             });
         }
 
-        // Sync round HandicapUsed and NetScore to match the definitive event scoring
+        // Sync round NetScore to match the definitive event scoring
         var leagueGolferIds = scoreboard.Players
             .Where(p => !string.IsNullOrEmpty(p.LeagueGolferId) && p.Handicap.HasValue && p.RawScore.HasValue)
             .Select(p => p.LeagueGolferId!)
@@ -197,7 +204,6 @@ public class EventScoringService : IEventScoringService
                 {
                     if (scoredByLeagueGolferId.TryGetValue(round.LeagueGolferId!, out var scored))
                     {
-                        round.HandicapUsed = scored.Handicap;
                         round.NetScore = scored.NetScore.HasValue ? (int)Math.Round(scored.NetScore.Value) : null;
                     }
                 }
@@ -286,6 +292,13 @@ public class EventScoringService : IEventScoringService
             .ThenBy(p => p.NetScore ?? p.MissScore ?? double.MaxValue)
             .ThenBy(p => p.DisplayName)
             .ToList();
+
+        var storedSubIds = matchups
+            .SelectMany(m => new[] { m.HomeSubSeasonGolferId, m.AwaySubSeasonGolferId })
+            .Where(id => id != null)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase)!;
+        foreach (var p in playerResponses.Where(p => storedSubIds.Contains(p.SeasonGolferId)))
+            p.IsSubstitute = true;
 
         var playerLookup = playerResponses.ToDictionary(p => p.SeasonGolferId, StringComparer.OrdinalIgnoreCase);
 

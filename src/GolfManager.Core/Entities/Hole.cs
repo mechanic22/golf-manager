@@ -50,24 +50,9 @@ public class Hole : BaseEntity
     public double? GreenLongitude { get; set; }
 
     /// <summary>
-    /// Front of green latitude
+    /// Green radius in yards — defines the circle used to compute front/center/back distances
     /// </summary>
-    public double? GreenFrontLatitude { get; set; }
-
-    /// <summary>
-    /// Front of green longitude
-    /// </summary>
-    public double? GreenFrontLongitude { get; set; }
-
-    /// <summary>
-    /// Back of green latitude
-    /// </summary>
-    public double? GreenBackLatitude { get; set; }
-
-    /// <summary>
-    /// Back of green longitude
-    /// </summary>
-    public double? GreenBackLongitude { get; set; }
+    public double? GreenRadius { get; set; }
 
     // Navigation Properties
 

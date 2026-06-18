@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace GolfManager.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class Initial : Migration
+    public partial class InitialCreate : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -119,10 +119,7 @@ namespace GolfManager.Data.Migrations
                     TeeLongitude = table.Column<double>(type: "REAL", nullable: true),
                     GreenLatitude = table.Column<double>(type: "REAL", nullable: true),
                     GreenLongitude = table.Column<double>(type: "REAL", nullable: true),
-                    GreenFrontLatitude = table.Column<double>(type: "REAL", nullable: true),
-                    GreenFrontLongitude = table.Column<double>(type: "REAL", nullable: true),
-                    GreenBackLatitude = table.Column<double>(type: "REAL", nullable: true),
-                    GreenBackLongitude = table.Column<double>(type: "REAL", nullable: true),
+                    GreenRadius = table.Column<double>(type: "REAL", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     CreatedBy = table.Column<string>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: true),
@@ -815,7 +812,6 @@ namespace GolfManager.Data.Migrations
                     HolesPlayed = table.Column<int>(type: "INTEGER", nullable: false),
                     TotalScore = table.Column<int>(type: "INTEGER", nullable: true),
                     NetScore = table.Column<int>(type: "INTEGER", nullable: true),
-                    HandicapUsed = table.Column<double>(type: "REAL", nullable: true),
                     IsComplete = table.Column<bool>(type: "INTEGER", nullable: false, defaultValue: false),
                     Notes = table.Column<string>(type: "TEXT", maxLength: 1000, nullable: true),
                     OneTimeEventId = table.Column<string>(type: "TEXT", maxLength: 50, nullable: true),

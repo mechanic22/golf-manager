@@ -127,6 +127,19 @@ public class CoursesController : ControllerBase
         return Ok(response);
     }
 
+    /// <summary>
+    /// Get GPS data for all holes on a course (mobile distance calculator)
+    /// </summary>
+    [HttpGet("{courseId}/holes/gps")]
+    [AllowAnonymous]
+    public async Task<ActionResult<ApiResponse<List<HoleGpsResponse>>>> GetHoleGps(string courseId)
+    {
+        var response = await _courseService.GetHoleGpsAsync(courseId);
+        if (!response.Success)
+            return NotFound(response);
+        return Ok(response);
+    }
+
     // ── Tee endpoints ────────────────────────────────────────────────────────
 
     /// <summary>

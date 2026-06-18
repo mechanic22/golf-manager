@@ -517,6 +517,18 @@ public class SeasonsController : BaseLeagueController
         return Ok(ApiResponse<PlayerSeasonHoleStatsResponse>.SuccessResponse(result ?? new PlayerSeasonHoleStatsResponse()));
     }
 
+    [HttpGet("golfers/{leagueGolferId}/career-hole-stats")]
+    [Authorize]
+    public async Task<ActionResult<ApiResponse<PlayerSeasonHoleStatsResponse>>> GetPlayerCareerHoleStats(string leagueGolferId)
+    {
+        var leagueId = LeagueId;
+        if (string.IsNullOrEmpty(leagueId))
+            return BadRequest(ApiResponse<PlayerSeasonHoleStatsResponse>.ErrorResponse("League context required"));
+
+        var result = await _seasonService.GetPlayerCareerHoleStatsAsync(leagueGolferId, leagueId);
+        return Ok(ApiResponse<PlayerSeasonHoleStatsResponse>.SuccessResponse(result ?? new PlayerSeasonHoleStatsResponse()));
+    }
+
     #endregion
 
     #region Standings
@@ -557,6 +569,7 @@ public class SeasonsController : BaseLeagueController
             return new PlayerStandingResponse
             {
                 SeasonGolferId = player.SeasonGolferId ?? player.Id,
+                LeagueGolferId = player.Id,
                 DisplayName = player.DisplayName,
                 LeagueHandicap = player.LeagueHandicap,
                 SeasonPoints = totalPoints,

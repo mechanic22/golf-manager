@@ -49,7 +49,10 @@ window.initializeHoleTrendChart = (id, labelsJson, datasetsJson) => {
                         color: 'rgba(120,120,120,0.12)'
                     },
                     ticks: {
-                        callback: (value) => value > 0 ? `+${value}` : value
+                        callback: (value) => {
+                            const v = parseFloat(value.toFixed(2));
+                            return v > 0 ? `+${v}` : `${v}`;
+                        }
                     }
                 }
             }

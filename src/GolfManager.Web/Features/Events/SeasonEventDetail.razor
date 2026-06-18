@@ -38,8 +38,7 @@ else
     }
     else
     {
-        <MaterialCard>
-            <ResponsiveTable TItem="EventMatchupResponse" Items="@matchups">
+        <ResponsiveTable TItem="EventMatchupResponse" Items="@matchups">
                 <Row Context="m">
                     <tr class="hover:bg-gray-50 cursor-pointer"
                         @onclick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/event/{EventKey}/match/{m.Id}"))">
@@ -92,6 +91,5 @@ else
                     </a>
                 </Card>
             </ResponsiveTable>
-        </MaterialCard>
     }
 }

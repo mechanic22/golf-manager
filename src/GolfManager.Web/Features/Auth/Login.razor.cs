@@ -11,6 +11,9 @@ public partial class Login : ComponentBase
     [SupplyParameterFromQuery(Name = "returnUrl")]
     public string? ReturnUrl { get; set; }
 
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? OAuthError { get; set; }
+
     private LoginRequest loginRequest = new();
     private string? errorMessage;
     private bool isLoading = false;
@@ -24,6 +27,17 @@ public partial class Login : ComponentBase
         if (AuthService.IsAuthenticated)
         {
             Navigation.NavigateTo(GetPostLoginRoute(), replace: true);
+            return;
+        }
+
+        if (!string.IsNullOrEmpty(OAuthError))
+        {
+            errorMessage = OAuthError switch
+            {
+                "oauth_failed" => "Google sign-in failed. Please try again.",
+                "no_email" => "Google did not provide an email address.",
+                _ => "Sign-in failed. Please try again."
+            };
         }
     }
 

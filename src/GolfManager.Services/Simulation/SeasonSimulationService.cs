@@ -480,7 +480,6 @@ public class SeasonSimulationService : ISeasonSimulationService
             TeeId = seasonEvent.TeeId!,
             RoundDate = seasonEvent.EventDate,
             HolesPlayed = seasonEvent.HolesPlayed,
-            HandicapUsed = handicap,
             IsComplete = true,
             CreatedAt = DateTime.UtcNow
         };

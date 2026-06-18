@@ -410,6 +410,36 @@ public class CourseService : ICourseService
         return response;
     }
 
+    public async Task<ApiResponse<List<HoleGpsResponse>>> GetHoleGpsAsync(string courseId)
+    {
+        try
+        {
+            var holes = await _context.Holes
+                .Where(h => h.CourseId == courseId && !h.IsDeleted)
+                .OrderBy(h => h.HoleNumber)
+                .ToListAsync();
+
+            var result = holes.Select(h => new HoleGpsResponse
+            {
+                Id = h.Id,
+                HoleNumber = h.HoleNumber,
+                Name = h.Name,
+                TeeLatitude = h.TeeLatitude,
+                TeeLongitude = h.TeeLongitude,
+                GreenLatitude = h.GreenLatitude,
+                GreenLongitude = h.GreenLongitude,
+                GreenRadius = h.GreenRadius
+            }).ToList();
+
+            return ApiResponse<List<HoleGpsResponse>>.SuccessResponse(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving hole GPS data for course {CourseId}", courseId);
+            return ApiResponse<List<HoleGpsResponse>>.ErrorResponse("Failed to retrieve hole GPS data", ex.Message);
+        }
+    }
+
     private static string GenerateKey(string name)
     {
         return System.Text.RegularExpressions.Regex.Replace(

@@ -12,7 +12,6 @@ else if (teams.Count == 0)
 }
 else
 {
-    <MaterialCard class="rounded-none">
     <ResponsiveTable TItem="TeamStandingView" Items="@RankedTeams">
         <Headers>
             <th class="py-2 pl-5 pr-3 text-left w-full">Team</th>
@@ -46,10 +45,9 @@ else
                             <p class="text-xs text-gray-400 mt-0.5">@string.Join(", ", cardTeam.Members.Select(m => m.DisplayName))</p>
                         }
                     </div>
-                    <span class="text-sm font-bold text-gray-900">@standing.PointsFor.ToString("F1") pts</span>
+                    <span class="text-sm font-bold text-gray-900 whitespace-nowrap">@standing.PointsFor.ToString("F1") pts</span>
                 </div>
             </div>
         </Card>
     </ResponsiveTable>
-    </MaterialCard>
 }

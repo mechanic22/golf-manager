@@ -180,8 +180,7 @@ else
         }
         else
         {
-            <MaterialCard>
-                <ResponsiveTable TItem="GolfManager.Shared.DTOs.Round.RoundResponse" Items="@FilteredRounds">
+            <ResponsiveTable TItem="GolfManager.Shared.DTOs.Round.RoundResponse" Items="@FilteredRounds">
                     <Headers>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Course</th>
@@ -210,7 +209,7 @@ else
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-right">
                                 @if (round.NetScore.HasValue)
-                                { <span class="text-blue-700 font-medium">@round.NetScore</span> }
+                                { <span class="font-medium">@round.NetScore</span> }
                                 else { <span class="text-gray-400">—</span> }
                             </td>
                             <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-600">
@@ -260,7 +259,6 @@ else
                         </div>
                     </Empty>
                 </ResponsiveTable>
-            </MaterialCard>
         }
 
     </div>

@@ -15,4 +15,5 @@ public interface ICourseService
     Task<ApiResponse<TeeResponse>> GetTeeAsync(string courseId, string teeId, bool includeHoles = false);
     Task<ApiResponse<TeeResponse>> CreateTeeAsync(string courseId, CreateTeeRequest request, string currentUserId);
     Task<ApiResponse<bool>> DeleteTeeAsync(string courseId, string teeId, string currentUserId);
+    Task<ApiResponse<List<HoleGpsResponse>>> GetHoleGpsAsync(string courseId);
 }

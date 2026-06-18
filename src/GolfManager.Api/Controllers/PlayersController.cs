@@ -28,7 +28,7 @@ public class PlayersController : BaseLeagueController
     /// Get all players in a league
     /// </summary>
     [HttpGet]
-    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<PagedResponse<PlayerResponse>>>> GetPlayers(
         [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
     {
@@ -44,7 +44,7 @@ public class PlayersController : BaseLeagueController
     /// Get a specific player in a league
     /// </summary>
     [HttpGet("{playerId}")]
-    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<PlayerResponse>>> GetPlayer(string playerId)
     {
         var leagueId = LeagueId;

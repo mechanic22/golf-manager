@@ -61,4 +61,5 @@ public class EventPlayerScoreResponse
     public int? EventPosition { get; set; }
     public int? MissCount { get; set; }
     public double? MissScore { get; set; }
+    public bool IsSubstitute { get; set; }
 }

@@ -32,7 +32,7 @@ public class RoundsController : BaseLeagueController
     /// Get all rounds for a league golfer
     /// </summary>
     [HttpGet("golfer/{leagueGolferId}")]
-    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<PagedResponse<RoundResponse>>>> GetLeagueGolferRounds(
         string leagueGolferId, [FromQuery] int page = 1, [FromQuery] int pageSize = 25)
     {
@@ -48,7 +48,7 @@ public class RoundsController : BaseLeagueController
     /// Get a specific round by ID
     /// </summary>
     [HttpGet("{roundId}")]
-    [Authorize(Policy = AuthorizationConstants.Policies.LeagueMember)]
+    [Authorize]
     public async Task<ActionResult<ApiResponse<RoundResponse>>> GetRound(
         string roundId)
     {

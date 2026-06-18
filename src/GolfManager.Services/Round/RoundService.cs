@@ -61,13 +61,49 @@ public class RoundService : IRoundService
             .Select(e => new SeasonEventLookup(e.Id, e.EventDate, e.CourseId, e.TeeId, e.SeasonId))
             .ToListAsync();
 
-        var items = rounds.Select(r =>
-        {
-            var evt = seasonEvents.FirstOrDefault(e =>
+        // Match each round to its season event
+        var roundEventPairs = rounds.Select(r => (
+            Round: r,
+            Event: seasonEvents.FirstOrDefault(e =>
                 e.EventDate.Date == r.RoundDate.Date &&
                 e.CourseId == r.CourseId &&
-                e.TeeId == r.TeeId);
-            return MapToResponse(r, evt?.Id, evt?.EventDate, evt?.SeasonId);
+                e.TeeId == r.TeeId)
+        )).ToList();
+
+        // Load SeasonEventPlayerScore handicaps for matched events
+        var matchedEventIds = roundEventPairs
+            .Where(p => p.Event != null)
+            .Select(p => p.Event!.Id)
+            .Distinct()
+            .ToList();
+
+        Dictionary<string, double?> eventHandicaps = [];
+        if (matchedEventIds.Count > 0)
+        {
+            var seasonGolferIds = await _context.SeasonGolfers
+                .IgnoreQueryFilters()
+                .Where(sg => sg.LeagueGolferId == leagueGolferId && sg.LeagueId == leagueId)
+                .Select(sg => sg.Id)
+                .ToListAsync();
+
+            if (seasonGolferIds.Count > 0)
+            {
+                eventHandicaps = (await _context.SeasonEventPlayerScores
+                    .IgnoreQueryFilters()
+                    .Where(ps => matchedEventIds.Contains(ps.SeasonEventId) && seasonGolferIds.Contains(ps.SeasonGolferId))
+                    .Select(ps => new { ps.SeasonEventId, ps.Handicap })
+                    .ToListAsync())
+                    .GroupBy(ps => ps.SeasonEventId)
+                    .ToDictionary(g => g.Key, g => g.First().Handicap);
+            }
+        }
+
+        var items = roundEventPairs.Select(p =>
+        {
+            double? handicapOverride = p.Event != null
+                ? eventHandicaps.GetValueOrDefault(p.Event.Id)
+                : null;
+            return MapToResponse(p.Round, p.Event?.Id, p.Event?.EventDate, p.Event?.SeasonId, handicapOverride);
         }).ToList();
         return PagedResponse<RoundResponse>.From(items, page, pageSize, totalCount);
     }
@@ -172,7 +208,6 @@ public class RoundService : IRoundService
             TeeId = teeId,
             RoundDate = request.RoundDate,
             HolesPlayed = request.HolesPlayed,
-            HandicapUsed = request.HandicapUsed,
             Notes = request.Notes,
             IsComplete = false,
             CreatedAt = DateTime.UtcNow,
@@ -202,11 +237,6 @@ public class RoundService : IRoundService
         }
 
         // Update fields
-        if (request.HandicapUsed.HasValue)
-        {
-            round.HandicapUsed = request.HandicapUsed.Value;
-        }
-
         if (request.Notes != null)
         {
             round.Notes = request.Notes;
@@ -345,11 +375,6 @@ public class RoundService : IRoundService
         {
             round.TotalScore = holesWithScores.Sum(h => h.GrossScore!.Value);
 
-            // Calculate net score if handicap is available
-            if (round.HandicapUsed.HasValue)
-            {
-                round.NetScore = round.TotalScore - (int)Math.Round(round.HandicapUsed.Value);
-            }
         }
         else
         {
@@ -379,7 +404,7 @@ public class RoundService : IRoundService
             ?.Id;
     }
 
-    private RoundResponse MapToResponse(Core.Entities.Round round, string? seasonEventId = null, DateTime? fallbackEventDate = null, string? seasonId = null)
+    private RoundResponse MapToResponse(Core.Entities.Round round, string? seasonEventId = null, DateTime? fallbackEventDate = null, string? seasonId = null, double? handicapOverride = null)
     {
         return new RoundResponse
         {
@@ -399,8 +424,11 @@ public class RoundService : IRoundService
             EventDate = fallbackEventDate,
             HolesPlayed = round.HolesPlayed,
             TotalScore = round.TotalScore,
-            NetScore = round.NetScore,
-            HandicapUsed = round.HandicapUsed,
+            NetScore = round.NetScore
+                ?? (round.TotalScore.HasValue && handicapOverride.HasValue
+                    ? round.TotalScore.Value - (int)Math.Round(handicapOverride.Value)
+                    : null),
+            HandicapUsed = handicapOverride,
             IsComplete = round.IsComplete,
             Notes = round.Notes,
             Holes = round.Holes.Select(h => new RoundHoleResponse

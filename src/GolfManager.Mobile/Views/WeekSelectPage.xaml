@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:GolfManager.Mobile.ViewModels"
+             xmlns:dto="clr-namespace:GolfManager.Shared.DTOs.Event;assembly=GolfManager.Shared"
+             x:Class="GolfManager.Mobile.Views.WeekSelectPage"
+             x:DataType="vm:WeekSelectViewModel"
+             x:Name="thisPage"
+             Title="Select Week"
+             BackgroundColor="#121212">
+
+    <Grid RowDefinitions="*,Auto">
+        <CollectionView Grid.Row="0" ItemsSource="{Binding Events}">
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="dto:EventResponse">
+                    <Grid Padding="16,12">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer
+                                Command="{Binding Source={x:Reference thisPage}, Path=BindingContext.SelectEventCommand}"
+                                CommandParameter="{Binding .}" />
+                        </Grid.GestureRecognizers>
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="{Binding Name}" FontSize="18" TextColor="White" />
+                            <Label Text="{Binding EventDate, StringFormat='{0:MMM d, yyyy}'}"
+                                   FontSize="13" TextColor="#888" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <ActivityIndicator Grid.Row="1"
+                           IsRunning="{Binding IsLoading}"
+                           IsVisible="{Binding IsLoading}"
+                           Color="#A5D6A7" Margin="0,8" />
+    </Grid>
+
+</ContentPage>

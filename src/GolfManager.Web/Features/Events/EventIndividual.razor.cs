@@ -16,6 +16,7 @@ public partial class EventIndividual : ComponentBase
     [CascadingParameter] public EventLayoutContext? EventContext { get; set; }
 
     private List<EventPlayerScoreResponse> players = new();
+    private List<EventPlayerScoreResponse> substitutes = new();
     private bool isLoading = true;
 
     protected override async Task OnInitializedAsync()
@@ -43,10 +44,12 @@ public partial class EventIndividual : ComponentBase
 
             if (result?.Success == true && result.Data != null)
             {
-                players = result.Data.Players
+                var all = result.Data.Players
                     .OrderBy(p => p.EventPosition ?? int.MaxValue)
                     .ThenBy(p => p.NetScore ?? double.MaxValue)
                     .ToList();
+                players = all.Where(p => !p.IsSubstitute).ToList();
+                substitutes = all.Where(p => p.IsSubstitute).ToList();
             }
         }
         catch (Exception ex)

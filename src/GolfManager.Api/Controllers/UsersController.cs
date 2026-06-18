@@ -267,7 +267,6 @@ public class UsersController : ControllerBase
                 HolesPlayed = r.HolesPlayed,
                 TotalScore = r.TotalScore,
                 NetScore = r.NetScore,
-                HandicapUsed = r.HandicapUsed,
                 IsComplete = r.IsComplete,
                 Notes = r.Notes,
                 Holes = r.Holes.Select(h => new RoundHoleResponse

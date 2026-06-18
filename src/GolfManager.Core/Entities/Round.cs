@@ -55,11 +55,6 @@ public class Round : BaseEntity
     public int? NetScore { get; set; }
 
     /// <summary>
-    /// Handicap used for this round
-    /// </summary>
-    public double? HandicapUsed { get; set; }
-
-    /// <summary>
     /// Is this round complete?
     /// </summary>
     public bool IsComplete { get; set; }

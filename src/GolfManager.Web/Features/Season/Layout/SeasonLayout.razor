@@ -34,13 +34,16 @@ else
     <div class="bg-white border-b border-gray-200 -mx-4 md:-mx-8 px-4 md:px-8 py-6">
         <div class="flex items-center justify-between flex-wrap gap-4">
             <div>
-                <div class="flex items-center gap-2 text-sm text-gray-600 mb-3">
-                    <a href="/dashboard" class="hover:text-primary-600">Dashboard</a>
-                    <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
-                    <a href="@($"/league/{leagueKey}")" class="hover:text-primary-600">@context.League.Name</a>
-                    <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
-                    <span class="text-gray-900">@context.Season.Name</span>
-                </div>
+                @if (!AuthService.IsGuest)
+                {
+                    <div class="flex items-center gap-2 text-sm text-gray-600 mb-3">
+                        <a href="/dashboard" class="hover:text-primary-600">Dashboard</a>
+                        <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+                        <a href="@($"/league/{leagueKey}")" class="hover:text-primary-600">@context.League.Name</a>
+                        <MaterialIcon Icon="MaterialIcons.ChevronRight" Class="text-xs" />
+                        <span class="text-gray-900">@context.Season.Name</span>
+                    </div>
+                }
                 <div class="flex items-center gap-3 mb-2">
                     <h1 class="text-3xl font-bold text-gray-900">@context.Season.Name</h1>
                     @if (context.Season.IsLocked)
@@ -49,8 +52,11 @@ else
                     }
                 </div>
                 <div class="flex items-center gap-4 text-sm text-gray-600">
-                    <span class="font-mono">@context.Season.Key</span>
-                    <span>•</span>
+                    @if (!AuthService.IsGuest)
+                    {
+                        <span class="font-mono">@context.Season.Key</span>
+                        <span>•</span>
+                    }
                     <div class="flex items-center gap-1">
                         <MaterialIcon Icon="MaterialIcons.CalendarToday" Size="MaterialComponents.Icons.IconSize.SM" />
                         <span>@context.Season.StartDate.ToString("MMM d, yyyy")</span>
@@ -61,11 +67,14 @@ else
                     </div>
                 </div>
             </div>
-            <MaterialButton Style="MaterialButtonStyle.Outlined"
-                            OnClick="@(() => Navigation.NavigateTo($"/league/{leagueKey}/seasons"))">
-                <MaterialIcon Icon="MaterialIcons.ArrowBack" Class="mr-1" />
-                Back to Seasons
-            </MaterialButton>
+            @if (!AuthService.IsGuest)
+            {
+                <MaterialButton Style="MaterialButtonStyle.Outlined"
+                                OnClick="@(() => Navigation.NavigateTo($"/league/{leagueKey}/seasons"))">
+                    <MaterialIcon Icon="MaterialIcons.ArrowBack" Class="mr-1" />
+                    Back to Seasons
+                </MaterialButton>
+            }
         </div>
     </div>
 
@@ -77,9 +86,10 @@ else
                       OnTabChange="HandleTabChange" />
     </div>
 
-    <div class="mt-8"></div>
 
-    <CascadingValue Value="context" IsFixed="false">
-        @Body
-    </CascadingValue>
+    <div class="mt-8">
+        <CascadingValue Value="context" IsFixed="false">
+            @Body
+        </CascadingValue>
+    </div>
 }

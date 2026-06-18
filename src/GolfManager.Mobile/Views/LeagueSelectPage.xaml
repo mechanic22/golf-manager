@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:GolfManager.Mobile.ViewModels"
+             xmlns:dto="clr-namespace:GolfManager.Shared.DTOs.League;assembly=GolfManager.Shared"
+             x:Class="GolfManager.Mobile.Views.LeagueSelectPage"
+             x:DataType="vm:LeagueSelectViewModel"
+             x:Name="thisPage"
+             Title="Select League"
+             BackgroundColor="#121212">
+
+    <ContentPage.ToolbarItems>
+        <ToolbarItem Text="Sign Out"
+                     Command="{Binding LogoutCommand}"
+                     Order="Secondary" />
+    </ContentPage.ToolbarItems>
+
+    <Grid RowDefinitions="*,Auto,Auto">
+
+        <CollectionView Grid.Row="0" ItemsSource="{Binding Leagues}">
+            <CollectionView.EmptyView>
+                <Label Text="No leagues found."
+                       TextColor="#888" HorizontalOptions="Center"
+                       VerticalOptions="Center" Margin="0,40,0,0" />
+            </CollectionView.EmptyView>
+            <CollectionView.ItemTemplate>
+                <DataTemplate x:DataType="dto:LeagueResponse">
+                    <Grid Padding="16,12">
+                        <Grid.GestureRecognizers>
+                            <TapGestureRecognizer
+                                Command="{Binding Source={x:Reference thisPage}, Path=BindingContext.SelectLeagueCommand}"
+                                CommandParameter="{Binding .}" />
+                        </Grid.GestureRecognizers>
+                        <VerticalStackLayout Spacing="2">
+                            <Label Text="{Binding Name}" FontSize="18" TextColor="White" />
+                            <Label Text="{Binding CommissionerName, StringFormat='Commissioner: {0}'}"
+                                   FontSize="13" TextColor="#888" />
+                        </VerticalStackLayout>
+                    </Grid>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
+
+        <Label Grid.Row="1"
+               Text="{Binding ErrorMessage}"
+               TextColor="#EF5350" HorizontalOptions="Center"
+               IsVisible="{Binding ErrorMessage, Converter={StaticResource NullToBoolConverter}}"
+               Margin="16,4" />
+
+        <ActivityIndicator Grid.Row="2"
+                           IsRunning="{Binding IsLoading}"
+                           IsVisible="{Binding IsLoading}"
+                           Color="#A5D6A7" Margin="0,8" />
+    </Grid>
+
+</ContentPage>

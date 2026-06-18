@@ -195,7 +195,6 @@
                     TeeId = SeasonEvent.TeeId ?? string.Empty,
                     RoundDate = SeasonEvent.EventDate,
                     HolesPlayed = SeasonEvent.HolesPlayed,
-                    HandicapUsed = Golfer.LeagueHandicap
                 };
 
                 var createResponse = await RoundService.CreateRoundAsync(LeagueId, createRequest);

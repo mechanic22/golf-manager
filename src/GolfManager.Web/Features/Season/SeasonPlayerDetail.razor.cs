@@ -31,7 +31,7 @@ public partial class SeasonPlayerDetail : ComponentBase
     private List<RoundResponse> prevSeasonRounds = new();
     private string? prevSeasonName;
     private PlayerSeasonHoleStatsResponse? holeStats;
-    private PlayerSeasonHoleStatsResponse? careerHoleStats = null; // future: career overlay from all-seasons aggregation
+    private PlayerSeasonHoleStatsResponse? careerHoleStats;
     private bool isLoading = true;
 
     // Current season stats
@@ -77,8 +77,9 @@ public partial class SeasonPlayerDetail : ComponentBase
             var roundsTask = RoundService.GetGolferRoundsAsync(leagueId, PlayerId);
             var standingsTask = SeasonService.GetSeasonStandingsAsync(leagueId, seasonId);
             var holeStatsTask = SeasonService.GetPlayerHoleStatsAsync(leagueId, seasonId, PlayerId);
+            var careerHoleStatsTask = SeasonService.GetPlayerCareerHoleStatsAsync(leagueId, PlayerId);
 
-            await Task.WhenAll(playerTask, roundsTask, standingsTask, holeStatsTask);
+            await Task.WhenAll(playerTask, roundsTask, standingsTask, holeStatsTask, careerHoleStatsTask);
 
             var playerResult = await playerTask;
             player = playerResult?.Success == true ? playerResult.Data : null;
@@ -111,12 +112,15 @@ public partial class SeasonPlayerDetail : ComponentBase
             var standingsResult = await standingsTask;
             var standings = standingsResult?.Success == true ? standingsResult.Data : null;
             var myStanding = standings?.FirstOrDefault(s =>
-                string.Equals(s.SeasonGolferId, player?.SeasonGolferId, StringComparison.OrdinalIgnoreCase));
+                string.Equals(s.LeagueGolferId, PlayerId, StringComparison.OrdinalIgnoreCase));
             currentPoints = myStanding?.SeasonPoints;
 
             // Hole stats
             var holeResult = await holeStatsTask;
             holeStats = holeResult?.Success == true ? holeResult.Data : null;
+
+            var careerHoleResult = await careerHoleStatsTask;
+            careerHoleStats = careerHoleResult?.Success == true ? careerHoleResult.Data : null;
 
             // Compute aggregated stats
             ComputeStats(currentSeasonRounds, prevSeasonRounds);

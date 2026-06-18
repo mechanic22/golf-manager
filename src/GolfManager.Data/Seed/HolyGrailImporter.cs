@@ -1031,7 +1031,6 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger, ISh
                 string teeId;
                 int? totalScore = null;
                 int? netScore = null;
-                double? handicapUsed = null;
                 bool isComplete = true;
                 string? notes = null;
                 string? leagueGolferId = null;
@@ -1068,7 +1067,6 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger, ISh
                     holesPlayed = (HolesPlayed)int.Parse(values[8]);
                     totalScore = ParseInt(values[9]);
                     netScore = ParseInt(values[10]);
-                    handicapUsed = ParseDouble(values[11]);
                     isComplete = values[12].Equals("True", StringComparison.OrdinalIgnoreCase);
                     notes = values.Count > 13 ? values[13] : null;
                 }
@@ -1107,7 +1105,6 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger, ISh
                     HolesPlayed = holesPlayed,
                     TotalScore = totalScore,
                     NetScore = netScore,
-                    HandicapUsed = handicapUsed,
                     IsComplete = isComplete,
                     Notes = notes,
                     CreatedAt = roundDate,

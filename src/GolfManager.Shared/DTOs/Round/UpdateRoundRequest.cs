@@ -6,11 +6,6 @@ namespace GolfManager.Shared.DTOs.Round;
 public class UpdateRoundRequest
 {
     /// <summary>
-    /// Handicap used for this round
-    /// </summary>
-    public double? HandicapUsed { get; set; }
-
-    /// <summary>
     /// Round notes
     /// </summary>
     public string? Notes { get; set; }

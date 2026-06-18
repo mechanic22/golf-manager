@@ -3,6 +3,7 @@ namespace GolfManager.Shared.DTOs.Season;
 public class PlayerStandingResponse
 {
     public string SeasonGolferId { get; set; } = string.Empty;
+    public string LeagueGolferId { get; set; } = string.Empty;
     public string DisplayName { get; set; } = string.Empty;
     public double? LeagueHandicap { get; set; }
     public double? SeasonPoints { get; set; }

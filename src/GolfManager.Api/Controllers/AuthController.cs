@@ -5,6 +5,7 @@ using GolfManager.Services.Auth;
 using GolfManager.Shared.DTOs.Auth;
 using GolfManager.Shared.DTOs.Common;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Google;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,6 +17,8 @@ namespace GolfManager.Api.Controllers;
 public class AuthController : ControllerBase
 {
     private const string LocalCookieScheme = "GolfManager.LocalCookie";
+    private const string ExternalCookieScheme = "GolfManager.External";
+    private const string MobileDeepLinkScheme = "dkgolf://oauth-callback";
     private readonly IAuthService _authService;
     private readonly IPasswordHasher _passwordHasher;
     private readonly GolfManagerDbContext _context;
@@ -224,6 +227,119 @@ public class AuthController : ControllerBase
 
         _logger.LogInformation("All tokens revoked for user: {UserId}", userId);
         return Ok(ApiResponse<bool>.SuccessResponse(true, "All tokens revoked successfully"));
+    }
+
+    /// <summary>
+    /// Initiates Google OAuth for the web app.
+    /// The browser navigates here directly (forceLoad); after the Google flow the server
+    /// sets the auth cookie and redirects back into the Blazor app.
+    /// </summary>
+    [HttpGet("web/oauth/login")]
+    [AllowAnonymous]
+    public IActionResult WebOAuthLogin([FromQuery] string? returnUrl = "/dashboard")
+    {
+        var callbackUrl = Url.Action(nameof(WebOAuthCallback), "Auth", new { returnUrl }, Request.Scheme);
+        var properties = new AuthenticationProperties { RedirectUri = callbackUrl };
+        return Challenge(properties, GoogleDefaults.AuthenticationScheme);
+    }
+
+    /// <summary>
+    /// Callback after Google authenticates the web user.
+    /// Signs the user into the local cookie scheme and redirects into the Blazor app.
+    /// </summary>
+    [HttpGet("web/oauth/callback")]
+    [AllowAnonymous]
+    public async Task<IActionResult> WebOAuthCallback([FromQuery] string? returnUrl = "/dashboard")
+    {
+        var result = await HttpContext.AuthenticateAsync(ExternalCookieScheme);
+        if (!result.Succeeded)
+        {
+            _logger.LogWarning("Web OAuth callback failed: {Error}", result.Failure?.Message);
+            return Redirect("/login?error=oauth_failed");
+        }
+
+        var claims = result.Principal?.Claims?.ToList() ?? [];
+        var email = claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value ?? string.Empty;
+        var firstName = claims.FirstOrDefault(c => c.Type == ClaimTypes.GivenName)?.Value ?? string.Empty;
+        var lastName = claims.FirstOrDefault(c => c.Type == ClaimTypes.Surname)?.Value ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            _logger.LogWarning("Web OAuth callback: Google did not return an email address");
+            return Redirect("/login?error=no_email");
+        }
+
+        var authResult = await _authService.LoginWithOAuthAsync(email, firstName, lastName);
+        if (authResult == null)
+        {
+            _logger.LogError("Web OAuth callback: LoginWithOAuthAsync returned null for {Email}", email);
+            return Redirect("/login?error=auth_failed");
+        }
+
+        _logger.LogInformation("Web OAuth login successful for {Email}", email);
+        await SignInLocalUserAsync(authResult);
+
+        var safeReturnUrl = (returnUrl?.StartsWith('/') == true) ? returnUrl : "/dashboard";
+        return Redirect(safeReturnUrl);
+    }
+
+    /// <summary>
+    /// Initiates Google OAuth for the mobile app.
+    /// The mobile app opens this URL via WebAuthenticator — it challenges Google and eventually
+    /// redirects back to the dkgolf:// deep link with tokens as query parameters.
+    /// Google Cloud Console redirect URI to register: https://&lt;host&gt;/signin-google
+    /// </summary>
+    [HttpGet("mobile/oauth/login")]
+    [AllowAnonymous]
+    public IActionResult MobileOAuthLogin([FromQuery] string provider = "Google")
+    {
+        var callbackUrl = Url.Action(nameof(MobileOAuthCallback), "Auth", null, Request.Scheme);
+        var properties = new AuthenticationProperties { RedirectUri = callbackUrl };
+        return Challenge(properties, GoogleDefaults.AuthenticationScheme);
+    }
+
+    /// <summary>
+    /// Callback hit by the Google SDK after the user authenticates.
+    /// Exchanges the Google identity for our JWT tokens and redirects to the app deep link.
+    /// </summary>
+    [HttpGet("mobile/oauth/callback")]
+    [AllowAnonymous]
+    public async Task<IActionResult> MobileOAuthCallback()
+    {
+        var result = await HttpContext.AuthenticateAsync(ExternalCookieScheme);
+        if (!result.Succeeded)
+        {
+            _logger.LogWarning("Mobile OAuth callback failed: {Error}", result.Failure?.Message);
+            return Redirect($"{MobileDeepLinkScheme}?error=oauth_failed");
+        }
+
+        var claims = result.Principal?.Claims?.ToList() ?? [];
+        var email = claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value ?? string.Empty;
+        var firstName = claims.FirstOrDefault(c => c.Type == ClaimTypes.GivenName)?.Value ?? string.Empty;
+        var lastName = claims.FirstOrDefault(c => c.Type == ClaimTypes.Surname)?.Value ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            _logger.LogWarning("Mobile OAuth callback: Google did not return an email address");
+            return Redirect($"{MobileDeepLinkScheme}?error=no_email");
+        }
+
+        var authResult = await _authService.LoginWithOAuthAsync(email, firstName, lastName);
+        if (authResult == null)
+        {
+            _logger.LogError("Mobile OAuth callback: LoginWithOAuthAsync returned null for {Email}", email);
+            return Redirect($"{MobileDeepLinkScheme}?error=auth_failed");
+        }
+
+        _logger.LogInformation("Mobile OAuth login successful for {Email}", email);
+
+        var expiresAt = new DateTimeOffset(authResult.ExpiresAt, TimeSpan.Zero).ToUnixTimeSeconds();
+        var deepLink = $"{MobileDeepLinkScheme}" +
+            $"?accessToken={Uri.EscapeDataString(authResult.AccessToken)}" +
+            $"&refreshToken={Uri.EscapeDataString(authResult.RefreshToken)}" +
+            $"&expiresAt={expiresAt}";
+
+        return Redirect(deepLink);
     }
 
     private async Task SignInLocalUserAsync(AuthResponse authResponse)
