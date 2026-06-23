@@ -405,7 +405,7 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger, ISh
             var seasonKey = match.Groups[1].Value;
             var leagueKey = match.Groups[2].Value;
             var name = match.Groups[3].Value;
-            var startDate = DateTime.Parse(match.Groups[4].Value);
+            var startDate = DateTime.SpecifyKind(DateTime.Parse(match.Groups[4].Value), DateTimeKind.Utc);
             var isLocked = match.Groups[5].Value.Equals("True", StringComparison.OrdinalIgnoreCase);
 
             if (!_leagueMap.TryGetValue(leagueKey, out var leagueId))
@@ -532,7 +532,7 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger, ISh
             var teamName = match.Groups[4].Value;
             var avatar = match.Groups[5].Success ? match.Groups[5].Value : null;
             var seasonPoints = match.Groups[6].Success ? double.Parse(match.Groups[6].Value) : (double?)null;
-            var teamCreatedAt = match.Groups[7].Success && DateTime.TryParse(match.Groups[7].Value, out var parsedTeamDate) ? parsedTeamDate : DateTime.UtcNow;
+            var teamCreatedAt = match.Groups[7].Success && DateTime.TryParse(match.Groups[7].Value, out var parsedTeamDate) ? DateTime.SpecifyKind(parsedTeamDate, DateTimeKind.Utc) : DateTime.UtcNow;
 
             if (!_seasonMap.TryGetValue(seasonKey, out var seasonId))
             {
@@ -615,7 +615,7 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger, ISh
                 if (!string.IsNullOrEmpty(oldTeamId) && _teamMap.TryGetValue(oldTeamId, out var mappedTeamId))
                     newTeamId = mappedTeamId;
 
-                var golferDate = values.Count > 5 && DateTime.TryParse(values[5], out var parsedGolferDate) ? parsedGolferDate : DateTime.UtcNow;
+                var golferDate = values.Count > 5 && DateTime.TryParse(values[5], out var parsedGolferDate) ? DateTime.SpecifyKind(parsedGolferDate, DateTimeKind.Utc) : DateTime.UtcNow;
 
                 var seasonGolfer = new SeasonGolfer
                 {
@@ -654,7 +654,7 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger, ISh
             var eventKey = match.Groups[1].Value;
             var leagueKey = match.Groups[2].Value;
             var seasonKey = match.Groups[3].Value;
-            var eventDate = DateTime.Parse(match.Groups[4].Value);
+            var eventDate = DateTime.SpecifyKind(DateTime.Parse(match.Groups[4].Value), DateTimeKind.Utc);
             var courseKey = match.Groups[5].Value;
             var teeKey = match.Groups[6].Value;
             var holesPlayed = match.Groups[7].Value; // Front, Back, Both
@@ -1063,7 +1063,7 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger, ISh
                     leagueId = string.IsNullOrEmpty(values[4]) ? null : values[4];
                     courseId = values[5];
                     teeId = values[6];
-                    roundDate = DateTime.TryParse(values[7], out var parsedDate) ? parsedDate : DateTime.UtcNow;
+                    roundDate = DateTime.TryParse(values[7], out var parsedDate) ? DateTime.SpecifyKind(parsedDate, DateTimeKind.Utc) : DateTime.UtcNow;
                     holesPlayed = (HolesPlayed)int.Parse(values[8]);
                     totalScore = ParseInt(values[9]);
                     netScore = ParseInt(values[10]);

@@ -38,7 +38,7 @@ public class LeagueConfiguration : IEntityTypeConfiguration<League>
 
         builder.HasIndex(x => x.CustomDomain)
             .IsUnique()
-            .HasFilter("[CustomDomain] IS NOT NULL");
+            .HasFilter("\"CustomDomain\" IS NOT NULL");
 
         builder.Property(x => x.LogoUrl)
             .HasMaxLength(500);

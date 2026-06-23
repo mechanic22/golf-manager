@@ -64,12 +64,12 @@ public class HandicapHistoryConfiguration : IEntityTypeConfiguration<HandicapHis
 
         builder.HasIndex(h => new { h.GolferId, h.LeagueId, h.EffectiveDate })
             .HasDatabaseName("IX_HandicapHistory_League")
-            .HasFilter("LeagueId IS NOT NULL")
+            .HasFilter("\"LeagueId\" IS NOT NULL")
             .IsDescending(false, false, true); // EffectiveDate DESC
 
         builder.HasIndex(h => new { h.GolferId, h.SeasonId, h.EffectiveDate })
             .HasDatabaseName("IX_HandicapHistory_Season")
-            .HasFilter("SeasonId IS NOT NULL")
+            .HasFilter("\"SeasonId\" IS NOT NULL")
             .IsDescending(false, false, true); // EffectiveDate DESC
     }
 }

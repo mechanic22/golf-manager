@@ -44,25 +44,20 @@ public class DashboardController : ControllerBase
 
         var leagues = await _leagueService.GetUserLeaguesAsync(userId);
 
-        // For each league with an active season, load season key + next event in parallel
-        var seasonTasks = leagues
-            .Where(l => !string.IsNullOrEmpty(l.ActiveSeasonId))
-            .Select(async l =>
-            {
-                var season = await _seasonService.GetSeasonByIdAsync(l.ActiveSeasonId!, l.Id);
-                if (season == null) return (LeagueId: l.Id, Season: (GolfManager.Shared.DTOs.Season.SeasonResponse?)null, NextEvent: (GolfManager.Shared.DTOs.Event.EventResponse?)null);
+        var seasonByLeagueId = new Dictionary<string, (GolfManager.Shared.DTOs.Season.SeasonResponse? Season, GolfManager.Shared.DTOs.Event.EventResponse? NextEvent)>();
+        foreach (var l in leagues.Where(l => !string.IsNullOrEmpty(l.ActiveSeasonId)))
+        {
+            var season = await _seasonService.GetSeasonByIdAsync(l.ActiveSeasonId!, l.Id);
+            if (season == null) { seasonByLeagueId[l.Id] = (null, null); continue; }
 
-                var eventsPage = await _eventService.GetSeasonEventsAsync(l.ActiveSeasonId!, l.Id, pageSize: 100);
-                var nextEvent = eventsPage.Items
-                    .Where(e => !e.IsLocked && e.EventDate.Date >= DateTime.Today)
-                    .OrderBy(e => e.EventDate)
-                    .FirstOrDefault();
+            var eventsPage = await _eventService.GetSeasonEventsAsync(l.ActiveSeasonId!, l.Id, pageSize: 100);
+            var nextEvent = eventsPage.Items
+                .Where(e => !e.IsLocked && e.EventDate.Date >= DateTime.Today)
+                .OrderBy(e => e.EventDate)
+                .FirstOrDefault();
 
-                return (LeagueId: l.Id, Season: (GolfManager.Shared.DTOs.Season.SeasonResponse?)season, NextEvent: (GolfManager.Shared.DTOs.Event.EventResponse?)nextEvent);
-            });
-
-        var seasonResults = await Task.WhenAll(seasonTasks);
-        var seasonByLeagueId = seasonResults.ToDictionary(x => x.LeagueId, x => (x.Season, x.NextEvent));
+            seasonByLeagueId[l.Id] = (season, nextEvent);
+        }
 
         var leagueItems = leagues.Select(league =>
         {

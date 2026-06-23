@@ -58,6 +58,16 @@
                 BorderWidth="1"
                 CornerRadius="8" />
 
+        <Button Text="Sign in with Face ID"
+                Command="{Binding LoginWithBiometricCommand}"
+                IsVisible="{Binding IsBiometricAvailable}"
+                IsEnabled="{Binding IsLoading, Converter={StaticResource InvertBoolConverter}}"
+                BackgroundColor="#1E1E1E"
+                TextColor="White"
+                BorderColor="#A5D6A7"
+                BorderWidth="1"
+                CornerRadius="8" />
+
     </VerticalStackLayout>
 
 </ContentPage>

@@ -2,7 +2,7 @@ using GolfManager.Mobile.ViewModels;
 
 namespace GolfManager.Mobile.Views;
 
-public partial class HolePage : TabbedPage
+public partial class HolePage : ContentPage
 {
     private readonly HoleViewModel _vm;
 

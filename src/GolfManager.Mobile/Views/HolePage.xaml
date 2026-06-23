@@ -1,22 +1,20 @@
 <?xml version="1.0" encoding="utf-8" ?>
-<TabbedPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
-            xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-            xmlns:vm="clr-namespace:GolfManager.Mobile.ViewModels"
-            xmlns:models="clr-namespace:GolfManager.Mobile.Models"
-            x:Class="GolfManager.Mobile.Views.HolePage"
-            x:DataType="vm:HoleViewModel"
-            x:Name="thisPage"
-            Title="{Binding HoleTitle}"
-            BarBackgroundColor="#1B5E20"
-            BarTextColor="White"
-            SelectedTabColor="#A5D6A7"
-            UnselectedTabColor="#AAAAAA">
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:GolfManager.Mobile.ViewModels"
+             xmlns:models="clr-namespace:GolfManager.Mobile.Models"
+             x:Class="GolfManager.Mobile.Views.HolePage"
+             x:DataType="vm:HoleViewModel"
+             x:Name="thisPage"
+             Title="{Binding HoleTitle}"
+             BackgroundColor="#121212">
 
-    <!-- Tab 1: Distance -->
-    <ContentPage Title="Distance" BackgroundColor="#121212">
-        <Grid RowDefinitions="Auto,*,Auto" Padding="20">
+    <Grid RowDefinitions="*, Auto">
 
-            <!-- Hole header -->
+        <!-- Distance tab content -->
+        <Grid Grid.Row="0" RowDefinitions="Auto,*,Auto" Padding="20"
+              IsVisible="{Binding IsDistanceTab}">
+
             <VerticalStackLayout Grid.Row="0" Spacing="4" Margin="0,0,0,16">
                 <Label Text="{Binding HoleTitle}"
                        FontSize="28" FontAttributes="Bold"
@@ -25,7 +23,6 @@
                        FontSize="14" HorizontalOptions="Center" TextColor="#888" />
             </VerticalStackLayout>
 
-            <!-- Distance display -->
             <VerticalStackLayout Grid.Row="1" Spacing="24"
                                  VerticalOptions="Center" HorizontalOptions="Center">
                 <Border BackgroundColor="#1E1E1E" StrokeThickness="0"
@@ -64,26 +61,24 @@
                        HorizontalOptions="Center" />
             </VerticalStackLayout>
 
-            <!-- Hole navigation -->
             <HorizontalStackLayout Grid.Row="2" Spacing="16"
                                    HorizontalOptions="Center" Margin="0,0,0,8">
-                <Button Text="◀" Command="{Binding PreviousHoleCommand}"
+                <Button Text="&#9664;" Command="{Binding PreviousHoleCommand}"
                         WidthRequest="52" HeightRequest="44"
                         BackgroundColor="#2E7D32" TextColor="White" CornerRadius="8" />
                 <Label Text="{Binding CurrentHoleNumber, StringFormat='Hole {0}'}"
                        VerticalOptions="Center" FontSize="18" TextColor="White"
                        MinimumWidthRequest="80" HorizontalTextAlignment="Center" />
-                <Button Text="▶" Command="{Binding NextHoleCommand}"
+                <Button Text="&#9654;" Command="{Binding NextHoleCommand}"
                         WidthRequest="52" HeightRequest="44"
                         BackgroundColor="#2E7D32" TextColor="White" CornerRadius="8" />
             </HorizontalStackLayout>
 
         </Grid>
-    </ContentPage>
 
-    <!-- Tab 2: Scores -->
-    <ContentPage Title="Scores" BackgroundColor="#121212">
-        <Grid RowDefinitions="Auto,*,Auto" Padding="20">
+        <!-- Scores tab content -->
+        <Grid Grid.Row="0" RowDefinitions="Auto,*,Auto" Padding="20"
+              IsVisible="{Binding IsScoresTab}">
 
             <Label Grid.Row="0"
                    Text="{Binding HoleTitle}"
@@ -100,7 +95,7 @@
                                    Text="{Binding PlayerName}"
                                    VerticalOptions="Center" TextColor="White"
                                    FontSize="16" />
-                            <Button Grid.Column="1" Text="−"
+                            <Button Grid.Column="1" Text="&#8722;"
                                     Command="{Binding Source={x:Reference thisPage}, Path=BindingContext.DecrementScoreCommand}"
                                     CommandParameter="{Binding .}"
                                     WidthRequest="44" HeightRequest="44"
@@ -130,6 +125,22 @@
                     FontAttributes="Bold" FontSize="16"
                     CornerRadius="8" Margin="0,12,0,0" />
         </Grid>
-    </ContentPage>
 
-</TabbedPage>
+        <!-- Custom tab bar -->
+        <Grid Grid.Row="1" ColumnDefinitions="*,*"
+              BackgroundColor="#1B5E20" HeightRequest="52">
+            <Button Grid.Column="0" Text="Distance"
+                    Command="{Binding ShowDistanceCommand}"
+                    BackgroundColor="{Binding IsDistanceTab, Converter={StaticResource ActiveTabColorConverter}}"
+                    TextColor="White" FontSize="15" BorderWidth="0"
+                    CornerRadius="0" />
+            <Button Grid.Column="1" Text="Scores"
+                    Command="{Binding ShowScoresCommand}"
+                    BackgroundColor="{Binding IsScoresTab, Converter={StaticResource ActiveTabColorConverter}}"
+                    TextColor="White" FontSize="15" BorderWidth="0"
+                    CornerRadius="0" />
+        </Grid>
+
+    </Grid>
+
+</ContentPage>

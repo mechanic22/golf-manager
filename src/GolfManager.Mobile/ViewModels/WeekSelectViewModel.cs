@@ -47,10 +47,17 @@ public partial class WeekSelectViewModel : ObservableObject, IQueryAttributable
     [RelayCommand]
     private async Task SelectEventAsync(EventResponse evt)
     {
-        await Shell.Current.GoToAsync("//hole", new Dictionary<string, object>
+        try
         {
-            ["event"] = evt,
-            ["league"] = _league!
-        });
+            await Shell.Current.GoToAsync("hole", new Dictionary<string, object>
+            {
+                ["event"] = evt,
+                ["league"] = _league!
+            });
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Navigation failed: {ex.Message}";
+        }
     }
 }

@@ -15,6 +15,13 @@ public partial class HoleViewModel : ObservableObject, IQueryAttributable
     private readonly DistanceService _distance;
     private readonly ICourseService _courseService;
 
+    [ObservableProperty] private bool _isDistanceTab = true;
+    public bool IsScoresTab => !IsDistanceTab;
+    partial void OnIsDistanceTabChanged(bool value) => OnPropertyChanged(nameof(IsScoresTab));
+
+    [RelayCommand] private void ShowDistance() => IsDistanceTab = true;
+    [RelayCommand] private void ShowScores() => IsDistanceTab = false;
+
     [ObservableProperty] private string _holeTitle = "Hole 1";
     [ObservableProperty] private string _holeSubtitle = string.Empty;
     [ObservableProperty] private int _currentHoleNumber = 1;

@@ -76,6 +76,16 @@ if (!builder.Environment.IsEnvironment("Testing"))
                     errorNumbersToAdd: null);
             });
         }
+        else if (databaseProvider.Equals("PostgreSQL", StringComparison.OrdinalIgnoreCase))
+        {
+            options.UseNpgsql(connectionString, npgsqlOptions =>
+            {
+                npgsqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(30),
+                    errorCodesToAdd: null);
+            });
+        }
         else // Default to SQLite
         {
             options.UseSqlite(connectionString);
@@ -318,28 +328,29 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
-// Seed the database in development
-if (app.Environment.IsDevelopment())
+// Apply migrations on every startup
 {
     using var scope = app.Services.CreateScope();
     var context = scope.ServiceProvider.GetRequiredService<GolfManagerDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<DbSeeder>>();
-    var shortIdService = scope.ServiceProvider.GetRequiredService<IShortIdService>();
 
-    // Apply schema changes in development; fall back for legacy EnsureCreated databases.
     try
     {
         await context.Database.MigrateAsync();
     }
     catch (Exception ex)
     {
-        logger.LogWarning(ex, "Migration failed during development startup. Falling back to EnsureCreated and compatibility checks.");
+        logger.LogWarning(ex, "Migration failed during startup. Falling back to EnsureCreated.");
         await context.Database.EnsureCreatedAsync();
     }
 
-    // Seed demo data
-    var seeder = new DbSeeder(context, logger, shortIdService);
-    await seeder.SeedAsync();
+    // Seed demo data in development only
+    if (app.Environment.IsDevelopment())
+    {
+        var shortIdService = scope.ServiceProvider.GetRequiredService<IShortIdService>();
+        var seeder = new DbSeeder(context, logger, shortIdService);
+        await seeder.SeedAsync();
+    }
 }
 
 // Configure the HTTP request pipeline.
@@ -356,9 +367,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-// Serve Blazor WebAssembly static files (framework + app files)
-app.UseBlazorFrameworkFiles();
-app.UseStaticFiles();
+app.MapStaticAssets();
 
 // Add CORS (for external API clients)
 app.UseCors("WebClient");

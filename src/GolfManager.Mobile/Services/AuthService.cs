@@ -2,6 +2,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using GolfManager.Mobile.Configuration;
 using GolfManager.Shared.DTOs.Auth;
 using GolfManager.Shared.DTOs.Common;
+using Plugin.Fingerprint;
+using Plugin.Fingerprint.Abstractions;
 using System.Net.Http.Json;
 
 namespace GolfManager.Mobile.Services;
@@ -91,6 +93,34 @@ public partial class AuthService : ObservableObject, IAuthService
         {
             return false;
         }
+    }
+
+    public async Task<bool> CanUseBiometricAsync()
+    {
+        try
+        {
+            var refreshToken = await SecureStorage.GetAsync(RefreshTokenKey);
+            if (string.IsNullOrEmpty(refreshToken)) return false;
+            var availability = await CrossFingerprint.Current.GetAvailabilityAsync();
+            return availability == FingerprintAvailability.Available;
+        }
+        catch { return false; }
+    }
+
+    public async Task<bool> BiometricLoginAsync()
+    {
+        try
+        {
+            var refreshToken = await SecureStorage.GetAsync(RefreshTokenKey);
+            if (string.IsNullOrEmpty(refreshToken)) return false;
+
+            var config = new AuthenticationRequestConfiguration("DK Golf", "Sign in to DK Golf");
+            var result = await CrossFingerprint.Current.AuthenticateAsync(config);
+            if (!result.Authenticated) return false;
+
+            return await RefreshAsync(refreshToken);
+        }
+        catch { return false; }
     }
 
     public async Task<bool> TryRestoreSessionAsync()

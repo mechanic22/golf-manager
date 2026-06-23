@@ -541,18 +541,13 @@ public class SeasonsController : BaseLeagueController
         if (string.IsNullOrEmpty(leagueId))
             return BadRequest(ApiResponse<List<PlayerStandingResponse>>.ErrorResponse("League context required"));
 
-        var playersTask = _playerService.GetSeasonPlayersAsync(seasonId, leagueId);
-        var eventsTask = _eventService.GetSeasonEventsAsync(seasonId, leagueId, pageSize: 100);
+        var players = await _playerService.GetSeasonPlayersAsync(seasonId, leagueId);
+        var events = (await _eventService.GetSeasonEventsAsync(seasonId, leagueId, pageSize: 100)).Items;
 
-        await Task.WhenAll(playersTask, eventsTask);
-
-        var players = playersTask.Result;
-        var events = eventsTask.Result.Items;
-
-        // Load all event scoreboards in parallel (server-side, no HTTP latency)
-        var scoreboardTasks = events
-            .Select(e => _eventService.GetEventScoreboardAsync(seasonId, e.Id, leagueId));
-        var scoreboards = await Task.WhenAll(scoreboardTasks);
+        var scoreboardList = new List<GolfManager.Shared.DTOs.Event.EventScoreboardResponse>();
+        foreach (var e in events)
+            scoreboardList.Add(await _eventService.GetEventScoreboardAsync(seasonId, e.Id, leagueId));
+        var scoreboards = scoreboardList.ToArray();
 
         var scoreboardPlayers = scoreboards.SelectMany(s => s.Players).ToList();
 

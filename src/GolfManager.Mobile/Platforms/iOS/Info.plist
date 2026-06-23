@@ -30,6 +30,8 @@
 	<string>Assets.xcassets/appicon.appiconset</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>DK Golf uses your location to show distance to the green and detect which hole you are on.</string>
+	<key>NSFaceIDUsageDescription</key>
+	<string>Sign in to DK Golf faster with Face ID.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

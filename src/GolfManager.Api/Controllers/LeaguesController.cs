@@ -182,17 +182,14 @@ public class LeaguesController : ControllerBase
             .ToListAsync();
 
         // Compute all standings from live scoreboard data (not stale denormalized fields).
-        var playersTask = _playerService.GetSeasonPlayersAsync(seasonId, leagueId);
-        var eventsTask = _eventService.GetSeasonEventsAsync(seasonId, leagueId, pageSize: 100);
+        var teams = await teamsTask;
+        var players = await _playerService.GetSeasonPlayersAsync(seasonId, leagueId);
+        var events = (await _eventService.GetSeasonEventsAsync(seasonId, leagueId, pageSize: 100)).Items;
 
-        await Task.WhenAll(teamsTask, playersTask, eventsTask);
-
-        var players = playersTask.Result;
-        var events = eventsTask.Result.Items;
-
-        var scoreboardTasks = events
-            .Select(e => _eventService.GetEventScoreboardAsync(seasonId, e.Id, leagueId));
-        var scoreboards = await Task.WhenAll(scoreboardTasks);
+        var scoreboardList = new List<EventScoreboardResponse>();
+        foreach (var e in events)
+            scoreboardList.Add(await _eventService.GetEventScoreboardAsync(seasonId, e.Id, leagueId));
+        var scoreboards = scoreboardList.ToArray();
 
         // Aggregate team wins/losses/ties/points from completed match results.
         var teamPts = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
@@ -221,7 +218,7 @@ public class LeaguesController : ControllerBase
             }
         }
 
-        var teamRows = teamsTask.Result
+        var teamRows = teams
             .Select(t =>
             {
                 var livePts = teamPts.GetValueOrDefault(t.Id);
@@ -352,9 +349,10 @@ public class LeaguesController : ControllerBase
         var eventsResult = await _eventService.GetSeasonEventsAsync(seasonId, leagueId, pageSize: 100);
         var eventItems = eventsResult.Items.OrderByDescending(e => e.EventDate).ToList();
 
-        var scoreboardTasks = eventItems
-            .Select(e => _eventService.GetEventScoreboardAsync(seasonId, e.Id, leagueId));
-        var scoreboards = await Task.WhenAll(scoreboardTasks);
+        var scoreboardList2 = new List<EventScoreboardResponse>();
+        foreach (var e in eventItems)
+            scoreboardList2.Add(await _eventService.GetEventScoreboardAsync(seasonId, e.Id, leagueId));
+        var scoreboards = scoreboardList2.ToArray();
 
         var eventRows = eventItems.Select((ev, idx) =>
         {

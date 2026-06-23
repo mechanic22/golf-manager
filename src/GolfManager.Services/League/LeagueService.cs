@@ -748,26 +748,34 @@ public class LeagueService : ILeagueService
             .CountAsync(s => s.LeagueId == league.Id && s.IsActive);
 
         string? activeSeasonKey = null;
+        string? resolvedActiveSeasonId = league.ActiveSeasonId;
+
         if (!string.IsNullOrEmpty(league.ActiveSeasonId))
         {
-            activeSeasonKey = await _context.Seasons
+            var pinned = await _context.Seasons
                 .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(s => s.Id == league.ActiveSeasonId && !s.IsDeleted)
-                .Select(s => s.Key)
+                .Select(s => new { s.Id, s.Key })
                 .FirstOrDefaultAsync();
+
+            activeSeasonKey = pinned?.Key;
+            if (pinned != null) resolvedActiveSeasonId = pinned.Id;
         }
 
-        // Fall back to most recent season when no active season is pinned
+        // Fall back to most recent season when no active season is pinned or found
         if (string.IsNullOrEmpty(activeSeasonKey))
         {
-            activeSeasonKey = await _context.Seasons
+            var fallback = await _context.Seasons
                 .IgnoreQueryFilters()
                 .AsNoTracking()
                 .Where(s => s.LeagueId == league.Id && !s.IsDeleted)
                 .OrderByDescending(s => s.StartDate)
-                .Select(s => s.Key)
+                .Select(s => new { s.Id, s.Key })
                 .FirstOrDefaultAsync();
+
+            activeSeasonKey = fallback?.Key;
+            resolvedActiveSeasonId = fallback?.Id;
         }
 
         bool isCurrentUserAdmin = false;
@@ -812,7 +820,7 @@ public class LeagueService : ILeagueService
             CommissionerName = league.CommissionerName,
             AnnouncementTitle = league.AnnouncementTitle,
             AnnouncementBody = league.AnnouncementBody,
-            ActiveSeasonId = league.ActiveSeasonId,
+            ActiveSeasonId = resolvedActiveSeasonId,
             ActiveSeasonKey = activeSeasonKey,
             MemberCount = memberCount,
             PlayerCount = playerCount,

@@ -11,6 +11,7 @@
             </ResourceDictionary.MergedDictionaries>
             <converters:InvertBoolConverter x:Key="InvertBoolConverter" />
             <converters:NullToBoolConverter x:Key="NullToBoolConverter" />
+            <converters:ActiveTabColorConverter x:Key="ActiveTabColorConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

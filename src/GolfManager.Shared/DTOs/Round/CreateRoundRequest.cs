@@ -44,6 +44,11 @@ public class CreateRoundRequest
     public HolesPlayed HolesPlayed { get; set; } = HolesPlayed.Eighteen;
 
     /// <summary>
+    /// Handicap used for this round (optional override; calculated automatically if omitted)
+    /// </summary>
+    public double? HandicapUsed { get; set; }
+
+    /// <summary>
     /// Round notes
     /// </summary>
     public string? Notes { get; set; }
