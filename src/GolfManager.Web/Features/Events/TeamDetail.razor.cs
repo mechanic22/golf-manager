@@ -86,7 +86,7 @@ public partial class TeamDetail : ComponentBase
                     .Where(m => string.Equals(m.HomeTeamId, TeamId, StringComparison.OrdinalIgnoreCase)
                              || string.Equals(m.AwayTeamId, TeamId, StringComparison.OrdinalIgnoreCase))
                     .Select(m => new TeamMatchRow(r.Data!.EventDate, r.Data!.EventId, m)))
-                .OrderBy(x => x.EventDate)
+                .OrderByDescending(x => x.EventDate)
                 .ToList();
         }
         catch (Exception ex)

@@ -787,7 +787,8 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger, ISh
 
         // Column order: GolferId, SeasonEventId, RoundId, SeasonTeamId, Handicap, EventPoints, EventPosition, MissScore, MissCount
         // Numeric columns may be bare (9.28) or quoted ('9.28') depending on the backup tool used
-        var pattern = @"INSERT INTO \[dbo\]\.\[GolfSeasonEventGolfers\] VALUES \('([^']+)',\s*'([^']*)',\s*(?:'([^']*)'|NULL),\s*(?:'([^']*)'|NULL),\s*(?:'?([0-9.]+)'?|NULL),\s*(?:'?([0-9.]+)'?|NULL),\s*(?:'?(\d+)'?|NULL),\s*(?:'?([0-9.]+)'?|NULL),\s*(?:'?(\d+)'?|NULL)\);";
+        // Handicap and EventPoints can be negative (e.g. '-0.5335'), so the pattern must allow a leading minus sign
+        var pattern = @"INSERT INTO \[dbo\]\.\[GolfSeasonEventGolfers\] VALUES \('([^']+)',\s*'([^']*)',\s*(?:'([^']*)'|NULL),\s*(?:'([^']*)'|NULL),\s*(?:'?(-?[0-9.]+)'?|NULL),\s*(?:'?(-?[0-9.]+)'?|NULL),\s*(?:'?(\d+)'?|NULL),\s*(?:'?([0-9.]+)'?|NULL),\s*(?:'?(\d+)'?|NULL)\);";
         var matches = Regex.Matches(sqlContent, pattern);
 
         // Pre-load everything needed for SeasonEventPlayerScore creation
@@ -946,7 +947,7 @@ public class HolyGrailImporter(GolfManagerDbContext context, ILogger logger, ISh
     {
         _logger.LogInformation("Repairing handicaps from backup...");
 
-        var pattern = @"INSERT INTO \[dbo\]\.\[GolfSeasonEventGolfers\] VALUES \('([^']+)',\s*'([^']*)',\s*(?:'([^']*)'|NULL),\s*(?:'([^']*)'|NULL),\s*(?:'?([0-9.]+)'?|NULL),\s*(?:'?([0-9.]+)'?|NULL),\s*(?:'?(\d+)'?|NULL),\s*(?:'?([0-9.]+)'?|NULL),\s*(?:'?(\d+)'?|NULL)\);";
+        var pattern = @"INSERT INTO \[dbo\]\.\[GolfSeasonEventGolfers\] VALUES \('([^']+)',\s*'([^']*)',\s*(?:'([^']*)'|NULL),\s*(?:'([^']*)'|NULL),\s*(?:'?(-?[0-9.]+)'?|NULL),\s*(?:'?(-?[0-9.]+)'?|NULL),\s*(?:'?(\d+)'?|NULL),\s*(?:'?([0-9.]+)'?|NULL),\s*(?:'?(\d+)'?|NULL)\);";
         var matches = Regex.Matches(sqlContent, pattern);
 
         var seasonEvents = await _context.SeasonEvents

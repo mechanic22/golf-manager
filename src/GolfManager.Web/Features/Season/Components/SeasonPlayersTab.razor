@@ -18,19 +18,19 @@ else
             <p class="text-gray-500 text-sm py-4">No players in this season yet.</p>
         </Empty>
         <Headers>
-            <th class="py-3 pr-4 w-8">#</th>
+            <th class="py-3 px-4 w-8">#</th>
             <th class="py-3 pr-6">Player</th>
             <th class="py-3 pr-6">Team</th>
             <th class="py-3 pr-4">Handicap</th>
             <th class="py-3 pr-4">Points</th>
             <th class="py-3 pr-4">Rounds</th>
             <th class="py-3 pr-4">Avg Net</th>
-            <th class="py-3 pr-4">Best</th>
+            <th class="py-3 pr-4">Best</th> 
         </Headers>
         <Row Context="entry">
             @{ var g = entry.Golfer; var st = standingsByGolferId.TryGetValue(g.SeasonGolferId ?? "", out var sv) ? sv : null; }
             <tr class="hover:bg-gray-50 cursor-pointer" @onclick="@(() => Navigation.NavigateTo($"/league/{LeagueKey}/season/{SeasonKey}/player/{g.Id}"))">
-                <td class="py-3 pr-4 text-sm text-gray-400">@(entry.DisplayRank > 0 ? entry.DisplayRank : null)</td>
+                <td class="py-3 px-4 text-sm text-gray-400">@(entry.DisplayRank > 0 ? entry.DisplayRank : null)</td>
                 <td class="py-3 pr-6 text-sm font-medium text-primary-700 hover:underline">
                     @g.DisplayName
                     @if (!string.IsNullOrEmpty(g.Nickname))

@@ -367,7 +367,8 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
-app.MapStaticAssets();
+app.UseBlazorFrameworkFiles();
+app.UseStaticFiles();
 
 // Add CORS (for external API clients)
 app.UseCors("WebClient");

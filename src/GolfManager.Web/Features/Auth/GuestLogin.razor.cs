@@ -1,4 +1,5 @@
 using GolfManager.Web.Features.League;
+using GolfManager.Web.Infrastructure;
 using Microsoft.AspNetCore.Components;
 
 namespace GolfManager.Web.Features.Auth;
@@ -12,6 +13,7 @@ public partial class GuestLogin : ComponentBase
     [Inject] private ILeagueService LeagueService { get; set; } = null!;
     [Inject] private NavigationManager Navigation { get; set; } = null!;
     [Inject] private ILogger<GuestLogin> Logger { get; set; } = null!;
+    [Inject] private AppState AppState { get; set; } = null!;
 
     private string? password;
     private string? errorMessage;
@@ -52,6 +54,7 @@ public partial class GuestLogin : ComponentBase
             {
                 leagueLogoUrl = response.Data.LogoUrl;
                 leagueName = response.Data.Name;
+                AppState.UpdateCurrentLeagueLogoUrl(leagueLogoUrl);
             }
         }
         catch (Exception ex)

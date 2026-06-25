@@ -20,6 +20,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="DkGolf_Backup_*.sql">
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\GolfManager.Services\GolfManager.Services.csproj" />
     <ProjectReference Include="..\GolfManager.Data\GolfManager.Data.csproj" />
     <ProjectReference Include="..\GolfManager.Shared\GolfManager.Shared.csproj" />
